@@ -275,11 +275,18 @@ export async function handleAuthRequest(request, env, deps) {
     const token = sessionTokenFromRequest(request);
     const session = await deps.readSession(env, token);
     if (!session) return authJson({ ok:false }, 401, request, { "Set-Cookie":clearSessionCookie() });
+    if (typeof deps.sessionAllowed === "function" && !(await deps.sessionAllowed(env, session))) {
+      return authJson({ ok:false, error:"not_allowed" }, 403, request, { "Set-Cookie":clearSessionCookie() });
+    }
     const headers = {};
     if (/^Bearer\s+/i.test(String(request.headers.get("authorization") || ""))) {
       headers["Set-Cookie"] = sessionCookie(await deps.makeSession(env, session.email, session.name || ""));
     }
-    return authJson({ ok:true, email:session.email, name:session.name || "" }, 200, request, headers);
+    const extra = typeof deps.sessionInfo === "function" ? await deps.sessionInfo(env, session) : null;
+    return authJson({
+      ...(extra && typeof extra === "object" ? extra : {}),
+      ok:true, email:session.email, name:session.name || ""
+    }, 200, request, headers);
   }
   if (url.pathname === "/auth/logout" && request.method === "POST") {
     if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);

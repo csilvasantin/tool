@@ -53,7 +53,14 @@
   (document.head || document.documentElement).appendChild(st);
 
   // Fontanería de sesión: espera al login y sólo envía la cookie HttpOnly al API.
+  var accessSession = null;
   var resolveReady; var sessionReady = new Promise(function (r) { resolveReady = r; });
+  // Capacidades firmadas por el backend, sólo en memoria. El email guardado para
+  // mostrar la sesión nunca decide permisos ni proyectos.
+  window.YkAccess = {
+    ready:sessionReady,
+    get:function () { return accessSession; }
+  };
   window.fetch = function (input, init) {
     var u = typeof input === "string" ? input : (input && input.url) || "";
     if (!signable(u)) return rawFetch(input, init);
@@ -123,7 +130,19 @@
   if (legacy) probeInit.headers.Authorization = "Bearer " + legacy;
   rawFetch(WORKER + "/auth/session", probeInit)
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) { if (d && d.ok) { if (d.email) try { localStorage.setItem("yk_email", d.email); } catch (e) {} reveal(); resolveReady(); } else showGate(); })
+    .then(function (d) { if (d && d.ok) {
+      if (d.email) try { localStorage.setItem("yk_email", d.email); } catch (e) {}
+      accessSession = Object.freeze({
+        email:String(d.email || ""), name:String(d.name || ""),
+        capabilities:Object.freeze({supervisor_project_switch:Boolean(d.capabilities && d.capabilities.supervisor_project_switch)}),
+        defaults:Object.freeze({
+          supervisor_project_id:String(d.defaults && d.defaults.supervisor_project_id || ""),
+          supervisor_project_label:String(d.defaults && d.defaults.supervisor_project_label || "")
+        })
+      });
+      try { window.dispatchEvent(new CustomEvent("yk:access-ready", {detail:accessSession})); } catch (e) {}
+      reveal(); resolveReady(accessSession);
+    } else showGate(); })
     .catch(showGate);
 
   // Gancho de pruebas (mismo patrón que YkDecisions._test): expone SÓLO el

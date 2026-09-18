@@ -1,7 +1,15 @@
+import { resolveSupervisorProject } from "./supervisor-access.js";
+
 export const SUPERVISOR_MODEL = "@cf/moondream/moondream3.1-9B-A2B";
 export const SUPERVISOR_CONFIRMATIONS = 2;
 export const SUPERVISOR_MIN_INTERVAL_MS = 5_000;
 export const SUPERVISOR_MIN_INCIDENT_CONFIDENCE = 0.82;
+export const SUPERVISOR_STATION_LEASE_MS = 120_000;
+export const SUPERVISOR_AI_WINDOW_MS = 60_000;
+export const SUPERVISOR_AI_USER_PROJECT_LIMIT = 12;
+export const SUPERVISOR_AI_USER_LIMIT = 20;
+export const SUPERVISOR_AI_IP_LIMIT = 30;
+export const SUPERVISOR_AI_GLOBAL_LIMIT = 120;
 
 export const SUPERVISOR_STATIONS_SQL = `CREATE TABLE IF NOT EXISTS supervisor_stations (
   id TEXT PRIMARY KEY,
@@ -60,6 +68,22 @@ export const SUPERVISOR_ALERTS_SQL = `CREATE TABLE IF NOT EXISTS supervisor_aler
   created_at INTEGER NOT NULL
 )`;
 
+export const SUPERVISOR_STATION_LEASES_SQL = `CREATE TABLE IF NOT EXISTS supervisor_station_leases (
+  station_id TEXT PRIMARY KEY,
+  lease_id TEXT NOT NULL,
+  observation_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+)`;
+
+export const SUPERVISOR_AI_USAGE_SQL = `CREATE TABLE IF NOT EXISTS supervisor_ai_usage (
+  window_start INTEGER NOT NULL,
+  scope TEXT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY(window_start,scope)
+)`;
+
 const CRITICAL_STATES = new Set(["off", "black", "no_signal", "error"]);
 const ACTIVE_STATES = new Set(["playing", "on", "content"]);
 
@@ -84,12 +108,6 @@ export function normalizeStationId(value) {
 export function normalizeObservationId(value) {
   const id = String(value || "").trim();
   if (!/^[a-zA-Z0-9_-]{8,80}$/.test(id)) throw new Error("observation_id_required");
-  return id;
-}
-
-function normalizeProjectId(value) {
-  const id = String(value || "").trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9_-]{0,119}$/.test(id)) throw new Error("project_id_required");
   return id;
 }
 
@@ -196,7 +214,7 @@ export function nextSupervisorState(previous, observation, now = Date.now()) {
   const failures = observation.status === "critical" ? Math.min(20, before + 1) : 0;
   const confirmed = observation.status === "critical" && failures >= SUPERVISOR_CONFIRMATIONS;
   const alert = confirmed && before < SUPERVISOR_CONFIRMATIONS;
-  const recovered = observation.status === "healthy" && prior.status === "critical" && !!prior.open_ticket_id;
+  const recovered = observation.status === "healthy" && prior.status !== "healthy" && !!prior.open_ticket_id;
   return {
     ...observation,
     consecutiveFailures:failures,
@@ -229,33 +247,54 @@ async function readStation(env, stationId) {
   return env.DB.prepare("SELECT * FROM supervisor_stations WHERE id=?").bind(stationId).first();
 }
 
-async function saveStation(env, station, next, actor) {
-  await env.DB.prepare(`INSERT INTO supervisor_stations(
+async function readActiveProject(env, projectId) {
+  const row = await env.DB.prepare("SELECT id,name,status FROM projects WHERE id=?").bind(projectId).first();
+  if (!row || String(row.status || "activo").toLowerCase() === "archivado") return null;
+  return {id:String(row.id), name:String(row.name || row.id)};
+}
+
+function stationRecord(station, next, actor) {
+  return {
+    id:station.id, project_id:station.projectId, label:station.label, location:station.location,
+    canonical_screen:station.canonicalScreen, expected_screens:station.expectedScreens,
+    status:next.status, issue_code:next.issueCode, confidence:next.confidence, summary:next.summary,
+    visible_screens:next.visibleScreens, active_screens:next.activeScreens,
+    consecutive_failures:next.consecutiveFailures, open_ticket_id:next.openTicketId,
+    last_seen_at:next.lastSeenAt, last_alert_at:next.lastAlertAt, updated_by:actor
+  };
+}
+
+function saveStationStatement(env, row, observationId, reservationToken, stationId, leaseId, validAt) {
+  return env.DB.prepare(`INSERT INTO supervisor_stations(
     id,project_id,label,location,canonical_screen,expected_screens,status,issue_code,confidence,summary,visible_screens,active_screens,
     consecutive_failures,open_ticket_id,last_seen_at,last_alert_at,updated_by
-  ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+  ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (
+    SELECT 1 FROM supervisor_requests WHERE id=? AND status='processing' AND response_json=?
+  ) AND EXISTS (
+    SELECT 1 FROM supervisor_station_leases WHERE station_id=? AND lease_id=? AND expires_at>?
+  ) ON CONFLICT(id) DO UPDATE SET
     project_id=excluded.project_id,label=excluded.label,location=excluded.location,canonical_screen=excluded.canonical_screen,expected_screens=excluded.expected_screens,
     status=excluded.status,issue_code=excluded.issue_code,confidence=excluded.confidence,summary=excluded.summary,
     visible_screens=excluded.visible_screens,active_screens=excluded.active_screens,
     consecutive_failures=excluded.consecutive_failures,open_ticket_id=excluded.open_ticket_id,
     last_seen_at=excluded.last_seen_at,last_alert_at=excluded.last_alert_at,updated_by=excluded.updated_by`)
-    .bind(station.id, station.projectId, station.label, station.location, station.canonicalScreen, station.expectedScreens,
-      next.status, next.issueCode, next.confidence, next.summary, next.visibleScreens, next.activeScreens,
-      next.consecutiveFailures, next.openTicketId, next.lastSeenAt, next.lastAlertAt, actor).run();
+    .bind(row.id, row.project_id, row.label, row.location, row.canonical_screen, row.expected_screens,
+      row.status, row.issue_code, row.confidence, row.summary, row.visible_screens, row.active_screens,
+      row.consecutive_failures, row.open_ticket_id, row.last_seen_at, row.last_alert_at, row.updated_by,
+      observationId, reservationToken, stationId, leaseId, validAt);
 }
 
-async function saveObservation(env, observationId, stationId, observation, ticketId, capturedAt, now) {
-  await env.DB.prepare(`INSERT INTO supervisor_observations(
+function saveObservationStatement(env, observationId, stationId, observation, ticketId, capturedAt, now, reservationToken, leaseId, validAt) {
+  return env.DB.prepare(`INSERT INTO supervisor_observations(
     id,station_id,captured_at,observed_at,status,issue_code,confidence,visible_screens,active_screens,summary,luminance,dark_ratio,ticket_id
-  ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(observationId, stationId, capturedAt, now, observation.status, observation.issueCode,
+  ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (
+    SELECT 1 FROM supervisor_requests WHERE id=? AND status='processing' AND response_json=?
+  ) AND EXISTS (
+    SELECT 1 FROM supervisor_station_leases WHERE station_id=? AND lease_id=? AND expires_at>?
+  )`).bind(observationId, stationId, capturedAt, now, observation.status, observation.issueCode,
     observation.confidence, observation.visibleScreens, observation.activeScreens, observation.summary,
-    observation.luminance, observation.darkRatio, ticketId).run();
-  // Retención corta: estado e incidencias son durables; los sondeos rutinarios no
-  // deben hacer crecer D1 para siempre.
-  await env.DB.prepare(`DELETE FROM supervisor_observations WHERE station_id=? AND id NOT IN (
-    SELECT id FROM supervisor_observations WHERE station_id=? ORDER BY observed_at DESC LIMIT 120
-  )`).bind(stationId, stationId).run();
-  return observationId;
+    observation.luminance, observation.darkRatio, ticketId, observationId, reservationToken,
+    stationId, leaseId, validAt);
 }
 
 function publicStation(row) {
@@ -278,17 +317,104 @@ export async function claimSupervisorAlert(env, stationId, ticketId, issueCode, 
   return {claimed:Boolean(Number(result && result.meta && result.meta.changes)), onceKey};
 }
 
+async function recoverableSupervisorAlert(env, stationId, onceKey) {
+  const alert = await env.DB.prepare("SELECT station_id FROM supervisor_alerts WHERE once_key=?")
+    .bind(onceKey).first();
+  if (!alert || String(alert.station_id || "") !== stationId) return false;
+  // Un alert insertado antes de un batch fallido sigue pendiente. En cambio, si
+  // alguna respuesta idempotente ya contiene el once_key, la voz se entregó y no
+  // se vuelve a reclamar.
+  const delivered = await env.DB.prepare(`SELECT id FROM supervisor_requests
+    WHERE status='done' AND json_extract(response_json,'$.speech.once_key')=? LIMIT 1`)
+    .bind(onceKey).first();
+  return !delivered;
+}
+
+async function claimStationLease(env, stationId, observationId, now = Date.now()) {
+  const leaseId = crypto.randomUUID();
+  const result = await env.DB.prepare(`INSERT INTO supervisor_station_leases(station_id,lease_id,observation_id,expires_at,updated_at)
+    VALUES(?,?,?,?,?) ON CONFLICT(station_id) DO UPDATE SET
+    lease_id=excluded.lease_id,observation_id=excluded.observation_id,expires_at=excluded.expires_at,updated_at=excluded.updated_at
+    WHERE supervisor_station_leases.expires_at<=?`)
+    .bind(stationId, leaseId, observationId, now + SUPERVISOR_STATION_LEASE_MS, now, now).run();
+  return {claimed:Boolean(Number(result && result.meta && result.meta.changes)), leaseId};
+}
+
+function releaseStationLease(env, stationId, leaseId) {
+  return env.DB.prepare("DELETE FROM supervisor_station_leases WHERE station_id=? AND lease_id=?")
+    .bind(stationId, leaseId).run();
+}
+
+async function renewStationLease(env, stationId, leaseId, now = Date.now()) {
+  const result = await env.DB.prepare(`UPDATE supervisor_station_leases SET expires_at=?,updated_at=?
+    WHERE station_id=? AND lease_id=? AND expires_at>?`)
+    .bind(now + SUPERVISOR_STATION_LEASE_MS, now, stationId, leaseId, now).run();
+  return Boolean(Number(result && result.meta && result.meta.changes));
+}
+
+async function renewRequestReservation(env, observationId, reservationToken, now = Date.now()) {
+  const result = await env.DB.prepare(`UPDATE supervisor_requests SET updated_at=?
+    WHERE id=? AND status='processing' AND response_json=?`)
+    .bind(now, observationId, reservationToken).run();
+  return Boolean(Number(result && result.meta && result.meta.changes));
+}
+
+async function consumeSupervisorAiQuota(env, windowStart, scope, limit, now) {
+  const result = await env.DB.prepare(`INSERT INTO supervisor_ai_usage(window_start,scope,used,updated_at)
+    VALUES(?,?,1,?) ON CONFLICT(window_start,scope) DO UPDATE SET
+    used=supervisor_ai_usage.used+1,updated_at=excluded.updated_at
+    WHERE supervisor_ai_usage.used<?`)
+    .bind(windowStart, scope, now, limit).run();
+  return Boolean(Number(result && result.meta && result.meta.changes));
+}
+
+async function claimSupervisorAiQuota(env, req, deps, projectId, now = Date.now()) {
+  const actor = text(deps.session && deps.session.email, 120).toLowerCase();
+  if (!actor) return {ok:false, retryAfterMs:SUPERVISOR_AI_WINDOW_MS};
+  const ip = text(req.headers.get("CF-Connecting-IP"), 64);
+  const windowStart = Math.floor(now / SUPERVISOR_AI_WINDOW_MS) * SUPERVISOR_AI_WINDOW_MS;
+  const rules = [
+    [`user-project:${encodeURIComponent(actor)}:${projectId}`, SUPERVISOR_AI_USER_PROJECT_LIMIT],
+    [`user:${encodeURIComponent(actor)}`, SUPERVISOR_AI_USER_LIMIT],
+    ...(ip ? [[`ip:${encodeURIComponent(ip)}`, SUPERVISOR_AI_IP_LIMIT]] : []),
+    ["global", SUPERVISOR_AI_GLOBAL_LIMIT]
+  ];
+  for (const [scope, limit] of rules) {
+    if (!(await consumeSupervisorAiQuota(env, windowStart, scope, limit, now))) {
+      return {ok:false, retryAfterMs:Math.max(1, windowStart + SUPERVISOR_AI_WINDOW_MS - now)};
+    }
+  }
+  // Dos horas bastan para diagnóstico y mantienen acotada la tabla. La clave
+  // empieza por window_start, así que la purga no necesita recorrer por scope.
+  await env.DB.prepare("DELETE FROM supervisor_ai_usage WHERE window_start<?")
+    .bind(windowStart - 2 * 60 * SUPERVISOR_AI_WINDOW_MS).run();
+  return {ok:true, retryAfterMs:0};
+}
+
 export async function handleSupervisorRequest(req, env, url, deps) {
   const json = deps.json;
   await deps.ensureSchema(env);
 
   if (url.pathname === "/supervisor/state" && req.method === "GET") {
+    const grant = resolveSupervisorProject(deps.access, url.searchParams.get("project_id"));
+    if (!grant.ok) return json({ok:false,error:grant.error}, grant.status);
+    const project = await readActiveProject(env, grant.projectId);
+    if (!project) return json({ok:false,error:"invalid_project_id"}, 404);
     let stationId;
     try { stationId = normalizeStationId(url.searchParams.get("station")); }
     catch (error) { return json({ok:false,error:error.message}, 400); }
     const station = await readStation(env, stationId);
+    if (station && station.project_id !== project.id) {
+      const canChangeProject = deps.access && deps.access.canChangeProject === true;
+      const status = canChangeProject ? 409 : 403;
+      return json({
+        ok:false,
+        error:canChangeProject ? "station_project_conflict" : "station_project_forbidden",
+        ...(canChangeProject ? {project_id:station.project_id} : {})
+      }, status);
+    }
     const rows = (await env.DB.prepare("SELECT id,captured_at,observed_at,status,issue_code,confidence,visible_screens,active_screens,summary,luminance,dark_ratio,ticket_id FROM supervisor_observations WHERE station_id=? ORDER BY observed_at DESC LIMIT 24").bind(stationId).all()).results || [];
-    return json({ok:true,station:publicStation(station),observations:rows});
+    return json({ok:true,project,station:publicStation(station),observations:rows});
   }
 
   if (url.pathname !== "/supervisor/analyze") return json({ok:false,error:"not_found"}, 404);
@@ -297,17 +423,21 @@ export async function handleSupervisorRequest(req, env, url, deps) {
   let body;
   try { body = await req.json(); }
   catch (_) { return json({ok:false,error:"bad_json"}, 400); }
-  let stationId, observationId, projectId, image;
+  let stationId, observationId, image;
   try {
     stationId = normalizeStationId(body.station_id || body.stationId);
     observationId = normalizeObservationId(body.observation_id || body.observationId);
-    projectId = normalizeProjectId(body.project_id || body.projectId);
-    image = validateImageDataUri(body.image);
   }
   catch (error) {
-    const status = error.message === "image_too_large" ? 413 : 400;
-    return json({ok:false,error:error.message}, status);
+    return json({ok:false,error:error.message}, 400);
   }
+  const grant = resolveSupervisorProject(deps.access, body.project_id || body.projectId);
+  if (!grant.ok) return json({ok:false,error:grant.error}, grant.status);
+  const project = await readActiveProject(env, grant.projectId);
+  if (!project) return json({ok:false,error:"invalid_project_id"}, 404);
+  const projectId = project.id;
+  try { image = validateImageDataUri(body.image); }
+  catch (error) { return json({ok:false,error:error.message}, error.message === "image_too_large" ? 413 : 400); }
   const capturedAt = Number(body.captured_at ?? body.capturedAt);
   if (!Number.isFinite(capturedAt) || capturedAt <= 0) return json({ok:false,error:"captured_at_required"}, 400);
   if (Math.abs(Date.now() - capturedAt) > 10 * 60_000) return json({ok:false,error:"captured_at_out_of_range"}, 400);
@@ -324,19 +454,28 @@ export async function handleSupervisorRequest(req, env, url, deps) {
     expectedScreens:Math.min(8, Math.max(1, Number(body.expected_screens || body.expectedScreens) || 1))
   };
   const now = Date.now();
-  const reserved = await env.DB.prepare("INSERT OR IGNORE INTO supervisor_requests(id,station_id,captured_at,status,response_json,created_at,updated_at) VALUES(?,?,?,'processing',NULL,?,?)")
-    .bind(observationId, stationId, capturedAt, now, now).run();
+  const reservationToken = `processing:${crypto.randomUUID()}`;
+  const reserved = await env.DB.prepare("INSERT OR IGNORE INTO supervisor_requests(id,station_id,captured_at,status,response_json,created_at,updated_at) VALUES(?,?,?,'processing',?,?,?)")
+    .bind(observationId, stationId, capturedAt, reservationToken, now, now).run();
   if (!Number(reserved && reserved.meta && reserved.meta.changes)) {
-    const existing = await env.DB.prepare("SELECT status,response_json,updated_at FROM supervisor_requests WHERE id=?").bind(observationId).first();
+    const existing = await env.DB.prepare("SELECT station_id,status,response_json,updated_at FROM supervisor_requests WHERE id=?").bind(observationId).first();
+    if (existing && String(existing.station_id || "") !== stationId) {
+      return json({ok:false,error:"observation_conflict"}, 409);
+    }
     if (existing && existing.status === "done" && existing.response_json) {
-      const replay = JSON.parse(existing.response_json);
+      let replay;
+      try { replay = JSON.parse(existing.response_json); }
+      catch (_) { return json({ok:false,error:"observation_conflict"}, 409); }
+      if (String(replay && replay.station && replay.station.project_id || "") !== projectId) {
+        return json({ok:false,error:"observation_conflict"}, 409);
+      }
       return json({...replay,reused:true,transition:"reused",alert:false,voice:null,speech:null});
     }
     // Si un isolate murió durante la inferencia, el mismo observation_id puede
     // rescatarse al cabo de dos minutos. El CAS evita que dos reintentos lo hagan.
     if (existing && existing.status === "processing" && now - Number(existing.updated_at || 0) > 120_000) {
-      const reclaimed = await env.DB.prepare("UPDATE supervisor_requests SET captured_at=?,created_at=?,updated_at=? WHERE id=? AND status='processing' AND updated_at=?")
-        .bind(capturedAt, now, now, observationId, Number(existing.updated_at || 0)).run();
+      const reclaimed = await env.DB.prepare("UPDATE supervisor_requests SET captured_at=?,created_at=?,updated_at=?,response_json=? WHERE id=? AND status='processing' AND updated_at=?")
+        .bind(capturedAt, now, now, reservationToken, observationId, Number(existing.updated_at || 0)).run();
       if (!Number(reclaimed && reclaimed.meta && reclaimed.meta.changes)) {
         return json({ok:false,error:"observation_in_progress"}, 409);
       }
@@ -344,73 +483,130 @@ export async function handleSupervisorRequest(req, env, url, deps) {
       return json({ok:false,error:"observation_in_progress"}, 409);
     }
   }
-  const releaseReservation = () => env.DB.prepare("DELETE FROM supervisor_requests WHERE id=? AND status='processing'").bind(observationId).run();
-  const previous = await readStation(env, stationId);
-  if (previous && previous.project_id && previous.project_id !== station.projectId) {
-    await releaseReservation();
-    return json({ok:false,error:"station_project_conflict",project_id:previous.project_id}, 409);
-  }
-  if (previous && now - Number(previous.last_seen_at || 0) < SUPERVISOR_MIN_INTERVAL_MS) {
-    await releaseReservation();
-    return json({ok:false,error:"scan_too_frequent",retry_after_ms:SUPERVISOR_MIN_INTERVAL_MS - (now - Number(previous.last_seen_at || 0))}, 429);
-  }
-
-  let vision;
-  try {
-    const result = await env.AI.run(SUPERVISOR_MODEL, {
-      task:"query", image, question:visionPrompt(station.expectedScreens), reasoning:false,
-      temperature:0.1, top_p:0.8, max_tokens:700, stream:false
-    });
-    vision = parseVisionAnswer(result);
-  } catch (error) {
-    await releaseReservation();
-    return json({ok:false,error:"vision_unavailable",detail:text(error && error.message, 140)}, 502);
-  }
-
-  const observation = deriveObservation(vision, station.expectedScreens, rawMetrics);
-  const next = nextSupervisorState(previous, observation, now);
-  let ticketId = next.openTicketId, transition = "observed", speechOnceKey = "";
-  const resource = station.canonicalScreen || `supervisor:${station.projectId}:${stationId}`;
-  if (next.alert) {
-    const [subject, voice] = issueCopy(next.issueCode, station.label);
-    ticketId = await deps.createIncident(env, {
-      resource, kind:"screen", source:"supervisor-vision", severity:"urgente",
-      project_id:station.projectId, subject, loc:station.location,
-      detail:`${next.summary} · visibles ${next.visibleScreens}/${station.expectedScreens} · activas ${next.activeScreens}/${station.expectedScreens} · confianza ${Math.round(next.confidence * 100)}%.`,
-      by:"Agente Supervisor"
-    });
-    next.openTicketId = ticketId;
-    const claimed = await claimSupervisorAlert(env, stationId, ticketId, next.issueCode, now);
-    if (claimed.claimed) {
-      transition = "incident_confirmed";
-      speechOnceKey = claimed.onceKey;
-      next.voice = voice;
-    } else {
-      transition = "incident_reused";
-      next.alert = false;
-    }
-  } else if (next.recovered && ticketId) {
-    await deps.resolveIncident(env, resource, "Agente Supervisor", `La visión vuelve a detectar ${next.activeScreens}/${station.expectedScreens} pantallas activas. Pendiente de verificación humana.`);
-    transition = "recovery_detected";
-  }
-
-  await saveStation(env, station, next, text(deps.session && deps.session.email, 120) || "supervisor");
-  await saveObservation(env, observationId, stationId, next, ticketId, capturedAt, now);
-  const payload = {
-    ok:true, transition, alert:next.alert, voice:next.voice || null,
-    speech:next.alert && ticketId && next.voice ? {once_key:speechOnceKey,text:next.voice,lang:"es-ES"} : null,
-    station:publicStation(await readStation(env, stationId)), screens:next.screens,
-    ticket:ticketId ? {id:ticketId,url:`https://www.yokup.com/ticket?id=${encodeURIComponent(ticketId)}`} : null,
-    observation_id:observationId, model:SUPERVISOR_MODEL
-  };
-  try {
-    await env.DB.prepare("UPDATE supervisor_requests SET status='done',response_json=?,updated_at=? WHERE id=? AND status='processing'")
-      .bind(JSON.stringify(payload), Date.now(), observationId).run();
-    await env.DB.prepare("DELETE FROM supervisor_requests WHERE status='done' AND updated_at<?")
-      .bind(Date.now() - 7 * 24 * 60 * 60_000).run();
-  } catch (error) {
+  const releaseReservation = () => env.DB.prepare("DELETE FROM supervisor_requests WHERE id=? AND status='processing' AND response_json=?")
+    .bind(observationId, reservationToken).run();
+  let lease;
+  try { lease = await claimStationLease(env, stationId, observationId, now); }
+  catch (error) {
     await releaseReservation();
     throw error;
   }
-  return json(payload);
+  if (!lease.claimed) {
+    await releaseReservation();
+    return json({ok:false,error:"station_busy"}, 409);
+  }
+  let requestCompleted = false;
+  try {
+    const previous = await readStation(env, stationId);
+    if (previous && previous.project_id && previous.project_id !== station.projectId) {
+      const canChangeProject = deps.access && deps.access.canChangeProject === true;
+      return json({
+        ok:false,
+        error:"station_project_conflict",
+        ...(canChangeProject ? {project_id:previous.project_id} : {})
+      }, 409);
+    }
+    if (previous && now - Number(previous.last_seen_at || 0) < SUPERVISOR_MIN_INTERVAL_MS) {
+      return json({ok:false,error:"scan_too_frequent",retry_after_ms:SUPERVISOR_MIN_INTERVAL_MS - (now - Number(previous.last_seen_at || 0))}, 429);
+    }
+
+    const quota = await claimSupervisorAiQuota(env, req, deps, projectId, now);
+    if (!quota.ok) {
+      return json({ok:false,error:"supervisor_rate_limited",retry_after_ms:quota.retryAfterMs}, 429);
+    }
+
+    let vision;
+    try {
+      const result = await env.AI.run(SUPERVISOR_MODEL, {
+        task:"query", image, question:visionPrompt(station.expectedScreens), reasoning:false,
+        temperature:0.1, top_p:0.8, max_tokens:700, stream:false
+      });
+      vision = parseVisionAnswer(result);
+    } catch (error) {
+      return json({ok:false,error:"vision_unavailable",detail:text(error && error.message, 140)}, 502);
+    }
+    // Workers AI es la parte lenta. Antes de producir efectos durables se renuevan
+    // ambos propietarios; un sucesor no puede recuperar la reserva y dejar al
+    // request anterior escribiendo sobre su resultado.
+    const renewedAt = Date.now();
+    if (!(await renewStationLease(env, stationId, lease.leaseId, renewedAt))) {
+      return json({ok:false,error:"station_busy"}, 409);
+    }
+    if (!(await renewRequestReservation(env, observationId, reservationToken, renewedAt))) {
+      return json({ok:false,error:"observation_conflict"}, 409);
+    }
+
+    const observation = deriveObservation(vision, station.expectedScreens, rawMetrics);
+    const next = nextSupervisorState(previous, observation, now);
+    let ticketId = next.openTicketId, transition = "observed", speechOnceKey = "";
+    const resource = text(`supervisor:${station.projectId}:${station.canonicalScreen || stationId}`, 160);
+    if (next.alert) {
+      const [subject, voice] = issueCopy(next.issueCode, station.label);
+      ticketId = await deps.createIncident(env, {
+        resource, kind:"screen", source:"supervisor-vision", severity:"urgente",
+        project_id:station.projectId, subject, loc:station.location,
+        detail:`${next.summary} · visibles ${next.visibleScreens}/${station.expectedScreens} · activas ${next.activeScreens}/${station.expectedScreens} · confianza ${Math.round(next.confidence * 100)}%.`,
+        by:"Agente Supervisor"
+      });
+      next.openTicketId = ticketId;
+      const claimed = await claimSupervisorAlert(env, stationId, ticketId, next.issueCode, now);
+      if (claimed.claimed || await recoverableSupervisorAlert(env, stationId, claimed.onceKey)) {
+        transition = "incident_confirmed";
+        speechOnceKey = claimed.onceKey;
+        next.voice = voice;
+      } else {
+        transition = "incident_reused";
+        next.alert = false;
+      }
+    } else if (next.recovered && ticketId) {
+      await deps.resolveIncident(env, resource, "Agente Supervisor", `La visión vuelve a detectar ${next.activeScreens}/${station.expectedScreens} pantallas activas. Pendiente de verificación humana.`);
+      transition = "recovery_detected";
+    }
+
+    const row = stationRecord(station, next, text(deps.session && deps.session.email, 120) || "supervisor");
+    const payload = {
+      ok:true, transition, alert:next.alert, voice:next.voice || null,
+      speech:next.alert && ticketId && next.voice ? {once_key:speechOnceKey,text:next.voice,lang:"es-ES"} : null,
+      station:publicStation(row), screens:next.screens,
+      ticket:ticketId ? {id:ticketId,url:`https://www.yokup.com/ticket?id=${encodeURIComponent(ticketId)}`} : null,
+      observation_id:observationId, model:SUPERVISOR_MODEL
+    };
+    // La persistencia factual y el resultado idempotente forman una sola transacción
+    // D1. Si el isolate cae, nunca queda una observación aplicada sin replay.
+    const commitAt = Date.now();
+    if (!(await renewStationLease(env, stationId, lease.leaseId, commitAt))) {
+      return json({ok:false,error:"station_busy"}, 409);
+    }
+    if (!(await renewRequestReservation(env, observationId, reservationToken, commitAt))) {
+      return json({ok:false,error:"observation_conflict"}, 409);
+    }
+    const statements = [
+      saveStationStatement(env, row, observationId, reservationToken, stationId, lease.leaseId, commitAt),
+      saveObservationStatement(env, observationId, stationId, next, ticketId, capturedAt, now, reservationToken, lease.leaseId, commitAt),
+      env.DB.prepare(`UPDATE supervisor_requests SET status='done',response_json=?,updated_at=?
+        WHERE id=? AND status='processing' AND response_json=? AND EXISTS (
+          SELECT 1 FROM supervisor_station_leases WHERE station_id=? AND lease_id=? AND expires_at>?
+        )`).bind(JSON.stringify(payload), commitAt, observationId, reservationToken, stationId, lease.leaseId, commitAt)
+    ];
+    const committed = await env.DB.batch(statements);
+    const finalized = committed && committed[2];
+    if (!Number(finalized && finalized.meta && finalized.meta.changes)) {
+      return json({ok:false,error:"observation_conflict"}, 409);
+    }
+    requestCompleted = true;
+    // Retención corta: estado e incidencias son durables; los sondeos rutinarios y
+    // respuestas idempotentes antiguas no deben hacer crecer D1 para siempre.
+    await Promise.allSettled([
+      env.DB.prepare(`DELETE FROM supervisor_observations WHERE station_id=? AND id NOT IN (
+        SELECT id FROM supervisor_observations WHERE station_id=? ORDER BY observed_at DESC LIMIT 120
+      )`).bind(stationId, stationId).run(),
+      env.DB.prepare("DELETE FROM supervisor_requests WHERE status='done' AND updated_at<?")
+        .bind(Date.now() - 7 * 24 * 60 * 60_000).run()
+    ]);
+    return json(payload);
+  } finally {
+    const cleanup = [releaseStationLease(env, stationId, lease.leaseId)];
+    if (!requestCompleted) cleanup.push(releaseReservation());
+    await Promise.allSettled(cleanup);
+  }
 }

@@ -233,6 +233,51 @@ test("origin, preflight y logout fallan cerrados", async () => {
   assert.equal(revoked.revoked, "session-for-owner");
 });
 
+test("auth/session publica la política de Supervisor calculada por backend y no acepta identidad inyectada", async () => {
+  const env = { DB:new FakeDB() };
+  const policyDeps = deps();
+  let sessionSeen = null;
+  policyDeps.sessionInfo = async (_environment, session) => {
+    sessionSeen = session;
+    return {
+      ok:false,
+      email:"attacker@example.com",
+      name:"Nombre inyectado",
+      capabilities:{supervisor_project_switch:false},
+      defaults:{supervisor_project_id:"admira-tv",supervisor_project_label:"admira.tv"}
+    };
+  };
+  const response = await handleAuthRequest(request("/auth/session?role=superuser&project_id=xpaceos", {
+    headers:{authorization:"Bearer session-for-allowed", "x-superuser":"true"}
+  }), env, policyDeps);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(sessionSeen, {email:"allowed@example.com",name:"Allowed"});
+  assert.deepEqual(await response.json(), {
+    ok:true,
+    email:"allowed@example.com",
+    name:"Allowed",
+    capabilities:{supervisor_project_switch:false},
+    defaults:{supervisor_project_id:"admira-tv",supervisor_project_label:"admira.tv"}
+  });
+});
+
+test("auth/session revalida la whitelist y expulsa una sesión cuyo usuario fue revocado", async () => {
+  const env = { DB:new FakeDB() };
+  const policyDeps = deps();
+  let infoCalls = 0;
+  policyDeps.sessionAllowed = async (_environment, session) => session.email !== "allowed@example.com";
+  policyDeps.sessionInfo = async () => { infoCalls += 1; return {}; };
+  const response = await handleAuthRequest(request("/auth/session", {
+    headers:{authorization:"Bearer session-for-allowed"}
+  }), env, policyDeps);
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), {ok:false,error:"not_allowed"});
+  assert.match(response.headers.get("set-cookie") || "", /Max-Age=0/);
+  assert.equal(infoCalls, 0, "no publica capacidades después de revocar el acceso");
+});
+
 test("cookie __Host- y CORS no conceden credenciales a orígenes ajenos", () => {
   assert.match(sessionCookie("abc"), /^__Host-yk_session=abc; Path=\/;/); assert.match(sessionCookie("abc"), /HttpOnly; Secure; SameSite=None/);
   const evil = new Request("https://api.yokup.com/x", {headers:{origin:"https://evil.example"}});

@@ -58,8 +58,19 @@ export function voiceEventKey(result) {
   return String(speech && speech.once_key || [result.ticket.id, result.observation_id || "alert", text].join(":"));
 }
 
+export function analysisScopeMatches(scope, current) {
+  return Boolean(scope && current
+    && scope.sequence === current.sequence
+    && scope.projectId === current.projectId
+    && scope.stationId === current.stationId);
+}
+
 function boot() {
   const byId = (id) => document.getElementById(id);
+  const defaultProjectId = String(document.body && document.body.dataset.ykProjectDefault || "admira-tv").trim();
+  const defaultProjectLabel = String(document.body && document.body.dataset.ykProjectDefaultLabel || "admira.tv").trim();
+  const canChangeProject = () => Boolean(window.YkAccess && window.YkAccess.get && window.YkAccess.get()
+    && window.YkAccess.get().capabilities && window.YkAccess.get().capabilities.supervisor_project_switch === true);
   const dom = {
     projectBadge:byId("projectBadge"), projectName:byId("projectName"), stationHeading:byId("stationHeading"),
     liveState:byId("liveState"), stage:byId("stage"), camera:byId("camera"), frame:byId("frameCanvas"),
@@ -77,9 +88,9 @@ function boot() {
   if (!dom.stage || !dom.camera) return;
 
   const state = {
-    projectId:null, projectName:"", monitoring:false, hiddenPaused:false, analyzing:false,
-    stream:null, timer:0, abort:null, lockTask:null, releaseLock:null, conflict:false,
-    mediaWidth:16, mediaHeight:9, lastScreens:[], lastStation:null, lastMetrics:null, nextDelay:ANALYSIS_INTERVAL_MS
+    projectId:defaultProjectId, projectName:defaultProjectLabel, monitoring:false, hiddenPaused:false, analyzing:false,
+    stream:null, timer:0, abort:null, analysisSeq:0, refreshAbort:null, refreshSeq:0, lockTask:null, releaseLock:null, conflict:false,
+    mediaWidth:16, mediaHeight:9, lastScreens:[], lastStation:null, lastMetrics:null, pendingSpeech:null, nextDelay:ANALYSIS_INTERVAL_MS
   };
 
   function message(text, tone = "") {
@@ -111,21 +122,33 @@ function boot() {
     dom.upload.disabled = state.monitoring || !hasProject || state.analyzing || state.conflict;
     dom.uploadLabel.classList.toggle("disabled", dom.upload.disabled);
     dom.uploadLabel.setAttribute("aria-disabled", String(dom.upload.disabled));
-    [dom.stationId, dom.stationLabel, dom.stationLocation, dom.expected, dom.canonical].forEach((input) => { input.disabled = state.monitoring; });
+    [dom.stationId, dom.stationLabel, dom.stationLocation, dom.expected, dom.canonical].forEach((input) => {
+      input.disabled = state.monitoring || state.analyzing;
+    });
+  }
+
+  function invalidateAnalysis(reason = "") {
+    if (!state.analyzing) return false;
+    state.analysisSeq += 1;
+    if (state.abort) state.abort.abort();
+    if (reason) message(reason);
+    return true;
   }
 
   function applyProject(projectId, project) {
-    const next = String(projectId || "").trim() || null;
-    if (state.monitoring && state.projectId !== next) stopMonitoring("El proyecto ha cambiado. Reinicia el supervisor para usar el nuevo alcance.");
+    const requested = String(projectId || "").trim() || defaultProjectId;
+    const next = canChangeProject() ? requested : defaultProjectId;
+    const changed = state.projectId !== next;
+    if (state.monitoring && changed) stopMonitoring("El proyecto ha cambiado. Reinicia el supervisor para usar el nuevo alcance.");
+    else if (changed) invalidateAnalysis("El proyecto ha cambiado. La lectura anterior se ha descartado.");
     state.projectId = next;
-    state.projectName = project && (project.name || project.id) || next || "";
+    state.projectName = next === defaultProjectId ? defaultProjectLabel : project && (project.name || project.id) || next || "";
     dom.projectBadge.classList.toggle("missing", !next);
-    dom.projectName.textContent = next ? (state.projectName || next) : "Selecciona un proyecto";
-    dom.projectBadge.title = next ? `project_id: ${next}` : "El supervisor no analiza sin un proyecto explícito";
+    dom.projectName.textContent = state.projectName || next;
+    dom.projectBadge.title = canChangeProject() ? `project_id: ${next} · cambio habilitado para superusuario` : `project_id: ${next} · proyecto fijo`;
     state.conflict = false;
     updateButtons();
-    if (!next) message("Selecciona el proyecto en la barra superior antes de iniciar.", "error");
-    else refreshState({quiet:true});
+    refreshState({quiet:true});
   }
 
   function readPreferences() {
@@ -391,11 +414,28 @@ function boot() {
 
   async function refreshState({quiet = false} = {}) {
     const config = readConfig(false);
-    if (!config.station_id) return null;
+    if (!config.station_id || !state.projectId) return null;
+    const stationId = config.station_id, projectId = state.projectId, sequence = ++state.refreshSeq;
+    if (state.refreshAbort) state.refreshAbort.abort();
+    const controller = new AbortController();
+    state.refreshAbort = controller;
+    const isCurrent = () => sequence === state.refreshSeq && projectId === state.projectId
+      && stationId === readConfig(false).station_id;
     try {
-      const response = await fetch(`${API}/supervisor/state?station=${encodeURIComponent(config.station_id)}`, {cache:"no-store"});
+      const params = new URLSearchParams({station:stationId, project_id:projectId});
+      const response = await fetch(`${API}/supervisor/state?${params}`, {cache:"no-store", signal:controller.signal});
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error(result.error || `HTTP ${response.status}`);
+      if (!isCurrent()) return null;
+      if (!response.ok || result.ok === false) {
+        if (["station_project_conflict", "station_project_forbidden"].includes(result.error)) {
+          state.conflict = true;
+          const owner = result.project_id ? ` al proyecto ${result.project_id}` : " a otro proyecto";
+          message(`El ID ${stationId} ya pertenece${owner}. Usa otro ID para no mezclar puestos.`, "error");
+          updateButtons();
+          return result;
+        }
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
       const station = result.station || null;
       state.conflict = Boolean(station && state.projectId && station.project_id && station.project_id !== state.projectId);
       if (state.conflict) {
@@ -409,27 +449,43 @@ function boot() {
       updateButtons();
       return result;
     } catch (error) {
-      if (!quiet) message(`No se pudo leer el estado: ${error.message}`, "error");
+      if (error.name !== "AbortError" && isCurrent() && !quiet) message(`No se pudo leer el estado: ${error.message}`, "error");
       return null;
+    } finally {
+      if (state.refreshAbort === controller) state.refreshAbort = null;
     }
   }
 
-  function speakAlert(result) {
-    const key = voiceEventKey(result);
-    if (!key || !dom.voice.checked || !("speechSynthesis" in window) || document.hidden) return;
-    const storageKey = `yokup.supervisor.spoken:${key}`;
-    try { if (sessionStorage.getItem(storageKey)) return; } catch (_) {}
-    const text = result.speech && result.speech.text || result.voice;
-    const utterance = new SpeechSynthesisUtterance(String(text));
-    utterance.lang = result.speech && result.speech.lang || "es-ES";
+  function speakPendingAlert() {
+    const pending = state.pendingSpeech;
+    if (!pending || !dom.voice.checked || !("speechSynthesis" in window) || document.hidden) return false;
+    const storageKey = `yokup.supervisor.spoken:${pending.key}`;
+    try {
+      if (sessionStorage.getItem(storageKey)) { state.pendingSpeech = null; return false; }
+    } catch (_) {}
+    const utterance = new SpeechSynthesisUtterance(pending.text);
+    utterance.lang = pending.lang;
     utterance.rate = 0.78;
     utterance.pitch = 0.45;
     utterance.volume = 1;
     const voices = window.speechSynthesis.getVoices();
     utterance.voice = voices.find((voice) => /^es(?:-|_)/i.test(voice.lang) && /google|mónica|monica|jorge|paulina|helena/i.test(voice.name))
       || voices.find((voice) => /^es(?:-|_)/i.test(voice.lang)) || null;
+    try { window.speechSynthesis.speak(utterance); }
+    catch (_) { return false; }
+    state.pendingSpeech = null;
     try { sessionStorage.setItem(storageKey, "1"); } catch (_) {}
-    window.speechSynthesis.speak(utterance);
+    return true;
+  }
+
+  function speakAlert(result) {
+    const key = voiceEventKey(result);
+    if (!key || !dom.voice.checked || !("speechSynthesis" in window)) return;
+    const storageKey = `yokup.supervisor.spoken:${key}`;
+    try { if (sessionStorage.getItem(storageKey)) return; } catch (_) {}
+    const text = result.speech && result.speech.text || result.voice;
+    state.pendingSpeech = {key, text:String(text), lang:result.speech && result.speech.lang || "es-ES"};
+    speakPendingAlert();
   }
 
   function handleAnalysis(result, frame) {
@@ -447,8 +503,18 @@ function boot() {
 
   async function submitFrame(frame, continuous) {
     if (state.analyzing) return;
-    if (!state.projectId) throw new Error("Selecciona un proyecto antes de analizar.");
+    if (!state.projectId) throw new Error("El proyecto del Supervisor no está disponible.");
     const config = readConfig(true);
+    const scope = Object.freeze({
+      sequence:++state.analysisSeq,
+      projectId:state.projectId,
+      stationId:config.station_id
+    });
+    const isCurrent = () => analysisScopeMatches(scope, {
+      sequence:state.analysisSeq,
+      projectId:state.projectId,
+      stationId:readConfig(false).station_id
+    });
     state.analyzing = true;
     state.nextDelay = ANALYSIS_INTERVAL_MS;
     updateButtons();
@@ -459,8 +525,8 @@ function boot() {
     state.abort = controller;
     try {
       const payload = {
-        observation_id:observationId(), captured_at:Date.now(), project_id:state.projectId,
-        station_id:config.station_id, label:config.label, location:config.location,
+        observation_id:observationId(), captured_at:Date.now(), project_id:scope.projectId,
+        station_id:scope.stationId, label:config.label, location:config.location,
         expected_screens:config.expected_screens, canonical_screen:config.canonical_screen,
         image:frame.image, metrics:frame.metrics
       };
@@ -468,6 +534,7 @@ function boot() {
         method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(payload), signal:controller.signal
       });
       const result = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok || result.ok === false) {
         const error = new Error(result.error || `HTTP ${response.status}`);
         error.retryAfter = Number(result.retry_after_ms) || 0;
@@ -476,16 +543,19 @@ function boot() {
       handleAnalysis(result, frame);
       await refreshState({quiet:true});
     } catch (error) {
-      if (error.name !== "AbortError") {
+      if (error.name !== "AbortError" && isCurrent()) {
         state.nextDelay = error.retryAfter || ANALYSIS_INTERVAL_MS;
-        const friendly = error.message === "scan_too_frequent" ? "Yokup está protegiendo el intervalo entre lecturas." : `No se pudo completar el análisis: ${error.message}`;
+        const friendly = error.message === "scan_too_frequent" ? "Yokup está protegiendo el intervalo entre lecturas."
+          : error.message === "supervisor_rate_limited" ? "Se ha alcanzado el cupo de visión. Yokup reintentará en el siguiente intervalo."
+          : error.message === "station_busy" ? "Este puesto ya tiene una lectura en curso."
+          : `No se pudo completar el análisis: ${error.message}`;
         message(friendly, "error");
         if (state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
         else setLiveState("warning", "Sin respuesta");
       }
     } finally {
       frame.image = "";
-      state.abort = null;
+      if (state.abort === controller) state.abort = null;
       state.analyzing = false;
       dom.stage.classList.remove("analyzing");
       updateButtons();
@@ -511,7 +581,7 @@ function boot() {
   async function startMonitoring() {
     if (state.monitoring) return;
     try {
-      if (!state.projectId) throw new Error("Selecciona un proyecto en la barra superior.");
+      if (!state.projectId) throw new Error("El proyecto del Supervisor no está disponible.");
       const config = readConfig(true);
       savePreferences();
       await refreshState({quiet:true});
@@ -540,7 +610,7 @@ function boot() {
     state.monitoring = false;
     state.hiddenPaused = false;
     clearTimer();
-    if (state.abort) state.abort.abort();
+    invalidateAnalysis();
     state.abort = null;
     stopTracks();
     releaseStationLock();
@@ -555,7 +625,7 @@ function boot() {
   async function analyzeUpload(file) {
     if (!file) return;
     try {
-      if (!state.projectId) throw new Error("Selecciona un proyecto antes de analizar.");
+      if (!state.projectId) throw new Error("El proyecto del Supervisor no está disponible.");
       if (!/^image\/(?:jpeg|png|webp)$/i.test(file.type)) throw new Error("Usa una imagen JPEG, PNG o WebP.");
       if (file.size > 12_000_000) throw new Error("La imagen supera los 12 MB.");
       const config = readConfig(true);
@@ -617,20 +687,28 @@ function boot() {
 
   readPreferences();
   paintConfig();
-  applyProject(window.YkProjectScope && window.YkProjectScope.get ? window.YkProjectScope.get() : null, null);
+  applyProject(window.YkProjectScope && window.YkProjectScope.get ? window.YkProjectScope.get() : defaultProjectId, null);
   updateButtons();
   tickClock();
 
   dom.form.addEventListener("submit", (event) => event.preventDefault());
   dom.form.addEventListener("input", () => { paintConfig(); savePreferences(); });
-  dom.stationId.addEventListener("change", () => { state.conflict = false; refreshState(); });
+  dom.voice.addEventListener("change", () => { if (dom.voice.checked) speakPendingAlert(); });
+  dom.stationId.addEventListener("change", () => {
+    invalidateAnalysis("El puesto ha cambiado. La lectura anterior se ha descartado.");
+    state.conflict = false;
+    refreshState();
+  });
   dom.start.addEventListener("click", startMonitoring);
   dom.stop.addEventListener("click", () => stopMonitoring());
   dom.scan.addEventListener("click", () => { clearTimer(); analyzeVideo(); });
   dom.upload.addEventListener("change", () => analyzeUpload(dom.upload.files && dom.upload.files[0]));
   dom.refresh.addEventListener("click", () => refreshState());
   window.addEventListener("yk:project-change", (event) => applyProject(event.detail && event.detail.project_id, event.detail && event.detail.project));
-  document.addEventListener("visibilitychange", () => { if (document.hidden) pauseForVisibility(); else resumeAfterVisibility(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pauseForVisibility();
+    else { speakPendingAlert(); resumeAfterVisibility(); }
+  });
   window.addEventListener("pagehide", () => stopMonitoring("", true));
   if (typeof ResizeObserver === "function") new ResizeObserver(drawBoxes).observe(dom.stage);
 }

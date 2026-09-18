@@ -15,7 +15,7 @@ test("botón y primera opción comparten projectTotal para 0, 1 y n",()=>{
   }
   assert.match(frame,/function projectTotalLabel\(prefix\)\{return prefix\+" · "\+projectTotal;\}/);
   assert.match(paint,/allButtonLabel=projectTotalLabel\("TODOS"\),allOptionLabel=projectTotalLabel\("Todos"\)/);
-  assert.match(paint,/name = ap \? \(ap\.name \|\| ap\.id\) : allButtonLabel/);
+  assert.match(paint,/var name = ap \? [^;]+ : \(policy\.required\?[^:]+:allButtonLabel\)/);
   assert.match(paint,/p\.id \? \(p\.name \|\| p\.id\) : allOptionLabel/);
 });
 
@@ -23,7 +23,7 @@ test("texto visible, datos y ARIA de Todos usan la misma instantánea",()=>{
   assert.equal((paint.match(/data-yk-project-total/g)||[]).length,2);
   assert.match(paint,/btn\.setAttribute\("data-yk-project-total",String\(projectTotal\)\)/);
   assert.match(paint,/option\.setAttribute\("aria-label",allOptionLabel\);option\.setAttribute\("data-yk-project-total",String\(projectTotal\)\)/);
-  assert.match(paint,/data-yk-base-label", "Proyecto: " \+ full/);
+  assert.match(paint,/data-yk-base-label", policy\.required&&!policy\.canChange \? "Proyecto fijo: " \+ full : "Proyecto: " \+ full/);
 });
 
 test("projects-changed y refetch repintan ambos contadores sin aceptar respuestas stale",()=>{
@@ -32,5 +32,5 @@ test("projects-changed y refetch repintan ambos contadores sin aceptar respuesta
   assert.ok(setTotal>=0&&repaint>setTotal,"actualiza total antes de repintar botón y menú");
   assert.match(load,/if\(seq!==projectLoadSeq\)return false/);
   assert.match(frame,/window\.addEventListener\("yk:projects-changed",function\(\)\{loadProjects\(\);\}\)/);
-  assert.match(load,/projectTotal=0;PROJECT_SCOPE=null;paintProject\(\)/);
+  assert.match(load,/projectTotal=0;PROJECT_SCOPE=policy\.defaultId\|\|null;paintProject\(\)/);
 });
