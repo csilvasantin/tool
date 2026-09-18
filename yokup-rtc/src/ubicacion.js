@@ -50,9 +50,9 @@ export function invitadosVivos(rows, now = Date.now(), ttl = UBICACION_TTL_MS) {
 // ── HISTORIAL de recorridos (Carlos, 18-09-2026 · FLT-100567) ──────────────────────────────────────
 // Un invitado manda una posición cada 4 s; guardarlas todas sería ~900 filas/hora por persona sin
 // decir nada nuevo. Se guarda un punto SOLO si se ha movido más de HISTORIAL_MIN_M metros desde el
-// último guardado o han pasado HISTORIAL_MIN_MS (para que un invitado quieto siga constando cada 30 s).
-export const HISTORIAL_MIN_M = 8;
-export const HISTORIAL_MIN_MS = 30000;
+// último guardado o han pasado HISTORIAL_MIN_MS (para que un invitado quieto siga constando cada 15 s).
+export const HISTORIAL_MIN_M = 5;
+export const HISTORIAL_MIN_MS = 15000;
 export const HISTORIAL_RETENCION_MS = 30 * 24 * 3600 * 1000;   // 30 días y se purga
 export const HISTORIAL_VENTANA_MAX_MS = 7 * 24 * 3600 * 1000;  // una consulta no abarca más de 7 días
 export const HISTORIAL_MAX_FILAS = 20000;
@@ -88,9 +88,9 @@ export function ventanaHistorial(q, now = Date.now()) {
 // PARADA_RADIO_M metros del punto donde se paró durante al menos PARADA_MIN_MS. Las paradas de TODOS
 // los invitados se agrupan en ZONAS (paradas a menos de ZONA_RADIO_M son el mismo sitio): la zona que
 // más tiempo acumula es la que más gusta.
-export const PARADA_RADIO_M = 15;     // dentro de este radio se considera "el mismo sitio"
-export const PARADA_MIN_MS = 45000;   // 45 s quieto para contar como parada (por debajo es "de paso")
-export const ZONA_RADIO_M = 20;       // dos paradas a menos de esto son la misma zona
+export const PARADA_RADIO_M = 10;     // dentro de este radio se considera "el mismo sitio"
+export const PARADA_MIN_MS = 30000;   // 30 s quieto para contar como parada (por debajo es "de paso")
+export const ZONA_RADIO_M = 12;       // dos paradas a menos de esto son la misma zona
 
 /** Puntos ordenados [lat,lng,ts,acc] de UN invitado → sus paradas [{lat,lng,desde,hasta,ms,n}]. */
 export function paradas(puntos, { radioM = PARADA_RADIO_M, minMs = PARADA_MIN_MS } = {}) {
