@@ -132,7 +132,8 @@ test("la ficha contrasta proyecto y player y sólo expone mandos Admira verifica
   assert.match(js, /!ADMIRA_REMOTE_HOSTS\.has\(hostname\).*parsed\.pathname !== ADMIRA_REMOTE_PATH/);
   assert.match(js, /remote\.rel = "noopener noreferrer"/);
   assert.match(js, /remote\.referrerPolicy = "no-referrer"/);
-  assert.match(js, /appendIdentityField\(fields, "Emitiendo ahora", identity\.content/);
+  assert.match(js, /appendIdentityField\(fields, "Contenido identificado", identity\.content/);
+  assert.match(js, /Confirmando la identidad/);
   assert.match(js, /MANDO ADMIRA VERIFICADO/);
   assert.match(js, /Playlist · primero\/anterior\/siguiente\/último · pausa · mute · volumen · HUD/);
   assert.match(js, /El mando aparecerá sólo después de verificar proyecto y player/);

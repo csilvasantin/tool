@@ -95,6 +95,11 @@ database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
 [ai]
 binding = "AI"
 
+# Recorta los objetivos detectados y reduce los framebuffers de Admira antes de
+# compararlos con el modelo visual. Las imágenes se procesan en memoria.
+[images]
+binding = "IMAGES"
+
 # Browser Rendering — captura PROPIA de webs para /shot (sin la marca de agua de
 # thum.io). Requiere Workers Paid (ya en uso por D1/R2/Vectorize). Carlos 2026-07-17.
 [browser]
