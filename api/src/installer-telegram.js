@@ -14,3 +14,21 @@ export async function sendTelegramAlerts(env){
   if(!ok)await env.DB.prepare('DELETE FROM installer_telegram_sent WHERE notification_id=?').bind(n.id).run();
  }
 }
+
+// «/start CÓDIGO» enviado al bot vincula ese chat con el instalador dueño del código.
+export async function linkTelegramChats(env){
+ if(!env.TELEGRAM_BOT_TOKEN)return;
+ const api=`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
+ const offset=Number((await env.DB.prepare("SELECT value FROM telegram_state WHERE key='offset'").bind().first())?.value||0);
+ let updates=[];
+ try{const r=await fetch(`${api}/getUpdates?offset=${offset}&timeout=0&allowed_updates=%5B%22message%22%5D`);if(!r.ok){console.warn('telegram getUpdates',r.status);return;}updates=(await r.json()).result||[];}catch(e){console.warn('telegram getUpdates',String(e));return;}
+ for(const u of updates){
+  const m=u.message,code=/^\/start\s+([a-f0-9]{12,64})$/.exec((m?.text||'').trim())?.[1];
+  if(!code||!m.chat)continue;
+  const link=await env.DB.prepare('SELECT l.installer_id,a.name FROM installer_telegram_links l JOIN installer_accounts a ON a.id=l.installer_id WHERE l.code=? AND l.expires_at>?').bind(code,Date.now()).first();
+  if(!link)continue;
+  await env.DB.batch([env.DB.prepare('INSERT OR REPLACE INTO installer_telegram(installer_id,chat_id,created_at) VALUES(?,?,?)').bind(link.installer_id,String(m.chat.id),Date.now()),env.DB.prepare('DELETE FROM installer_telegram_links WHERE code=?').bind(code)]);
+  try{await fetch(`${api}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:m.chat.id,text:`✅ Telegram vinculado a Yokup. Aquí recibirás los avisos de trabajo de ${link.name}.`})});}catch{}
+ }
+ if(updates.length)await env.DB.prepare("INSERT OR REPLACE INTO telegram_state(key,value) VALUES('offset',?)").bind(String(updates.at(-1).update_id+1)).run();
+}
