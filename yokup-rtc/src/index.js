@@ -1,6 +1,6 @@
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
-import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS } from "./ubicacion.js";
+import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
 import { desktopTurnParticipants } from './desktop-turn-participant.js';
 import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
@@ -639,11 +639,20 @@ var ubicacionSchemaReady = null;
 async function ensureUbicacionSchema(env) {
   if (!ubicacionSchemaReady) {
     ubicacionSchemaReady = env.DB.exec("CREATE TABLE IF NOT EXISTS ubicaciones (evento TEXT NOT NULL, invitado TEXT NOT NULL, nombre TEXT, vip INTEGER DEFAULT 0, lat REAL NOT NULL, lng REAL NOT NULL, acc REAL, ts INTEGER NOT NULL, PRIMARY KEY(evento, invitado))")
+      .then(() => env.DB.exec("CREATE TABLE IF NOT EXISTS ubicacion_historial (id INTEGER PRIMARY KEY AUTOINCREMENT, evento TEXT NOT NULL, invitado TEXT NOT NULL, nombre TEXT, vip INTEGER DEFAULT 0, lat REAL NOT NULL, lng REAL NOT NULL, acc REAL, ts INTEGER NOT NULL)"))
+      .then(() => env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ubic_hist ON ubicacion_historial(evento, invitado, ts)"))
       .catch((e) => { ubicacionSchemaReady = null; throw e; });
   }
   return ubicacionSchemaReady;
 }
 __name(ensureUbicacionSchema, "ensureUbicacionSchema");
+// Purga del historial: 30 días. La rutina programada la llama cada tick; borrar lo ya borrado es gratis.
+async function purgarHistorialUbicacion(env) {
+  await ensureUbicacionSchema(env);
+  const r = await env.DB.prepare("DELETE FROM ubicacion_historial WHERE ts < ?").bind(Date.now() - HISTORIAL_RETENCION_MS).run();
+  return { borradas: Number(r && r.meta && r.meta.changes) || 0 };
+}
+__name(purgarHistorialUbicacion, "purgarHistorialUbicacion");
 
 // Un punto de serie por parte de consumo (owner, máquina, día); si el total no cambió y el anterior es de
 // hace menos de 4 min, no se repite. Lo llaman las dos ramas de POST /fleet/notificacion (fila viva y nueva).
@@ -2587,6 +2596,7 @@ async function runScheduledRoutine(env, event) {
   await step("expireDecisions", () => expireDecisionsAndStartBatches(env));
   // Incidencias DOOH: pantallas caídas/recuperadas.
   await step("reconcile", () => reconcile(env));
+  await step("ubicacionPurga", () => purgarHistorialUbicacion(env));
   // Monitor de webs y máquinas 24/7: caro (fetch externos) → ~cada 10 min por su
   // propia edad de latido, con independencia del ritmo del tráfico HTTP.
   if (await beatAge(env, "checkWebs") >= 9.5 * 60000) {
@@ -10421,7 +10431,31 @@ var worker_app = {
         const now = Date.now();
         await env.DB.prepare("INSERT INTO ubicaciones(evento,invitado,nombre,vip,lat,lng,acc,ts) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(evento,invitado) DO UPDATE SET nombre=excluded.nombre,vip=excluded.vip,lat=excluded.lat,lng=excluded.lng,acc=excluded.acc,ts=excluded.ts")
           .bind(v.evento, v.invitado, v.nombre, v.vip, v.lat, v.lng, v.acc, now).run();
-        return json({ ok: true, evento: v.evento, invitado: v.invitado, ts: now, ttl_ms: UBICACION_TTL_MS });
+        // HISTORIAL muestreado (FLT-100567): un punto solo si se movió ≥ 8 m o pasaron ≥ 30 s.
+        let guardado = false;
+        try {
+          const ultimo = await env.DB.prepare("SELECT lat,lng,ts FROM ubicacion_historial WHERE evento=? AND invitado=? ORDER BY ts DESC LIMIT 1").bind(v.evento, v.invitado).first();
+          if (debeGuardarHistorial(ultimo, v, now)) {
+            await env.DB.prepare("INSERT INTO ubicacion_historial(evento,invitado,nombre,vip,lat,lng,acc,ts) VALUES(?,?,?,?,?,?,?,?)").bind(v.evento, v.invitado, v.nombre, v.vip, v.lat, v.lng, v.acc, now).run();
+            guardado = true;
+          }
+        } catch (e) { /* el historial nunca rompe el reporte en vivo */ }
+        return json({ ok: true, evento: v.evento, invitado: v.invitado, ts: now, ttl_ms: UBICACION_TTL_MS, historial: guardado });
+      } catch (e) { return json({ ok: false, error: String(e && e.message || e) }, 500); }
+    }
+    if (url.pathname === "/ubicacion/historial" && req.method === "GET") {
+      try {
+        await ensureUbicacionSchema(env);
+        const evento = String(url.searchParams.get("evento") || "").trim().slice(0, 80);
+        if (!evento) return json({ ok: false, error: "evento requerido" }, 400);
+        const invitado = String(url.searchParams.get("invitado") || "").trim().slice(0, 80);
+        const { desde, hasta } = ventanaHistorial({ desde: url.searchParams.get("desde"), hasta: url.searchParams.get("hasta") });
+        const sql = "SELECT invitado,nombre,vip,lat,lng,acc,ts FROM ubicacion_historial WHERE evento=? AND ts>=? AND ts<=?" + (invitado ? " AND invitado=?" : "") + " ORDER BY ts DESC LIMIT ?";
+        const binds = invitado ? [evento, desde, hasta, invitado, HISTORIAL_MAX_FILAS] : [evento, desde, hasta, HISTORIAL_MAX_FILAS];
+        const { results } = await env.DB.prepare(sql).bind(...binds).all();
+        const rows = results || [];
+        return new Response(JSON.stringify({ ok: true, evento, desde, hasta, filas: rows.length, recortado: rows.length >= HISTORIAL_MAX_FILAS, recorridos: recorridos(rows) }),
+          { status: 200, headers: { ...CORS, "content-type": "application/json", "Cache-Control": "no-store" } });
       } catch (e) { return json({ ok: false, error: String(e && e.message || e) }, 500); }
     }
     if (url.pathname === "/ubicacion/live" && req.method === "GET") {
