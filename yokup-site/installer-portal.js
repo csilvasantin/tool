@@ -23,7 +23,7 @@ let googleAuth;
 function setMode(next){mode=next;const login=mode==='login',edit=mode==='edit';$$('.register-only').forEach(el=>{el.hidden=login;el.querySelectorAll('input,select').forEach(input=>{input.disabled=login;});});
  $('#account-form [name=email]').closest('label').hidden=edit;$('#account-form [name=password]').closest('label').hidden=edit;
  for(const name of ['email','password'])$(`[name=${name}]`).disabled=edit;
- $('[name=password]').autocomplete=login?'current-password':'new-password';
+ $('[name=password]').autocomplete=login?'current-password':'new-password';$('#account-form [name=email]').type=login?'text':'email';$('#account-form [name=password]').minLength=login?1:12;
  $('#register-tab').classList.toggle('active',!login);$('#login-tab').classList.toggle('active',login);$('#register-tab').setAttribute('aria-selected',String(!login));$('#login-tab').setAttribute('aria-selected',String(login));$('.tabs').hidden=edit;
  $('#submit-account').textContent=edit?t('Guardar perfil →','Save profile →'):login?t('Entrar →','Sign in →'):t('Crear mi cuenta →','Create my account →');$('#form-status').textContent='';googleAuth?.reset();
 }

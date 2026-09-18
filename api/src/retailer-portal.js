@@ -1,6 +1,7 @@
 import {publishOwnedSite} from './retailer-map-catalog.js';
 import {siteImports,circuitSiteImports} from './retailer-site-imports.js';
 import {portalCredentials} from './portal-credentials.js';
+import {demoLogin} from './demo-accounts.js';
 import { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response, dispatchNotifications } from './installer-portal.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
@@ -30,7 +31,9 @@ export async function handleRetailer(request,env,principal){
   if(method!=='GET'&&!ORIGINS.has(request.headers.get('origin')))fail(403,'Origen no permitido.');
   if(['/register','/login'].includes(path)&&method==='POST'){
    await rateLimit(env,'retail-ip:'+(request.headers.get('CF-Connecting-IP')||'local'),20,900000);
-   const b=await jsonBody(request),email=text(b.email,3,254).toLowerCase(),password=text(b.password,12,128);
+   const b=await jsonBody(request),demo=path==='/login'&&demoLogin('retailer',b);
+   if(demo){const account=await statement(env,'SELECT * FROM retailer_accounts WHERE email=?',demo).first();if(!account)fail(401,'Correo o contraseña incorrectos.');return response(request,{profile:publicAccount(account)},200,await createSession(env,account.id,account.password_hash));}
+   const email=text(b.email,3,254).toLowerCase(),password=text(b.password,12,128);
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail(400,'Correo no válido.');
    await rateLimit(env,'retail-email:'+await hash(email),10,900000);
    let account=await statement(env,'SELECT * FROM retailer_accounts WHERE email=?',email).first();
