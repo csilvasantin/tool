@@ -62,7 +62,7 @@ import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE
   normalizeFleetMissionsFilters, fleetMissionsQuery } from "./mission-sources.js";
 import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
-import { handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL } from "./supervisor.js";
+import { createAdmiraMcpClient, handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL } from "./supervisor.js";
 import { normalizeAccessDirectory, supervisorAccessForSession, supervisorSessionInfo } from "./supervisor-access.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -11820,8 +11820,13 @@ var worker_app = {
       if (!session) return json({ error:"unauthorized" }, 401);
       try {
         const access = await currentSupervisorAccess(session);
+        const admiraMcpCall = createAdmiraMcpClient({
+          fetchImpl:(input, init) => env.ADMIRA_TV_MCP && typeof env.ADMIRA_TV_MCP.fetch === "function"
+            ? env.ADMIRA_TV_MCP.fetch(input, init)
+            : fetch(input, init)
+        });
         return await handleSupervisorRequest(req, env, url, {
-          json, ensureSchema, createIncident, resolveIncident, session, access
+          json, ensureSchema, createIncident, resolveIncident, session, access, admiraMcpCall
         });
       } catch (error) {
         return json({ ok:false, error:"supervisor_failed", detail:String(error && error.message || error).slice(0, 180) }, 500);

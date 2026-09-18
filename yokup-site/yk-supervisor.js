@@ -4,6 +4,79 @@ const ANALYSIS_TIMEOUT_MS = 45_000;
 const MAX_CAPTURE_EDGE = 960;
 const JPEG_QUALITY = 0.72;
 const PREFS_KEY = "yokup.supervisor.preferences.v1";
+const ADMIRA_REMOTE_HOSTS = new Set(["admira.tv", "www.admira.tv"]);
+const ADMIRA_REMOTE_PATH = "/remotecontrol/";
+const ADMIRA_SCREEN_ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
+
+function compactIdentityText(value, maxLength = 120) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function normalizedIdentityEntity(value, fallbackId, fallbackName) {
+  const entity = value && typeof value === "object" ? value : null;
+  const id = compactIdentityText(entity && entity.id || fallbackId, 160);
+  const name = compactIdentityText(entity && (entity.name || entity.label) || fallbackName, 160);
+  return id || name ? {id, name:name || id} : null;
+}
+
+export function safeRemoteControlUrl(value, expectedScreenId = "") {
+  const candidate = compactIdentityText(value, 2_048);
+  const expected = compactIdentityText(expectedScreenId, 80);
+  if (!candidate || !/^https:\/\//i.test(candidate)) return "";
+  try {
+    const parsed = new URL(candidate);
+    const hostname = parsed.hostname.toLowerCase();
+    const authority = candidate.slice(candidate.indexOf("//") + 2).split(/[/?#]/, 1)[0].toLowerCase();
+    const keys = [...parsed.searchParams.keys()];
+    const screenIds = parsed.searchParams.getAll("screen");
+    const soloValues = parsed.searchParams.getAll("solo");
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port || authority !== hostname
+      || !ADMIRA_REMOTE_HOSTS.has(hostname) || parsed.pathname !== ADMIRA_REMOTE_PATH || parsed.hash
+      || keys.length !== 2 || new Set(keys).size !== 2 || screenIds.length !== 1 || soloValues.length !== 1
+      || !ADMIRA_SCREEN_ID.test(screenIds[0]) || soloValues[0] !== "1"
+      || expected && screenIds[0] !== expected) return "";
+    return parsed.href;
+  } catch (_) {
+    return "";
+  }
+}
+
+export function normalizeScreenIdentity(screen) {
+  const raw = screen && typeof screen === "object"
+    ? (screen.identity && typeof screen.identity === "object" ? screen.identity
+      : screen.match && typeof screen.match === "object" ? screen.match : null)
+    : null;
+  const suppliedStatus = compactIdentityText(raw && raw.status, 24).toLowerCase();
+  const status = ["matched", "ambiguous", "unmatched", "unavailable"].includes(suppliedStatus)
+    ? suppliedStatus : "unavailable";
+  const source = compactIdentityText(raw && raw.source, 40).toLowerCase();
+  const confidenceValue = raw && typeof raw.confidence === "number" ? raw.confidence : NaN;
+  const confidence = Number.isFinite(confidenceValue) && confidenceValue >= 0 && confidenceValue <= 1
+    ? confidenceValue : null;
+  const project = normalizedIdentityEntity(raw && raw.project, raw && raw.project_id, raw && raw.project_name);
+  const player = normalizedIdentityEntity(raw && raw.player, raw && raw.player_id, raw && raw.player_name);
+  const evidence = Array.isArray(raw && raw.evidence)
+    ? [...new Set(raw.evidence.map((item) => compactIdentityText(item, 180)).filter(Boolean))].slice(0, 5)
+    : [];
+  const verified = status === "matched" && source === "admira-mcp" && Boolean(project && player);
+  const remoteRaw = raw && raw.remote && typeof raw.remote === "object" ? raw.remote : null;
+  const remoteUrl = verified ? safeRemoteControlUrl(remoteRaw && remoteRaw.url, player && player.id) : "";
+  const remote = remoteUrl ? {
+    url:remoteUrl,
+    label:compactIdentityText(remoteRaw && remoteRaw.label, 80) || `Mando de ${player.name}`
+  } : null;
+  return {
+    status, source:source === "admira-mcp" ? source : null, confidence,
+    verified, project:verified ? project : null, player:verified ? player : null,
+    evidence, remote
+  };
+}
+
+export function screenIdentityLabel(identity) {
+  if (identity && identity.verified) return "Verificado por Admira MCP";
+  return ({ambiguous:"Coincidencia ambigua", unmatched:"Sin coincidencia", unavailable:"Sin verificar"})[identity && identity.status]
+    || "Sin verificar";
+}
 
 export function scaleCaptureSize(width, height, maxEdge = MAX_CAPTURE_EDGE) {
   const sourceWidth = Math.max(1, Number(width) || 1);
@@ -75,7 +148,11 @@ export function screenTargetAnnouncement(screens) {
     const position = screen && Array.isArray(screen.bbox) && screen.bbox.length === 4 && screen.bbox.every(Number.isFinite)
       ? "localizada" : "sin posición precisa";
     const stateReading = confidence === null ? "estado sin confianza" : `confianza del estado ${confidence} por ciento`;
-    return `${screenTargetId(index, screen)}, ${screenStateLabel(screen && screen.state)}, ${stateReading}, ${position}`;
+    const identity = normalizeScreenIdentity(screen);
+    const identityReading = identity.verified
+      ? `proyecto ${identity.project.name}, player ${identity.player.name}, verificado por Admira MCP`
+      : screenIdentityLabel(identity).toLowerCase();
+    return `${screenTargetId(index, screen)}, ${screenStateLabel(screen && screen.state)}, ${stateReading}, ${position}, ${identityReading}`;
   }).join(". ");
   return `${targets.length} ${targets.length === 1 ? "pantalla identificada" : "pantallas identificadas"}. ${detail}.`;
 }
@@ -85,7 +162,10 @@ export function screenTargetSemanticKey(screens) {
   if (!targets.length) return "none";
   return targets.map((screen, index) => {
     const located = Boolean(screen && Array.isArray(screen.bbox) && screen.bbox.length === 4 && screen.bbox.every(Number.isFinite));
-    return `${screenTargetId(index, screen)}:${String(screen && screen.state || "unknown")}:${located ? "located" : "unlocated"}`;
+    const identity = normalizeScreenIdentity(screen);
+    const identityKey = identity.verified
+      ? `matched:${identity.project.id}:${identity.player.id}` : identity.status;
+    return `${screenTargetId(index, screen)}:${String(screen && screen.state || "unknown")}:${located ? "located" : "unlocated"}:${identityKey}`;
   }).join("|");
 }
 
@@ -102,6 +182,7 @@ export function screenTargetPlan(screens, mediaWidth, mediaHeight, viewportWidth
       status:screenStateLabel(state),
       tone,
       stateConfidence:screenStateConfidence(screen),
+      identity:normalizeScreenIdentity(screen),
       box
     };
   }).filter(Boolean);
@@ -109,15 +190,15 @@ export function screenTargetPlan(screens, mediaWidth, mediaHeight, viewportWidth
 
 function targetPalette(tone) {
   if (tone === "critical") return {color:"#ff5f6d", wash:"rgba(255,95,109,.035)"};
-  if (tone === "healthy") return {color:"#88ffaa", wash:"rgba(136,255,170,.025)"};
-  return {color:"#ffd866", wash:"rgba(255,216,102,.03)"};
+  if (tone === "healthy") return {color:"#72ff62", wash:"rgba(114,255,98,.045)"};
+  return {color:"#dcff55", wash:"rgba(220,255,85,.04)"};
 }
 
 function drawTargetCorners(context, box, color) {
   const length = Math.max(8, Math.min(24, box.width * .2, box.height * .24));
   const x1 = box.x, y1 = box.y, x2 = box.x + box.width, y2 = box.y + box.height;
   context.strokeStyle = color;
-  context.lineWidth = 2.5;
+  context.lineWidth = 3.5;
   context.lineCap = "square";
   context.beginPath();
   context.moveTo(x1, y1 + length); context.lineTo(x1, y1); context.lineTo(x1 + length, y1);
@@ -136,6 +217,7 @@ function drawTargetReticle(context, box, color) {
   context.lineWidth = 1;
   context.beginPath();
   context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  context.arc(centerX, centerY, Math.max(3, radius * .48), 0, Math.PI * 2);
   context.moveTo(centerX - reach, centerY); context.lineTo(centerX - radius * .45, centerY);
   context.moveTo(centerX + radius * .45, centerY); context.lineTo(centerX + reach, centerY);
   context.moveTo(centerX, centerY - reach); context.lineTo(centerX, centerY - radius * .45);
@@ -147,14 +229,17 @@ function drawTargetReticle(context, box, color) {
 }
 
 function drawTargetLabel(context, target, box, color, viewportWidth, viewportHeight) {
+  const identity = target.identity;
+  const lock = `TARGET LOCK // ${target.id}`;
   const detail = target.stateConfidence === null
     ? `${target.status.toUpperCase()}  ·  ESTADO —`
     : `${target.status.toUpperCase()}  ·  STATE ${target.stateConfidence}%`;
-  const paddingX = 7, labelHeight = 34;
-  context.font = "700 9px ui-monospace, SFMono-Regular, Menlo, monospace";
-  const targetWidth = context.measureText(target.id).width;
-  const detailWidth = context.measureText(detail).width;
-  const labelWidth = Math.min(Math.max(104, targetWidth, detailWidth) + paddingX * 2, Math.max(1, viewportWidth - 12));
+  const identityLine = identity && identity.verified
+    ? `${identity.project.name} // ${identity.player.name}`.toUpperCase() : "";
+  const paddingX = 8, labelHeight = identityLine ? 51 : 38;
+  context.font = "800 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+  const lineWidths = [lock, detail, identityLine].filter(Boolean).map((line) => context.measureText(line).width);
+  const labelWidth = Math.min(Math.max(148, ...lineWidths) + paddingX * 2, Math.max(1, viewportWidth - 12));
   const labelX = Math.min(Math.max(6, box.x), Math.max(6, viewportWidth - labelWidth - 6));
   let labelY = box.y - labelHeight - 6;
   if (labelY < 6) labelY = box.y + box.height + labelHeight + 6 <= viewportHeight
@@ -167,11 +252,16 @@ function drawTargetLabel(context, target, box, color, viewportWidth, viewportHei
   context.lineWidth = 1;
   context.strokeRect(labelX + .5, labelY + .5, labelWidth - 1, labelHeight - 1);
   context.fillStyle = color;
-  context.fillRect(labelX, labelY, 3, labelHeight);
+  context.fillRect(labelX, labelY, 4, labelHeight);
   const availableTextWidth = Math.max(1, labelWidth - paddingX * 2);
-  context.fillText(target.id, labelX + paddingX, labelY + 13, availableTextWidth);
+  context.fillText(lock, labelX + paddingX, labelY + 14, availableTextWidth);
   context.fillStyle = "rgba(223,248,255,.9)";
-  context.fillText(detail, labelX + paddingX, labelY + 26, availableTextWidth);
+  context.font = "700 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.fillText(detail, labelX + paddingX, labelY + 28, availableTextWidth);
+  if (identityLine) {
+    context.fillStyle = color;
+    context.fillText(identityLine, labelX + paddingX, labelY + 42, availableTextWidth);
+  }
 
   const anchorX = Math.min(Math.max(labelX + labelWidth / 2, box.x), box.x + box.width);
   const anchorY = labelY < box.y ? labelY + labelHeight : labelY;
@@ -196,10 +286,12 @@ export function drawTargetOverlay(context, targets, viewportWidth, viewportHeigh
     context.fillStyle = palette.wash;
     context.fillRect(box.x, box.y, box.width, box.height);
     context.strokeStyle = palette.color;
-    context.globalAlpha = .45;
-    context.lineWidth = 1;
-    context.setLineDash([4, 5]);
+    context.globalAlpha = .82;
+    context.lineWidth = 1.5;
+    context.setLineDash([7, 5]);
     context.strokeRect(box.x + .5, box.y + .5, Math.max(0, box.width - 1), Math.max(0, box.height - 1));
+    context.globalAlpha = .3;
+    context.strokeRect(box.x - 4.5, box.y - 4.5, Math.max(0, box.width + 9), Math.max(0, box.height + 9));
     context.setLineDash([]);
     context.globalAlpha = 1;
     context.shadowColor = palette.color;
@@ -540,6 +632,104 @@ function boot() {
     drawBoxes();
   }
 
+  function screenIdentityStatusCopy(identity) {
+    if (identity.verified) return "Proyecto y player confirmados contra el catálogo de Admira.";
+    if (identity.status === "ambiguous") return "El contenido coincide con más de un player; hace falta otra lectura.";
+    if (identity.status === "unmatched") return "El contenido observado no coincide con ningún player del catálogo.";
+    return "Admira MCP no ha confirmado todavía este objetivo.";
+  }
+
+  function appendIdentityField(list, label, value) {
+    const wrapper = document.createElement("div");
+    const term = document.createElement("dt");
+    const detail = document.createElement("dd");
+    term.textContent = label;
+    detail.textContent = value;
+    wrapper.append(term, detail);
+    list.appendChild(wrapper);
+  }
+
+  function renderScreenIdentity(card, screen, target) {
+    const identity = normalizeScreenIdentity(screen);
+    const panel = document.createElement("section");
+    panel.className = `sv-identity ${identity.verified ? "verified" : identity.status}`;
+    panel.setAttribute("aria-label", `Identidad de ${target}`);
+
+    const head = document.createElement("div");
+    head.className = "sv-identity-head";
+    const eyebrow = document.createElement("span");
+    eyebrow.textContent = "IDENTIDAD DE EMISIÓN";
+    const status = document.createElement("strong");
+    status.textContent = screenIdentityLabel(identity);
+    head.append(eyebrow, status);
+    panel.appendChild(head);
+
+    const summary = document.createElement("p");
+    summary.className = "sv-identity-summary";
+    summary.textContent = screenIdentityStatusCopy(identity);
+    panel.appendChild(summary);
+
+    if (identity.verified) {
+      const fields = document.createElement("dl");
+      fields.className = "sv-identity-fields";
+      appendIdentityField(fields, "Proyecto", identity.project.name);
+      appendIdentityField(fields, "Player", identity.player.name);
+      if (identity.confidence !== null) appendIdentityField(fields, "Coincidencia", `${Math.round(identity.confidence * 100)}%`);
+      panel.appendChild(fields);
+    }
+
+    const evidence = document.createElement("div");
+    evidence.className = "sv-evidence";
+    const evidenceTitle = document.createElement("span");
+    evidenceTitle.textContent = "EVIDENCIAS";
+    evidence.appendChild(evidenceTitle);
+    if (identity.evidence.length) {
+      const list = document.createElement("ul");
+      identity.evidence.forEach((item) => {
+        const row = document.createElement("li");
+        row.textContent = item;
+        list.appendChild(row);
+      });
+      evidence.appendChild(list);
+    } else {
+      const empty = document.createElement("p");
+      empty.textContent = "Sin evidencias de catálogo para mostrar.";
+      evidence.appendChild(empty);
+    }
+    panel.appendChild(evidence);
+
+    if (identity.remote) {
+      const remote = document.createElement("a");
+      remote.className = "sv-remote";
+      remote.href = identity.remote.url;
+      remote.target = "_blank";
+      remote.rel = "noopener noreferrer";
+      remote.referrerPolicy = "no-referrer";
+      remote.setAttribute("aria-label", `${identity.remote.label}. Abre en una pestaña nueva.`);
+      const remoteCopy = document.createElement("span");
+      const remoteOverline = document.createElement("small");
+      const remoteLabel = document.createElement("strong");
+      remoteOverline.textContent = "MANDO A DISTANCIA VERIFICADO";
+      remoteLabel.textContent = identity.remote.label;
+      remoteCopy.append(remoteOverline, remoteLabel);
+      const arrow = document.createElement("b");
+      arrow.setAttribute("aria-hidden", "true");
+      arrow.textContent = "↗";
+      remote.append(remoteCopy, arrow);
+      panel.appendChild(remote);
+    } else {
+      const unavailable = document.createElement("p");
+      unavailable.className = "sv-remote-unavailable";
+      unavailable.textContent = identity.verified
+        ? "Este player no publica un mando remoto en el catálogo."
+        : "El mando aparecerá sólo después de verificar proyecto y player.";
+      panel.appendChild(unavailable);
+    }
+
+    card.appendChild(panel);
+    return identity;
+  }
+
   function renderScreens(screens) {
     state.lastScreens = Array.isArray(screens) ? screens : [];
     setTargetStatus(screenTargetAnnouncement(state.lastScreens), `screens:${screenTargetSemanticKey(state.lastScreens)}`);
@@ -566,11 +756,13 @@ function boot() {
       head.append(title, confidence);
       const copy = document.createElement("p");
       copy.textContent = screen.description || "Sin detalle adicional.";
+      const identity = normalizeScreenIdentity(screen);
       card.setAttribute("role", "listitem");
       card.setAttribute("aria-label", stateConfidence === null
-        ? `${target}, ${screenLabel(screen.state)}, estado sin confianza`
-        : `${target}, ${screenLabel(screen.state)}, confianza del estado ${stateConfidence} por ciento`);
+        ? `${target}, ${screenLabel(screen.state)}, estado sin confianza, ${screenIdentityLabel(identity)}`
+        : `${target}, ${screenLabel(screen.state)}, confianza del estado ${stateConfidence} por ciento, ${screenIdentityLabel(identity)}`);
       card.append(head, copy);
+      renderScreenIdentity(card, screen, target);
       dom.detections.appendChild(card);
     });
     drawBoxes();

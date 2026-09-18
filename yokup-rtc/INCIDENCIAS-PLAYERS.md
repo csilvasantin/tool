@@ -23,13 +23,13 @@ Hasta el 16-sep el `recover` quedaba «pendiente de verificación y cierre» y n
 - **Pantalla en negro y contador de crashes.** El latido de los players hoy trae `device` (pantalla, sistema, hardware, software, almacenamiento, red), `showing_id`, `version` y `last_seen`. No trae `last_content_ok`, errores ni crashes, así que yokup no puede detectarlos: es trabajo del player (misión de admira.tv, encargo #3320·a). Cuando el latido los traiga, se añaden aquí dos ramas más del mismo `reconcile`.
 - **Umbral de «offline».** Lo decide el censo de api.admira.store, no yokup: el 16-sep una pantalla con 260 s sin latir seguía `online:true`. El «más de 3 minutos» del encargo depende de ese umbral.
 - **Pantallas que desaparecen del censo.** El censo sólo lista pantallas recientes; una que lleva mucho fuera deja de aparecer y su incidencia se queda abierta hasta que un humano la cierre (alcampo-* del 15-sep, smoke-edad, xtore-f7q5un). Es lo correcto: siguen caídas.
-- **Runbook automático** (ping, reload, restart, reboot, rollback). Necesita el canal de comandos remotos del player (#3320·d), que no existe aún. Mientras tanto, el runbook es manual (abajo).
+- **Runbook automático** (ping, reload, restart, reboot, rollback). El MCP ya permite confirmar qué players publican capacidad remota y el Supervisor enlaza a su mando oficial después de identificar la emisión. Yokup no ejecuta todavía comandos por sí solo: esa automatización necesita una política explícita de autorización, auditoría y recuperación. Mientras tanto, el runbook es manual (abajo).
 
 ## Vigilante en el MacMini
 
 `~/Claude/admira-vault/vigila-players.sh`, launchd `com.admira.vigila-players` cada 120 s, log en `/tmp/vigila-players.log`. Pide `api.yokup.com/version.json` (público), lo que arrastra la rutina del worker aunque nadie tenga yokup abierto (el cron de Cloudflare no dispara en esta cuenta, FLT-1016), lee el censo público de api.admira.store y deja en el log qué players están fuera y desde cuándo. No abre ni cierra nada: el juicio es del worker.
 
-## Runbook manual mientras no hay comandos remotos
+## Runbook manual mientras Yokup no ejecuta comandos remotos
 
 1. Abrir la incidencia en https://www.yokup.com/incidencias y leer el triage IA.
 2. Comprobar el censo: `bash ~/Claude/admira-vault/vigila-players.sh` (o `api.yokup.com/incidents`). Si `age_seconds` crece, el player no llega a api.admira.store: red o app caída.

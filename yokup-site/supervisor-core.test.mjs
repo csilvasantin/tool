@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   analysisScopeMatches, boxToPixels, computeFrameMetrics, normalizeStationId, scaleCaptureSize,
-  screenStateConfidence, screenTargetAnnouncement, screenTargetId, screenTargetPlan, screenTargetSemanticKey, voiceEventKey
+  normalizeScreenIdentity, safeRemoteControlUrl, screenIdentityLabel, screenStateConfidence,
+  screenTargetAnnouncement, screenTargetId, screenTargetPlan, screenTargetSemanticKey, voiceEventKey
 } from "./yk-supervisor.js";
 
 test("la captura conserva proporción y nunca supera 960 px", () => {
@@ -38,6 +39,7 @@ test("el plan HUD identifica y sitúa cada objetivo sobre la imagen", () => {
   assert.equal(plan.length, 2);
   assert.deepEqual(plan[0], {
     id:"SCREEN-07", state:"playing", status:"Emitiendo", tone:"healthy", stateConfidence:98,
+    identity:{status:"unavailable", source:null, confidence:null, verified:false, project:null, player:null, evidence:[], remote:null},
     box:{x:100, y:331.25, width:500, height:225}
   });
   assert.equal(plan[1].id, "SCREEN-08");
@@ -45,6 +47,81 @@ test("el plan HUD identifica y sitúa cada objetivo sobre la imagen", () => {
   assert.equal(screenTargetId(0), "SCREEN-01");
   assert.equal(screenTargetId(7), "SCREEN-08");
   assert.equal(screenTargetId(1, {target_id:"etiqueta no valida"}), "SCREEN-02");
+});
+
+test("la identidad sólo se considera verificada si procede de Admira MCP", () => {
+  const screen = {identity:{
+    status:"matched", source:"admira-mcp", confidence:.94,
+    project:{id:"admira-tv", name:"admira.tv"},
+    player:{id:"dgx-01", name:"DGX · Player Windows"},
+    evidence:["Claim visual DGX", "Claim visual DGX", "Canal activo"],
+    remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-01&solo=1", label:"Abrir mando DGX"}
+  }};
+  assert.deepEqual(normalizeScreenIdentity(screen), {
+    status:"matched", source:"admira-mcp", confidence:.94, verified:true,
+    project:{id:"admira-tv", name:"admira.tv"}, player:{id:"dgx-01", name:"DGX · Player Windows"},
+    evidence:["Claim visual DGX", "Canal activo"],
+    remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-01&solo=1", label:"Abrir mando DGX"}
+  });
+  assert.equal(screenIdentityLabel(normalizeScreenIdentity(screen)), "Verificado por Admira MCP");
+  assert.match(screenTargetAnnouncement([screen]), /proyecto admira\.tv, player DGX · Player Windows, verificado por Admira MCP/);
+
+  const invented = normalizeScreenIdentity({identity:{
+    status:"matched", source:"vision-model", project:{id:"p", name:"Inventado"},
+    player:{id:"x", name:"Inventado"}, remote:{url:"https://admira.tv/remotecontrol/?screen=x&solo=1"}
+  }});
+  assert.equal(invented.verified, false);
+  assert.equal(invented.project, null);
+  assert.equal(invented.player, null);
+  assert.equal(invented.remote, null);
+  assert.equal(screenIdentityLabel(invented), "Sin verificar");
+});
+
+test("el mando remoto sólo admite HTTPS en dominios controlados por Admira", () => {
+  assert.equal(safeRemoteControlUrl("https://admira.tv/remotecontrol/?screen=dgx-01&solo=1"), "https://admira.tv/remotecontrol/?screen=dgx-01&solo=1");
+  assert.equal(safeRemoteControlUrl("https://www.admira.tv/remotecontrol/?solo=1&screen=dgx_02"), "https://www.admira.tv/remotecontrol/?solo=1&screen=dgx_02");
+  assert.equal(safeRemoteControlUrl("https://admira.tv/remotecontrol/?screen=dgx-01&solo=1", "dgx-01"), "https://admira.tv/remotecontrol/?screen=dgx-01&solo=1");
+  assert.equal(safeRemoteControlUrl("https://admira.tv/remotecontrol/?screen=player-b&solo=1", "player-a"), "");
+  for (const unsafe of [
+    "javascript:alert(1)", "http://admira.tv/remotecontrol/?screen=dgx&solo=1",
+    "https://admira.tv.evil.example/remotecontrol/?screen=dgx&solo=1",
+    "https://panel.admira.tv/remotecontrol/?screen=dgx&solo=1",
+    "https://admira.live/remotecontrol/?screen=dgx&solo=1",
+    "https://evil.example/?next=admira.tv", "https://user:pass@admira.tv/remotecontrol/?screen=dgx&solo=1",
+    "/remotecontrol/?screen=dgx&solo=1", "https://admira.tv:443/remotecontrol/?screen=dgx&solo=1",
+    "https://admira.tv:8443/remotecontrol/?screen=dgx&solo=1",
+    "https://admira.tv/remotecontrol?screen=dgx&solo=1", "https://admira.tv/remotecontrol/?screen=DGX&solo=1",
+    "https://admira.tv/remotecontrol/?screen=-dgx&solo=1", "https://admira.tv/remotecontrol/?screen=dgx&solo=0",
+    "https://admira.tv/remotecontrol/?screen=dgx&solo=1&next=https://evil.example",
+    "https://admira.tv/remotecontrol/?screen=dgx&screen=other&solo=1",
+    "https://admira.tv/remotecontrol/?screen=dgx&solo=1#override"
+  ]) assert.equal(safeRemoteControlUrl(unsafe), "", unsafe);
+});
+
+test("ambigua o no encontrada nunca expone candidato ni mando", () => {
+  for (const status of ["ambiguous", "unmatched", "unavailable"]) {
+    const identity = normalizeScreenIdentity({identity:{
+      status, source:"admira-mcp", project:{id:"admira-tv", name:"admira.tv"},
+      player:{id:"DGX", name:"DGX"}, evidence:["texto parcial"], remote:{url:"https://admira.tv/remotecontrol/?screen=dgx&solo=1"}
+    }});
+    assert.equal(identity.verified, false);
+    assert.equal(identity.project, null);
+    assert.equal(identity.player, null);
+    assert.equal(identity.remote, null);
+    assert.deepEqual(identity.evidence, ["texto parcial"]);
+  }
+});
+
+test("el mando debe pertenecer al mismo player que acredita la identidad", () => {
+  const identity = normalizeScreenIdentity({identity:{
+    status:"matched", source:"admira-mcp", confidence:.97,
+    project:{id:"grandegracia", name:"GrandeGracia"},
+    player:{id:"player-a", name:"Player A"},
+    evidence:["coincidencia única"],
+    remote:{url:"https://admira.tv/remotecontrol/?screen=player-b&solo=1", label:"Mando B"}
+  }});
+  assert.equal(identity.verified, true);
+  assert.equal(identity.remote, null);
 });
 
 test("el lector de pantalla recibe la misma identificación que el HUD", () => {

@@ -101,6 +101,7 @@ test("cada pantalla se convierte en un objetivo identificado sobre la previsuali
   assert.match(js, /drawTargetCorners\(context, box, palette\.color\)/);
   assert.match(js, /drawTargetReticle\(context, box, palette\.color\)/);
   assert.match(js, /drawTargetLabel\(context, target, box, palette\.color/);
+  assert.match(js, /TARGET LOCK \/\/ \$\{target\.id\}/);
   assert.match(js, /classList\.toggle\("has-targets", painted > 0\)/);
   assert.match(css, /\.sv-stage\.has-targets \.sv-overlay\{animation:sv-target-acquire/);
   assert.match(css, /prefers-reduced-motion:reduce[^}]*\.sv-stage\.has-targets \.sv-overlay/);
@@ -109,6 +110,31 @@ test("cada pantalla se convierte en un objetivo identificado sobre la previsuali
   assert.match(js, /screens:\$\{screenTargetSemanticKey\(state\.lastScreens\)\}/);
   assert.match(js, /if \(!dom\.targetStatus \|\| state\.targetStatusKey === key\) return false/,
     "el live region no reanuncia el mismo estado semántico");
+});
+
+test("la ficha contrasta proyecto y player y sólo expone mandos Admira verificados", () => {
+  assert.match(js, /export function normalizeScreenIdentity\(/);
+  assert.match(js, /status === "matched" && source === "admira-mcp"/);
+  assert.match(js, /ADMIRA_REMOTE_HOSTS = new Set\(\["admira\.tv", "www\.admira\.tv"\]\)/);
+  assert.match(js, /ADMIRA_REMOTE_PATH = "\/remotecontrol\/"/);
+  assert.match(js, /ADMIRA_SCREEN_ID = \/\^\[a-z0-9\]/);
+  assert.match(js, /!ADMIRA_REMOTE_HOSTS\.has\(hostname\).*parsed\.pathname !== ADMIRA_REMOTE_PATH/);
+  assert.match(js, /remote\.rel = "noopener noreferrer"/);
+  assert.match(js, /remote\.referrerPolicy = "no-referrer"/);
+  assert.match(js, /MANDO A DISTANCIA VERIFICADO/);
+  assert.match(js, /El mando aparecerá sólo después de verificar proyecto y player/);
+  assert.doesNotMatch(js, /\.innerHTML\s*=/, "la identidad y sus evidencias se insertan como texto, no HTML remoto");
+});
+
+test("el visor adopta el HUD Matrix sin sacrificar movimiento reducido", () => {
+  assert.match(html, /class="sv-matrix-grid"/);
+  assert.match(html, /class="sv-matrix-rain"/);
+  assert.match(html, /OPTICAL FEED \/\/ TARGET ACQUISITION/);
+  assert.match(css, /--matrix:#72ff62/);
+  assert.match(css, /@keyframes sv-code-rain/);
+  assert.match(css, /-webkit-mask-image:/);
+  assert.match(css, /\.sv-overlay\{z-index:8/);
+  assert.match(css, /prefers-reduced-motion:reduce[^}]*\.sv-matrix-rain span/);
 });
 
 test("el HUD y el fondo se publican atómicamente desde el mismo fotograma", () => {
