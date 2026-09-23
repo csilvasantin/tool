@@ -14,7 +14,7 @@ export function mountRouterDemo({host,me,api,openCase,element:E}){
  const consent=E('label',undefined,'inline-check wide'),check=E('input');check.type='checkbox';consent.append(check,document.createTextNode('Quiero recibir una llamada real al número indicado al terminar el recorrido. Solo funciona con el móvil verificado de la cuenta.'));
  const start=E('button','Reproducir demo','primary');start.type='submit';const cancel=E('button','Detener recorrido','text-button');cancel.type='button';cancel.hidden=true;
  const message=E('p',undefined,'router-demo-status');message.setAttribute('role','status');message.setAttribute('aria-live','polite');
- const config=E('p',me.capabilities.telephone_guided?'Telefonía configurada. Marca la casilla para terminar con una llamada de hasta cinco minutos.':'Puedes ver la demo. La llamada está pendiente de configurar la credencial de Twilio en el servidor.','small');
+ const config=E('p',me.capabilities.telephone_guided?'Telefonía configurada. Marca la casilla para terminar con una llamada de unos cinco minutos.':'Puedes ver la demo. La llamada está pendiente de configurar la credencial de Twilio en el servidor.','small');
  const view=E('button','Abrir expediente y resultado','text-button');view.type='button';view.hidden=true;let cid,running=false,cancelled=false,dialStarted=false;
  let key=sessionStorage.getItem('yokup-router-demo-case');
  const wait=()=>new Promise(resolve=>setTimeout(resolve,1600));
@@ -34,7 +34,7 @@ export function mountRouterDemo({host,me,api,openCase,element:E}){
    const out=await api('/router-demo',{request_key:key,phone:number});cid=out.id;view.hidden=false;step(1);message.textContent='Expediente de prueba creado. Contacto y tarea guardados.';await wait();if(cancelled)return;
    step(2);message.textContent='Guion preparado: pedir permiso, desconectar alimentación, esperar, conectar y comprobar internet. Nunca se pulsa RESET.';await wait();if(cancelled)return;
    step(3);cancel.hidden=true;
-   if(!shouldCall){message.textContent='Recorrido listo. Marca la casilla y reproduce de nuevo para terminar con una llamada real.';return;}
+   if(!shouldCall){message.textContent=me.capabilities.telephone_guided?'Recorrido listo. Marca la casilla y reproduce de nuevo para terminar con una llamada real.':'Recorrido listo. La llamada real necesita que Twilio esté configurado; no se ha llamado al móvil.';return;}
    if(!me.capabilities.telephone_guided){message.textContent='Demo preparada. Falta configurar Twilio para lanzar la llamada real; no se ha llamado al móvil.';return;}
    const data=await api('/cases/'+encodeURIComponent(cid)),job=data.jobs.find(j=>j.target==='retailer');
    // A replay keeps the same case; explicitly update its contact before dialing.
@@ -42,10 +42,11 @@ export function mountRouterDemo({host,me,api,openCase,element:E}){
    let callKey=sessionStorage.getItem('yokup-router-demo-call')||crypto.randomUUID();sessionStorage.setItem('yokup-router-demo-call',callKey);
    dialStarted=true;message.textContent='Solicitando la llamada. No repitas el envío; puede tardar unos segundos.';
    const call=await api('/jobs/'+encodeURIComponent(job.id)+'/telephone',{request_key:callKey,authorized:true});
-   message.textContent=call.status==='unknown'?'Twilio aún no confirma el envío. Comprueba el expediente antes de repetir.':'Solicitud registrada en Twilio. Atiende el móvil y responde a Lucía. El resultado está pendiente de la conversación.';
+   message.textContent=call.status==='rejected'?'Twilio rechazó este intento. Revisa el expediente antes de preparar otro.':call.status==='unknown'?'Twilio aún no confirma el envío. Comprueba el expediente antes de repetir.':'Solicitud registrada en Twilio. Atiende el móvil y responde a Lucía. El resultado está pendiente de la conversación.';
    step(4);await openCase(cid);
   }catch(error){message.textContent=(dialStarted?'Comprueba el expediente antes de repetir: ':'')+error.message;}
   finally{if(cancelled)message.textContent='Recorrido detenido. No se ha enviado una llamada.';running=false;start.disabled=dialStarted;phone.disabled=false;check.disabled=false;cancel.hidden=true;fresh.hidden=dialStarted||!cid;}
  };
+ if(me.capabilities.telephone_trial)panel.append(E('p','Cuenta de prueba: Twilio puede anteponer un aviso en inglés. Si pide pulsar una tecla, pulsa un número para continuar al guion de Yokup en castellano.','small'));
  form.append(label,consent,start,cancel);panel.append(title,notice,steps,form,config,message,view,fresh);host.append(launch,panel);if(location.hash==='#router-demo'){panel.hidden=false;launch.setAttribute('aria-expanded','true');}
 }

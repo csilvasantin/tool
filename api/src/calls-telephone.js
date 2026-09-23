@@ -132,7 +132,11 @@ export async function reconcileTelephone(env,a,j,c,b,finish){
 }
 export async function telephoneWebhook(req,env,path,finish){
  const match=/^\/telephone\/([a-f0-9-]{36})\/(voice|status)$/.exec(path);if(!match)fail(404,'Ruta no encontrada.');
- const p=await authenticate(req,env),id=match[1],callSid=p.get('CallSid');let t=await load(env,id);
+ let p;try{p=await authenticate(req,env);}catch(e){
+  if(env.TWILIO_TRIAL_MODE==='true')console.warn(JSON.stringify({event:'telephone_auth_rejected',attempt:match[1],method:req.method,content_type:req.headers.get('content-type'),signature_present:!!req.headers.get('x-twilio-signature'),reason:e.message}));
+  throw e;
+ }
+ const id=match[1],callSid=p.get('CallSid');let t=await load(env,id);
  if(!t||t.expires_at<Date.now()||p.get('To')!==t.to_phone||p.get('From')!==env.TWILIO_FROM)fail(403,'Llamada no autorizada.');
  await q(env,'UPDATE call_telephone SET call_sid=? WHERE attempt_id=? AND call_sid IS NULL',callSid,id).run();t=await load(env,id);if(t.call_sid!==callSid)fail(403,'Otra llamada.');
  let state=JSON.parse(t.state);

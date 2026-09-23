@@ -166,7 +166,7 @@ async function handleCallsInternal(request,env){
   if(method!=='GET'&&!ORIGINS.has(request.headers.get('origin'))&&!/^Bearer ykcall_[a-f0-9]{64}$/.test(request.headers.get('authorization')||''))fail(403,'Origen no permitido.');
   if(path.startsWith('/rooms/'))return await roomRoute(request,env,path.slice(7));
   const a=await callsActor(request,env);await rateLimit(env,'calls:'+a.email,180,60000);
-  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env)},telephone_demo_to:a.admin?(env.TWILIO_DEMO_TO||''):'',telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
+  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env),telephone_trial:env.TWILIO_TRIAL_MODE==='true'},telephone_demo_to:a.admin?(env.TWILIO_DEMO_TO||''):'',telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
   if(path==='/tokens'){
    if(a.tokenId)fail(403,'Gestiona credenciales desde tu sesión web.');
    if(method==='GET')return response(request,{tokens:await rows(env,'SELECT id,label,expires_at,revoked_at FROM call_tokens WHERE email=? ORDER BY created_at DESC',a.email)});
