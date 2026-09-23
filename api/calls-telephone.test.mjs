@@ -88,3 +88,32 @@ test('reconciliation verifies account, destination and timestamp before finishin
  assert.equal((await api(f,route,{attempt_id:f.key,call_sid:sid})).status,200);
  assert.equal(f.db.prepare('SELECT attempt_count FROM call_jobs WHERE id=?').get(f.job).attempt_count,1);
 });
+test('router demo creates an idempotent network case without dialing',async()=>{
+ const f=await fixture(),request_key=crypto.randomUUID();
+ const first=await api(f,'/router-demo',{request_key,phone:to});assert.equal(first.status,201);
+ const replay=await api(f,'/router-demo',{request_key,phone:to});assert.equal(replay.body.id,first.body.id);assert.equal(replay.body.replayed,true);assert.equal(f.sent.length,0);
+ const d=await api(f,'/cases/'+encodeURIComponent(first.body.id));assert.equal(d.body.case.skill,'network');assert.equal(d.body.case.is_test,1);assert.equal(d.body.contacts[0].phone,to);assert.equal(d.body.jobs[0].status,'pending');
+ assert.equal((await api(f,'/router-demo',{request_key:crypto.randomUUID(),phone:'123'})).status,400);
+});
+test('router call uses Spanish neural voice, waits for power cycle and stores only confirmed result',async()=>{
+ const f=await fixture();const p=await api(f,'/router-demo',{request_key:crypto.randomUUID(),phone:to});f.c=p.body.id;f.job='retailer:'+f.c;
+ assert.equal((await dial(f)).status,200);assert.equal(new URLSearchParams(f.sent[0].options.body).get('TimeLimit'),'300');
+ const intro=await hook(f,0);assert.match(intro.text,/Polly.Lucia-Neural/);assert.match(intro.text,/language="es-ES"/);assert.match(intro.text,/voz sintética/);assert.match(intro.text,/restablecimiento de fábrica/);
+ assert.match((await hook(f,1,{Digits:'1'})).text,/No pulses el botón RESET/);
+ assert.match((await hook(f,2,{Digits:'1'})).text,/<Pause length="30"/);
+ assert.match((await hook(f,3,{Digits:'1'})).text,/<Pause length="60"/);
+ assert.match((await hook(f,4,{Digits:'1'})).text,/¿Confirmas/);
+ assert.equal(f.db.prepare('SELECT ended_at FROM call_attempts WHERE id=?').get(f.key).ended_at,null);
+ const done=await hook(f,5,{Digits:'1'});assert.match(done.text,/He guardado el resultado/i);
+ assert.equal((await hook(f,5,{Digits:'1'})).text,done.text);
+ const at=f.db.prepare('SELECT * FROM call_attempts WHERE id=?').get(f.key);assert.equal(at.outcome,'agreed');assert.match(at.notes,/Sin telemetría real/);
+ assert.equal(f.db.prepare('SELECT stage FROM call_cases WHERE id=?').get(f.c).stage,'open');assert.equal(f.db.prepare('SELECT COUNT(*) n FROM call_proposals').get().n,0);
+});
+test('router refusal and ambiguous responses never instruct a reset or confirm recovery',()=>{
+ const s={scenario:'router',step:'consent',turn:0,retries:0};
+ assert.equal(advanceTelephone(s,'no').outcome,'human_handoff');
+ assert.equal(advanceTelephone(s,'sí','','0.2').step,'consent');
+ assert.equal(advanceTelephone(advanceTelephone(s,''),'').outcome,'human_handoff');
+ const rejected=advanceTelephone({...s,step:'confirm',turn:5,restored:true},'no');assert.equal(rejected.outcome,'human_handoff');
+ const failed=advanceTelephone({...s,step:'confirm',turn:5,restored:false},'sí');assert.equal(failed.outcome,'human_handoff');assert.match(failed.notes,/sigue sin conexión/);
+});

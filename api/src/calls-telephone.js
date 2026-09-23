@@ -1,3 +1,4 @@
+import {ROUTER_TITLE,routerInitial,advanceRouter,routerXml} from './calls-router.js';
 import {statement as q,rows,fail,rateLimit} from './installer-portal.js';
 import {ensureChain} from './calls-chain.js';
 
@@ -15,6 +16,7 @@ export function telephoneReady(env){return /^AC[a-f0-9]{32}$/i.test(env.TWILIO_A
 
 // Speech recognition is real; interpretation is deliberately bounded, not an LLM.
 export function advanceTelephone(previous,speech='',digits='',confidence=''){
+ if(previous.scenario==='router')return previous.done?previous:advanceRouter(previous,normalized(speech),digits,confidence!==''&&Number(confidence)<0.6);
  const s={...previous,turn:previous.turn+1},answer=clean(speech);
  if(s.done)return s;
  const end=(outcome,notes)=>({...s,done:true,outcome,notes});
@@ -43,6 +45,7 @@ function question(s){
  return {fault:'¿La pantalla sigue sin mostrar imagen? Di sí o pulsa uno. Si ya funciona, di no o pulsa dos. Para hablar con una persona, pulsa nueve.',availability:'¿Qué día y en qué franja horaria podría ir un técnico? Dilo después de la señal. Todavía no estamos confirmando una cita.',access:'¿Quién podrá recibir al técnico y cómo accede al equipo? No indiques códigos de alarma ni contraseñas.',confirm:`He entendido esta disponibilidad: ${s.availability||''}. Para el acceso: ${s.access||''}. ¿Es correcto y quieres que lo registre en el expediente? Di sí o pulsa uno para confirmar; no o dos para corregir. La cita necesitará también la aceptación del técnico.`}[s.step]||'';
 }
 export function telephoneXml(s,c,attempt){
+ if(s.scenario==='router')return routerXml(s,escape,`${root}/${encodeURIComponent(attempt)}/voice?turn=${s.turn+1}`);
  const say=t=>`<Say language="es-ES">${escape(t)}</Say>`;
  if(s.done)return '<?xml version="1.0" encoding="UTF-8"?><Response>'+say(s.outcome==='availability'?'Gracias. He guardado tu disponibilidad y el acceso en el expediente de Yokup. El siguiente paso es proponer la visita y confirmarla con ambas partes. Esta es una demostración: no se avisará a un técnico real. Hasta pronto.':'Gracias. Dejo el resultado pendiente de revisión por una persona. No hay ninguna visita confirmada. Esta prueba de Yokup termina aquí. Hasta pronto.')+'<Hangup/></Response>';
  const intro=s.turn===0?`Hola. Soy el asistente automático de Yokup. Esta es una demostración de gestión de incidencias con voz sintética. Te llamo por ${c.title} en ${c.site_name}. Guardaremos tus respuestas en el expediente de prueba. No hay una avería real ni se concertará una visita real. `:'';
@@ -82,11 +85,11 @@ export async function startTelephone(env,a,j,c,b){
  const now=Date.now();let out;
  try{out=await env.DB.batch([
   q(env,`INSERT INTO call_attempts(id,job_id,actor,mode,channel,created_at,cycle) SELECT ?,id,?,'assistant','telephone',?,cycle FROM call_jobs WHERE id=? AND attempt_id IS NULL AND (status='pending' OR (status='reserved' AND owner=?))`,key,a.email,now,j.id,a.email),
-  q(env,`INSERT INTO call_telephone(attempt_id,to_phone,created_at,expires_at) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM call_attempts WHERE id=?)`,key,contact.phone,now,now+3600000,key),
+  q(env,`INSERT INTO call_telephone(attempt_id,to_phone,created_at,expires_at,state) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM call_attempts WHERE id=?)`,key,contact.phone,now,now+3600000,JSON.stringify(c.title===ROUTER_TITLE?routerInitial():{step:'fault',turn:0,retries:0}),key),
   q(env,"UPDATE call_jobs SET status='in_call',mode='assistant',owner=?,attempt_id=?,lease_until=NULL WHERE id=? AND EXISTS(SELECT 1 FROM call_telephone WHERE attempt_id=?)",a.email,key,j.id,key)
  ]);}catch{fail(409,'Ya existe una conversación activa. No se ha enviado otra llamada.');}
  if(!out[0].meta.changes)fail(409,'La llamada no está disponible.');
- const body=new URLSearchParams({To:contact.phone,From:env.TWILIO_FROM,Url:`${root}/${key}/voice?turn=0`,Method:'POST',StatusCallback:`${root}/${key}/status`,StatusCallbackMethod:'POST',Timeout:'25',TimeLimit:'180'});
+ const body=new URLSearchParams({To:contact.phone,From:env.TWILIO_FROM,Url:`${root}/${key}/voice?turn=0`,Method:'POST',StatusCallback:`${root}/${key}/status`,StatusCallbackMethod:'POST',Timeout:'25',TimeLimit:c.title===ROUTER_TITLE?'300':'180'});
  for(const e of ['initiated','ringing','answered','completed'])body.append('StatusCallbackEvent',e);
  let res,data;
  try{res=await transport(env,providerUrl(env),{method:'POST',headers:{...authHeaders(env),'Content-Type':'application/x-www-form-urlencoded'},body:body.toString(),signal:AbortSignal.timeout(12000)});data=await res.json();}

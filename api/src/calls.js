@@ -1,3 +1,4 @@
+import {ROUTER_TITLE} from './calls-router.js';
 import {telephoneReady,startTelephone,telephoneWebhook,telephoneDetails,reconcileTelephone} from './calls-telephone.js';
 import {ensureChain,syncChainJobs,chainView,changeChain} from './calls-chain.js';
 import {ORIGINS,statement as q,rows,text,hash,random,fail,response,jsonBody,rateLimit,distanceKm} from './installer-portal.js';
@@ -34,7 +35,7 @@ export async function syncCalls(env){
  await q(env,'DELETE FROM call_signals WHERE room_id IN (SELECT id FROM call_rooms WHERE expires_at<? OR closed_at IS NOT NULL)',NOW()).run();
 }
 export async function candidates(env,c){
- if(c.is_test)return [{id:'pilot-screen',name:'Técnico de prueba · pantallas',latitude:c.latitude+.025,longitude:c.longitude,skills:['screen','audio','network','hvac','sensor','kiosk','player'],available:true,distance_km:2.78,is_test:true}];
+ if(c.is_test)return [{id:'pilot-screen',name:c.skill==='network'?'Técnico de prueba · redes':'Técnico de prueba · pantallas',latitude:c.latitude+.025,longitude:c.longitude,skills:['screen','audio','network','hvac','sensor','kiosk','player'],available:true,distance_km:2.78,is_test:true}];
  return (await rows(env,'SELECT id,name,latitude,longitude,skills,available FROM installer_accounts WHERE available=1 AND latitude BETWEEN ? AND ?',c.latitude-.361,c.latitude+.361)).map(t=>({...t,skills:JSON.parse(t.skills),distance_km:distanceKm(t,c)})).filter(t=>t.distance_km<40&&t.skills.includes(c.skill)).sort((a,b)=>a.distance_km-b.distance_km);
 }
 async function details(env,a,caseId){
@@ -125,6 +126,19 @@ async function pilot(env,a){
  q(env,"INSERT INTO call_jobs(id,case_id,target,purpose,created_at) VALUES(?,?,'retailer','PILOTO: confirmar fallo y disponibilidad',?)",'retailer:'+cid,cid,now),
  q(env,"INSERT INTO call_contacts(case_id,kind,name) VALUES(?,'retailer','Retailer de prueba')",cid),audit(env,cid,a.email,'pilot_created',{synthetic:true,external_calls:false})]);return {id:cid};
 }
+async function routerPilot(env,a,b){
+ if(!a.admin||a.tokenId)fail(403,'La demo telefónica requiere un superusuario en la web.');
+ if(!/^[a-f0-9-]{36}$/i.test(String(b.request_key||'')))fail(400,'Solicitud de demo no válida.');
+ const phone=String(b.phone||'').trim();if(phone&&!/^\+[1-9]\d{7,14}$/.test(phone))fail(400,'Usa el teléfono con prefijo internacional.');
+ const cid='router:'+b.request_key,old=await q(env,'SELECT created_by FROM call_cases WHERE id=?',cid).first();
+ if(old){if(old.created_by!==a.email)fail(409,'Solicitud ya utilizada.');return {id:cid,replayed:true};}
+ await rateLimit(env,'router-demo:'+a.email,10,86400000);const now=NOW();
+ await env.DB.batch([
+ q(env,"INSERT INTO call_cases(id,title,site_name,latitude,longitude,skill,is_test,created_by,created_at) VALUES(?,?,'Comercio de demostración · Barcelona',41.3874,2.1686,'network',1,?,?)",cid,ROUTER_TITLE,a.email,now),
+ q(env,"INSERT INTO call_jobs(id,case_id,target,purpose,created_at) VALUES(?,?,'retailer','DEMO: guiar reinicio eléctrico del router y confirmar resultado',?)",'retailer:'+cid,cid,now),
+ q(env,"INSERT INTO call_contacts(case_id,kind,name,phone,language,timezone) VALUES(?,'retailer','Participante de la demo',?,'es-ES','Europe/Madrid')",cid,phone),
+ audit(env,cid,a.email,'pilot_created',{notes:'Alerta y diagnóstico simulados: router sin conexión. Se prepara asistencia telefónica para reinicio eléctrico; no reset de fábrica.',synthetic:true,external_calls:false})]);return {id:cid};
+}
 async function roomAuth(request,env,rid){
  const token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');if(!/^[a-f0-9]{64}$/.test(token))fail(401,'Invitación no válida.');
  const r=await q(env,'SELECT * FROM call_rooms WHERE id=? AND expires_at>? AND closed_at IS NULL',rid,NOW()).first();const h=await hash(token);
@@ -152,7 +166,7 @@ async function handleCallsInternal(request,env){
   if(method!=='GET'&&!ORIGINS.has(request.headers.get('origin'))&&!/^Bearer ykcall_[a-f0-9]{64}$/.test(request.headers.get('authorization')||''))fail(403,'Origen no permitido.');
   if(path.startsWith('/rooms/'))return await roomRoute(request,env,path.slice(7));
   const a=await callsActor(request,env);await rateLimit(env,'calls:'+a.email,180,60000);
-  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env)},telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
+  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env)},telephone_demo_to:a.admin?(env.TWILIO_DEMO_TO||''):'',telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
   if(path==='/tokens'){
    if(a.tokenId)fail(403,'Gestiona credenciales desde tu sesión web.');
    if(method==='GET')return response(request,{tokens:await rows(env,'SELECT id,label,expires_at,revoked_at FROM call_tokens WHERE email=? ORDER BY created_at DESC',a.email)});
@@ -167,6 +181,7 @@ async function handleCallsInternal(request,env){
    if(b.action==='grant'&&!await q(env,'SELECT id FROM retailer_accounts WHERE id=?',b.retailer_id).first())fail(404,'Comercio no encontrado.');
    if(b.action==='grant')await q(env,'INSERT OR REPLACE INTO call_operators VALUES(?,?,?,?)',email,text(b.retailer_id,1,100),a.email,NOW()).run();else await q(env,'DELETE FROM call_operators WHERE email=? AND retailer_id=?',email,b.retailer_id).run();return response(request,{ok:true});
   }
+  if(path==='/router-demo'&&method==='POST')return response(request,await routerPilot(env,a,await jsonBody(request)),201);
   if(path==='/pilot'&&method==='POST')return response(request,await pilot(env,a),201);
   if(path==='/cases'&&method==='GET'){
    await syncCalls(env);const all=await rows(env,`SELECT c.*,i.status AS incident_status,j.id AS job_id,j.status AS call_status,j.owner AS call_owner,j.target,j.mode,j.retry_at,j.attempt_count,ch.state AS chain_state,ch.coordinator FROM call_cases c JOIN call_jobs j ON j.case_id=c.id LEFT JOIN call_chains ch ON ch.case_id=c.id LEFT JOIN installer_incidents i ON i.id=c.incident_id WHERE (?=1 OR (c.is_test=1 AND c.created_by=?) OR (c.is_test=0 AND c.retailer_id IN (SELECT retailer_id FROM call_operators WHERE email=?))) ORDER BY CASE c.priority WHEN 'urgent' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 1000`,a.admin?1:0,a.email,a.email);

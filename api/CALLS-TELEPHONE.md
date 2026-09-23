@@ -25,3 +25,11 @@ Las respuestas y el Call SID quedan en el expediente privado. Se trata la voz re
 ## Verificación
 
 `node --test api/calls-telephone.test.mjs api/calls.test.mjs` cubre firma, acceso, destinatario, idempotencia, turnos, consentimiento, cierre incompleto y reconciliación. Para revisar la UI sin llamadas externas: `CALLS_TELEPHONE_DEMO=1 node api/tools/calls-pilot-server.mjs`; móvil sintético `+34600000000`. El transporte de este servidor está sustituido y nunca llama a Twilio.
+
+## Demo completa de router
+
+`/llamadas#router-demo` ofrece **Demo completa · reiniciar router**. El recorrido muestra una alerta simulada, crea un expediente persistido (`POST /router-demo`, idempotente por `request_key`), prepara la asistencia y, solo con la casilla del móvil marcada, solicita una llamada. Mantiene el destino permitido de Twilio. No marca al abrir la página ni reenvía automáticamente después de un estado incierto.
+
+La voz es `Polly.Lucia-Neural` en `es-ES`, incluida en el catálogo oficial https://github.com/twilio/twilio-java/blob/main/src/main/java/com/twilio/twiml/voice/Say.java. Es sintética neuronal, no una operadora humana ni un LLM. Falta validar la escucha en el teléfono. Twilio documenta Say y Gather dentro de las cuotas del trial: https://www.twilio.com/docs/usage/trials/try-out-voice.
+
+Se pide permiso para el reinicio eléctrico, se advierte de la interrupción de internet y se permite simular sin tocar equipos. Nunca se pide pulsar RESET ni restaurar valores de fábrica. Se separan: desconectar alimentación, esperar 30 segundos, conectar, esperar un minuto y preguntar por la recuperación. Una respuesta negativa o incierta deriva a revisión. El resumen exige confirmación; el expediente sigue abierto porque no hay telemetría que acredite recuperación real. Límite de la llamada: 300 segundos. No se avisa a técnicos reales.
