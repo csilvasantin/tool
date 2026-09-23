@@ -67,7 +67,7 @@ export async function applyTelegramAnswer(env,uid,transcript,uncertain){
  const j=await q(env,'SELECT * FROM call_telegram_inbox WHERE update_id=?',uid).first();if(!j||j.status==='done'||j.status==='expired')return;
  const s=await q(env,'SELECT * FROM call_telegram WHERE id=?',j.session_id).first(),old=JSON.parse(s.state);
  if(s.ended_at||s.expires_at<Date.now()||j.turn!==old.turn){await q(env,"UPDATE call_telegram_inbox SET status='expired',file_id=NULL WHERE update_id=?",uid).run();return;}
- const answer=telegramAnswer(old.step,transcript),next={...advanceRouter(old,answer,['1','2','9'].includes(answer)?answer:'',uncertain),update_id:uid},value=JSON.stringify(next);
+ const answer=telegramAnswer(old.step,transcript),next={...advanceRouter(old,answer,!uncertain&&['1','2','9'].includes(answer)?answer:'',uncertain),update_id:uid},value=JSON.stringify(next);
  // Optimistic turn guard makes stale replies and repeated delivery harmless.
  await env.DB.batch([
  q(env,'UPDATE call_telegram SET state=?,ended_at=? WHERE id=? AND state=? AND ended_at IS NULL',value,next.done?Date.now():null,s.id,s.state),

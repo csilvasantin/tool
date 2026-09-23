@@ -46,7 +46,7 @@ test('voice lease authenticates download/result and stale transcripts cannot ans
 });
 test('uncertain voice cannot consent; text cancellation and silence require review',async()=>{
  const f=await fixture();await begin(f);
- await receiveTelegramDemo(f.env,message(2,undefined,{voice:{file_id:'v',duration:1,file_size:100}}));await applyTelegramAnswer(f.env,2,'sí',true);await flushTelegramDemo(f.env);
+ await receiveTelegramDemo(f.env,message(2,undefined,{voice:{file_id:'v',duration:1,file_size:100}}));await applyTelegramAnswer(f.env,2,'1',true);await flushTelegramDemo(f.env);
  let s=JSON.parse(f.db.prepare('SELECT state FROM call_telegram').get().state);assert.equal(s.step,'consent');assert.equal(s.retries,1);
  await receiveTelegramDemo(f.env,message(3,'cancelar'));s=JSON.parse(f.db.prepare('SELECT state FROM call_telegram').get().state);assert.equal(s.outcome,'human_handoff');
  assert.match(telegramPrompt({step:'on'}),/Espera treinta segundos/);assert.doesNotMatch(telegramPrompt({step:'on'}),/Ya han pasado/);
