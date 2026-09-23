@@ -1,3 +1,4 @@
+import {telephoneReady,startTelephone,telephoneWebhook,telephoneDetails,reconcileTelephone} from './calls-telephone.js';
 import {ensureChain,syncChainJobs,chainView,changeChain} from './calls-chain.js';
 import {ORIGINS,statement as q,rows,text,hash,random,fail,response,jsonBody,rateLimit,distanceKm} from './installer-portal.js';
 import {adminIdentity} from './portal-access.js';
@@ -41,7 +42,7 @@ async function details(env,a,caseId){
  const c=await ownCase(env,a,caseId);let incident=null,rating=null;
  if(c.incident_id){incident=await q(env,'SELECT status,installer_id,resolution FROM installer_incidents WHERE id=?',c.incident_id).first();rating=await q(env,'SELECT stars,satisfied,comment,followup_id FROM retailer_ratings WHERE incident_id=?',c.incident_id).first();}
  const jobs=await rows(env,'SELECT * FROM call_jobs WHERE case_id=?',c.id),proposals=await rows(env,'SELECT * FROM call_proposals WHERE case_id=? ORDER BY version DESC',c.id);
- return {case:c,incident,rating,jobs,chain:await chainView(env,c,jobs,proposals),contacts:await rows(env,'SELECT * FROM call_contacts WHERE case_id=?',c.id),attempts:await rows(env,'SELECT a.* FROM call_attempts a JOIN call_jobs j ON j.id=a.job_id WHERE j.case_id=? ORDER BY a.created_at DESC',c.id),events:await rows(env,'SELECT * FROM call_events WHERE case_id=? ORDER BY created_at,id',c.id),proposals,candidates:await candidates(env,c)};
+ return {case:c,incident,rating,jobs,telephone:await telephoneDetails(env,c.id),chain:await chainView(env,c,jobs,proposals),contacts:await rows(env,'SELECT * FROM call_contacts WHERE case_id=?',c.id),attempts:await rows(env,'SELECT a.* FROM call_attempts a JOIN call_jobs j ON j.id=a.job_id WHERE j.case_id=? ORDER BY a.created_at DESC',c.id),events:await rows(env,'SELECT * FROM call_events WHERE case_id=? ORDER BY created_at,id',c.id),proposals,candidates:await candidates(env,c)};
 }
 async function claim(env,a,j,c,b){
  if(c.stage==='closed')fail(409,'El expediente ya está cerrado.');
@@ -146,11 +147,12 @@ async function roomRoute(request,env,path){
 async function handleCallsInternal(request,env){
  try{
   const url=new URL(request.url),path=url.pathname.slice('/api/calls'.length),method=request.method;
+  if(path.startsWith('/telephone/'))return await telephoneWebhook(request,env,path,finish);
   if(method==='OPTIONS')return response(request,{});
   if(method!=='GET'&&!ORIGINS.has(request.headers.get('origin'))&&!/^Bearer ykcall_[a-f0-9]{64}$/.test(request.headers.get('authorization')||''))fail(403,'Origen no permitido.');
   if(path.startsWith('/rooms/'))return await roomRoute(request,env,path.slice(7));
   const a=await callsActor(request,env);await rateLimit(env,'calls:'+a.email,180,60000);
-  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false},telephone_note:'Piloto gratuito en navegador. Telefonía IA no activada.'});
+  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env)},telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
   if(path==='/tokens'){
    if(a.tokenId)fail(403,'Gestiona credenciales desde tu sesión web.');
    if(method==='GET')return response(request,{tokens:await rows(env,'SELECT id,label,expires_at,revoked_at FROM call_tokens WHERE email=? ORDER BY created_at DESC',a.email)});
@@ -185,11 +187,13 @@ async function handleCallsInternal(request,env){
     await env.DB.batch([q(env,'UPDATE call_cases SET stage=? WHERE id=? AND stage=?',next,c.id,c.stage),...(next==='closed'?[q(env,"UPDATE call_jobs SET status='done',owner=NULL,lease_until=NULL,retry_at=NULL WHERE case_id=? AND status IN ('pending','reserved','retry') AND attempt_id IS NULL",c.id)]:[]),audit(env,c.id,a.email,'pilot_stage',{from:c.stage,to:next,notes:text(b.notes,5,1000),synthetic:true})]);await syncChainJobs(env);return response(request,{ok:true,stage:next});
    }fail(404,'Ruta no encontrada.');
   }
-  m=/^\/jobs\/([^/]+)\/(claim|start|finish|release|room)$/.exec(path);
+  m=/^\/jobs\/([^/]+)\/(claim|start|finish|release|room|telephone|telephone-status)$/.exec(path);
   if(m&&method==='POST'){const {j,c}=await job(env,a,decodeURIComponent(m[1])),b=await jsonBody(request);let out;
+   if(m[2]==='telephone-status')out=await reconcileTelephone(env,a,j,c,b,finish);
+   if(m[2]==='telephone')out=await startTelephone(env,a,j,c,b);
    if(m[2]==='claim')out=await claim(env,a,j,c,b);
    if(m[2]==='start')out=await start(env,a,j,c,b);
-   if(m[2]==='finish')out=await finish(env,a,j,c,b);
+   if(m[2]==='finish'){if(j.attempt_id&&(await q(env,'SELECT channel FROM call_attempts WHERE id=?',j.attempt_id).first())?.channel==='telephone')fail(409,'La llamada telefónica se cierra con el resultado de Twilio.');out=await finish(env,a,j,c,b);}
    if(m[2]==='release'){if(j.owner!==a.email||j.attempt_id)fail(409,'Finaliza el intento activo antes de liberar.');await q(env,"UPDATE call_jobs SET status='pending',owner=NULL,lease_until=NULL WHERE id=? AND owner=? AND attempt_id IS NULL",j.id,a.email).run();out={ok:true};}
    if(m[2]==='room'){
     if(j.owner!==a.email||j.status!=='in_call'||!j.attempt_id)fail(409,'Inicia primero una llamada web.');const at=await q(env,'SELECT channel FROM call_attempts WHERE id=?',j.attempt_id).first();if(at.channel!=='browser')fail(400,'El intento no es una llamada web.');

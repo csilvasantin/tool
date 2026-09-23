@@ -28,3 +28,8 @@ Para llevarlo a números telefónicos se necesita además el proveedor de telefo
 La IA usará herramientas restringidas a una incidencia: leer contexto, registrar disponibilidad, proponer una franja, registrar aceptación explícita de una versión y pedir ayuda. La confirmación de cita y la resolución siguen siendo decisiones validadas por el servidor. No se debe conceder al modelo una escritura genérica en SQL, permisos globales ni autoridad para inventar aceptaciones.
 
 Para comparar calidad hay que ejecutar los mismos casos, medir latencia y coste observado, evaluar comprensión, interrupciones, fidelidad de las herramientas y facilidad de conversación. Las tarjetas actuales expresan objetivos de producto; la clasificación final no está validada con llamadas reales.
+
+
+## Actualización: piloto telefónico guiado
+
+La conexión de Twilio con el expediente está implementada en `CALLS-TELEPHONE.md`: voz sintética y reconocimiento por turnos, confirmación de disponibilidad/acceso y resultado persistido. Necesita secretos Twilio para activarse y se restringe a un destino verificado y expedientes sintéticos. No activa los modelos ni los tres niveles de calidad de esta demo pública.
