@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {setup} from './test-fixture.mjs';
 import {handleCalls} from './src/calls.js';
 import {hash} from './src/installer-portal.js';
-import {startTelegram,receiveTelegramDemo,flushTelegramDemo,applyTelegramAnswer,telegramWorkerRoute} from './src/calls-telegram.js';
+import {startTelegram,receiveTelegramDemo,flushTelegramDemo,applyTelegramAnswer,telegramWorkerRoute,telegramAnswer} from './src/calls-telegram.js';
 import {routerInitial,ROUTER_TITLE} from './src/calls-router.js';
 import {telegramPrompt} from './src/calls-telegram-prompts.js';
 async function fixture(){
@@ -59,4 +59,11 @@ test('API denies unauthenticated access to linking and scoped worker endpoints',
 test('failed send retries once pending; a delivered note is not sent again',async()=>{
  const f=await fixture();await receiveTelegramDemo(f.env,message(1,'/start '+f.code));const fetch=f.env.TELEGRAM_FETCH;f.env.TELEGRAM_FETCH=async()=>Response.json({ok:false},{status:503});await flushTelegramDemo(f.env);assert.equal(f.db.prepare('SELECT sent_at FROM call_telegram_outbox').get().sent_at,null);
  f.env.TELEGRAM_FETCH=fetch;await flushTelegramDemo(f.env);await flushTelegramDemo(f.env);assert.equal(f.sent.filter(s=>s.url.endsWith('sendVoice')).length,1);
+});
+test('natural short answers are step-specific; mixed or negative speech is not coerced into consent',()=>{
+ assert.equal(telegramAnswer('consent','Sí, quiero continuar.'),'si');
+ assert.equal(telegramAnswer('off','He apagado el rúter.'),'si');
+ assert.equal(telegramAnswer('restored','No ha vuelto internet.'),'no');
+ assert.notEqual(telegramAnswer('consent','Sí, pero no puedo.'),'si');
+ assert.notEqual(telegramAnswer('consent','He apagado el router.'),'si');
 });

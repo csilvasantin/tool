@@ -3,6 +3,12 @@ import {telegramPrompt,telegramAudio} from './calls-telegram-prompts.js';
 import {statement as q,rows,fail,hash} from './installer-portal.js';
 const AUDIO='https://www.yokup.com/assets/router-voice/';
 const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+export function telegramAnswer(step,text){
+ const answer=normalize(text).replace(/\bruter\b/g,'router');
+ const yes={consent:['si quiero continuar','si podemos continuar','si adelante','adelante','vale'],off:['ya esta apagado','he apagado el router','he desconectado el cable','si ya esta apagado'],on:['ya esta conectado','he conectado el router','lo he conectado','si ya esta conectado'],restored:['si ya funciona','ya funciona','ha vuelto internet','ya hay internet'],confirm:['si es correcto','si lo confirmo']}[step]||[];
+ const no={consent:['no quiero continuar','no gracias'],off:['no puedo apagarlo'],on:['no puedo conectarlo'],restored:['no ha vuelto internet','sigue sin funcionar','no hay internet'],confirm:['no es asi']}[step]||[];
+ return yes.includes(answer)?'si':no.includes(answer)?'no':answer;
+}
 const event=(env,c,kind,detail)=>q(env,'INSERT INTO call_events VALUES(?,?,?,?,?,?)',crypto.randomUUID(),c,'telegram-demo',kind,JSON.stringify(detail),Date.now());
 const output=(env,id,s)=>q(env,'INSERT OR IGNORE INTO call_telegram_outbox(session_id,turn,prompt,audio) VALUES(?,?,?,?)',id,s.turn,telegramPrompt(s),telegramAudio(s));
 export async function telegramCall(env,method,body){
@@ -61,7 +67,7 @@ export async function applyTelegramAnswer(env,uid,transcript,uncertain){
  const j=await q(env,'SELECT * FROM call_telegram_inbox WHERE update_id=?',uid).first();if(!j||j.status==='done'||j.status==='expired')return;
  const s=await q(env,'SELECT * FROM call_telegram WHERE id=?',j.session_id).first(),old=JSON.parse(s.state);
  if(s.ended_at||s.expires_at<Date.now()||j.turn!==old.turn){await q(env,"UPDATE call_telegram_inbox SET status='expired',file_id=NULL WHERE update_id=?",uid).run();return;}
- const answer=normalize(transcript),next={...advanceRouter(old,answer,['1','2','9'].includes(answer)?answer:'',uncertain),update_id:uid},value=JSON.stringify(next);
+ const answer=telegramAnswer(old.step,transcript),next={...advanceRouter(old,answer,['1','2','9'].includes(answer)?answer:'',uncertain),update_id:uid},value=JSON.stringify(next);
  // Optimistic turn guard makes stale replies and repeated delivery harmless.
  await env.DB.batch([
  q(env,'UPDATE call_telegram SET state=?,ended_at=? WHERE id=? AND state=? AND ended_at IS NULL',value,next.done?Date.now():null,s.id,s.state),
