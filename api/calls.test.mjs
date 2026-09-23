@@ -30,3 +30,85 @@ test('real agreement assigns technician only after explicit confirmations and re
 test('call tokens require web issuance, enforce revocation, and MCP never accepts a cookie as authorization',async()=>{const {handleCallsMcp}=await import('./src/calls-mcp.js');const f=await fixture();const issued=await req(f.env,'/tokens',{label:'Smith pilot'},f.cookie);assert.equal(issued.status,201);const auth={Authorization:'Bearer '+issued.body.token};assert.equal((await req(f.env,'/me',null,null,auth)).status,200);assert.equal((await req(f.env,'/tokens',{label:'Another'},null,auth)).status,403);assert.equal((await req(f.env,'/operators',null,null,auth)).status,403);const mcp=async headers=>{const r=await handleCallsMcp(new Request('https://data.yokup.com/mcp/calls',{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'calls_list',arguments:{}}})}),f.env);return r.json();};assert.equal((await mcp({Cookie:f.cookie})).error.code,-32001);assert.equal((await mcp(auth)).result.isError,false);await req(f.env,'/tokens',{revoke:issued.body.id},f.cookie);assert.equal((await req(f.env,'/me',null,null,auth)).status,401);assert.equal((await mcp(auth)).error.code,-32001);});
 
 test('an unsatisfied pilot returns to repair instead of closing',async()=>{const f=await fixture(),{c}=await pilot(f);const p=await req(f.env,cp(c,'proposals'),proposalBody(),f.cookie);for(const party of ['retailer','installer'])await req(f.env,'/proposals/'+p.body.id+'/accept',{party,accepted:true,evidence:'Aceptación de esta cita de prueba'},f.cookie);await req(f.env,cp(c,'advance'),{notes:'Llegada de prueba'},f.cookie);await req(f.env,cp(c,'advance'),{notes:'Reparación de prueba'},f.cookie);assert.equal((await req(f.env,cp(c,'advance'),{notes:'La pantalla sigue fallando',satisfied:false},f.cookie)).body.stage,'reopened');assert.equal((await req(f.env,cp(c,'advance'),{notes:'Segunda intervención de prueba'},f.cookie)).body.stage,'repairing');});
+
+async function conversation(f,j,outcome='no_answer'){
+ assert.equal((await req(f.env,jp(j,'claim'),{mode:'assistant'},f.cookie)).status,200);
+ assert.equal((await req(f.env,jp(j,'start'),{channel:'pilot',request_key:crypto.randomUUID()},f.cookie)).status,200);
+ return req(f.env,jp(j,'finish'),{outcome,notes:'Resultado controlado de la prueba',...(outcome==='availability'?{availability:'Mañanas de 9 a 12'}:{})},f.cookie);
+}
+async function chain(f,c,body){const d=(await req(f.env,cp(c),null,f.cookie)).body;return req(f.env,cp(c,'chain'),{revision:d.chain.revision,reason:'Prueba documentada de coordinación',...body},f.cookie);}
+
+test('automatic retries persist, respect due time and escalate after the configured limit',async()=>{
+ const f=await fixture(),{c,j}=await pilot(f);
+ assert.equal((await chain(f,c,{action:'policy',max_attempts:2,retry_minutes:15,coordinator:'Soporte Barcelona'})).status,200);
+ const before=Date.now(),first=await conversation(f,j);
+ assert.equal(first.body.status,'retry');assert.ok(first.body.retry_at>=before+15*60000);
+ await syncCalls(f.env);await syncCalls(f.env);
+ assert.equal((await req(f.env,jp(j,'claim'),{},f.cookie)).status,409);
+ f.db.prepare('UPDATE call_jobs SET retry_at=? WHERE id=?').run(Date.now()-1,j.id);await syncCalls(f.env);
+ const second=await conversation(f,j,'voicemail');assert.equal(second.body.status,'escalated');assert.equal(second.body.retry_at,null);
+ let d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.chain.phase,'escalated');assert.equal(d.chain.coordinator,'Soporte Barcelona');assert.equal(d.jobs[0].attempt_count,2);
+ await syncCalls(f.env);assert.equal((await req(f.env,jp(j,'claim'),{},f.cookie)).status,409);
+ assert.equal((await chain(f,c,{action:'restart',job_id:j.id})).status,200);
+ d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.jobs[0].attempt_count,0);assert.equal(d.attempts.length,2);assert.equal(d.jobs[0].status,'pending');
+ assert.equal((await conversation(f,j,'availability')).body.status,'done');
+ d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.chain.phase,'proposal');assert.equal(new Set(d.attempts.map(a=>a.cycle)).size,2);
+});
+
+test('paused chains cannot be reserved or started; resume preserves retry times and stale writes fail',async()=>{
+ const f=await fixture(),{c,j}=await pilot(f);
+ await req(f.env,jp(j,'claim'),{mode:'assistant'},f.cookie);
+ const old=(await req(f.env,cp(c),null,f.cookie)).body.chain;
+ assert.equal((await chain(f,c,{action:'pause'})).status,200);
+ assert.equal((await req(f.env,jp(j,'claim'),{},f.cookie)).status,409);
+ assert.equal((await req(f.env,jp(j,'start'),{channel:'pilot',request_key:crypto.randomUUID()},f.cookie)).status,409);
+ assert.equal((await req(f.env,cp(c,'chain'),{action:'resume',revision:old.revision,reason:'Intento desde pantalla antigua'},f.cookie)).status,409);
+ assert.equal((await chain(f,c,{action:'resume'})).status,200);
+ await conversation(f,j,'busy');const due=f.db.prepare('SELECT retry_at FROM call_jobs WHERE id=?').get(j.id).retry_at;
+ await chain(f,c,{action:'pause'});await chain(f,c,{action:'resume'});
+ assert.equal(f.db.prepare('SELECT retry_at FROM call_jobs WHERE id=?').get(j.id).retry_at,due);
+});
+
+test('one conversation per incident and no proposal or pause during an active conversation',async()=>{
+ const f=await fixture(),{c,j}=await pilot(f),p=await req(f.env,cp(c,'proposals'),proposalBody(),f.cookie);
+ const installer=(await req(f.env,cp(c),null,f.cookie)).body.jobs.find(j=>j.target==='installer');
+ for(const job of [j,installer])assert.equal((await req(f.env,jp(job,'claim'),{mode:'assistant'},f.cookie)).status,200);
+ assert.equal((await req(f.env,jp(j,'start'),{channel:'pilot',request_key:crypto.randomUUID()},f.cookie)).status,200);
+ assert.equal((await req(f.env,jp(installer,'start'),{channel:'pilot',request_key:crypto.randomUUID()},f.cookie)).status,409);
+ assert.equal((await req(f.env,cp(c,'proposals'),proposalBody(p.body.id),f.cookie)).status,409);
+ assert.equal((await chain(f,c,{action:'pause'})).status,409);
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM call_attempts WHERE ended_at IS NULL').get().n,1);
+ assert.equal((await req(f.env,jp(j,'finish'),{outcome:'agreed',notes:'Acuerdo de prueba sin confirmar cita'},f.cookie)).status,200);
+ const next=await req(f.env,cp(c,'proposals'),proposalBody(p.body.id),f.cookie);assert.equal(next.status,201);
+ const d=(await req(f.env,cp(c),null,f.cookie)).body;
+ assert.ok(d.jobs.every(j=>j.status==='pending'&&j.attempt_count===0&&j.cycle==='proposal:'+next.body.id));assert.equal(d.attempts.length,1);
+ assert.equal(d.chain.phase,'acceptance');assert.equal(d.chain.target,'retailer');
+});
+
+test('validation follow-up opens once per repair, rejection reopens technician contact, closure stops escalations',async()=>{
+ const f=await fixture(),{c}=await pilot(f),p=await req(f.env,cp(c,'proposals'),proposalBody(),f.cookie);
+ for(const party of ['retailer','installer'])await req(f.env,'/proposals/'+p.body.id+'/accept',{party,accepted:true,evidence:'Aceptación expresa de la propuesta de prueba'},f.cookie);
+ await req(f.env,cp(c,'advance'),{notes:'Llegada de prueba'},f.cookie);await req(f.env,cp(c,'advance'),{notes:'Reparación de prueba'},f.cookie);
+ let d=(await req(f.env,cp(c),null,f.cookie)).body,retailer=d.jobs.find(j=>j.target==='retailer');assert.equal(d.chain.phase,'validation');assert.equal(retailer.status,'pending');
+ await conversation(f,retailer,'agreed');await syncCalls(f.env);await syncCalls(f.env);
+ d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.jobs.find(j=>j.target==='retailer').status,'done');
+ await req(f.env,cp(c,'advance'),{notes:'La pantalla continúa fallando',satisfied:false},f.cookie);
+ d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.chain.phase,'review');assert.equal(d.jobs.find(j=>j.target==='installer').status,'pending');
+ await req(f.env,cp(c,'advance'),{notes:'Segunda reparación iniciada'},f.cookie);await req(f.env,cp(c),null,f.cookie);
+ await req(f.env,cp(c,'advance'),{notes:'Segunda reparación completada'},f.cookie);
+ d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.jobs.find(j=>j.target==='retailer').status,'pending');assert.notEqual(d.jobs.find(j=>j.target==='retailer').cycle,retailer.cycle);
+ await conversation(f,retailer,'declined');
+ await req(f.env,cp(c,'advance'),{notes:'Comercio confirma finalmente recuperación',satisfied:true},f.cookie);
+ d=(await req(f.env,cp(c),null,f.cookie)).body;assert.equal(d.chain.phase,'closed');assert.ok(d.jobs.every(j=>j.status==='done'));
+ assert.equal((await chain(f,c,{action:'restart',job_id:retailer.id})).status,409);
+});
+
+test('chain policy validates bounds and scoped operators cannot change another retailer chain',async()=>{
+ const f=await fixture(),{c}=await pilot(f);
+ assert.equal((await chain(f,c,{action:'policy',max_attempts:0,retry_minutes:15,coordinator:'Soporte'})).status,400);
+ assert.equal((await chain(f,c,{action:'policy',max_attempts:2,retry_minutes:1441,coordinator:'Soporte'})).status,400);
+ f.db.prepare("INSERT INTO retailer_accounts VALUES('r','operator@example.test','Retailer','hash','salt',0)").run();
+ const token='a'.repeat(64);f.db.prepare('INSERT INTO retailer_sessions VALUES(?,?,?)').run(await hash(token),'r',Date.now()+60000);
+ await req(f.env,'/operators',{action:'grant',email:'operator@example.test',retailer_id:'r'},f.cookie);
+ assert.equal((await req(f.env,cp(c,'chain'),{action:'pause',revision:0,reason:'Acceso fuera de ámbito'},'__Host-yk_retailer='+token)).status,404);
+});

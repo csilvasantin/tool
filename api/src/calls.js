@@ -1,3 +1,4 @@
+import {ensureChain,syncChainJobs,chainView,changeChain} from './calls-chain.js';
 import {ORIGINS,statement as q,rows,text,hash,random,fail,response,jsonBody,rateLimit,distanceKm} from './installer-portal.js';
 import {adminIdentity} from './portal-access.js';
 const NOW=()=>Date.now(),id=()=>crypto.randomUUID();
@@ -28,6 +29,7 @@ export async function syncCalls(env){
  // An expired lease never releases an active call. An operator must reconcile/end it.
  await q(env,"UPDATE call_jobs SET status='pending',owner=NULL,lease_until=NULL WHERE status='reserved' AND lease_until<? AND attempt_id IS NULL",NOW()).run();
  await q(env,"UPDATE call_jobs SET status='pending',retry_at=NULL WHERE status='retry' AND retry_at<=?",NOW()).run();
+ await syncChainJobs(env);
  await q(env,'DELETE FROM call_signals WHERE room_id IN (SELECT id FROM call_rooms WHERE expires_at<? OR closed_at IS NOT NULL)',NOW()).run();
 }
 export async function candidates(env,c){
@@ -35,16 +37,19 @@ export async function candidates(env,c){
  return (await rows(env,'SELECT id,name,latitude,longitude,skills,available FROM installer_accounts WHERE available=1 AND latitude BETWEEN ? AND ?',c.latitude-.361,c.latitude+.361)).map(t=>({...t,skills:JSON.parse(t.skills),distance_km:distanceKm(t,c)})).filter(t=>t.distance_km<40&&t.skills.includes(c.skill)).sort((a,b)=>a.distance_km-b.distance_km);
 }
 async function details(env,a,caseId){
+ await syncChainJobs(env);
  const c=await ownCase(env,a,caseId);let incident=null,rating=null;
  if(c.incident_id){incident=await q(env,'SELECT status,installer_id,resolution FROM installer_incidents WHERE id=?',c.incident_id).first();rating=await q(env,'SELECT stars,satisfied,comment,followup_id FROM retailer_ratings WHERE incident_id=?',c.incident_id).first();}
- return {case:c,incident,rating,jobs:await rows(env,'SELECT * FROM call_jobs WHERE case_id=?',c.id),contacts:await rows(env,'SELECT * FROM call_contacts WHERE case_id=?',c.id),attempts:await rows(env,'SELECT a.* FROM call_attempts a JOIN call_jobs j ON j.id=a.job_id WHERE j.case_id=? ORDER BY a.created_at DESC',c.id),events:await rows(env,'SELECT * FROM call_events WHERE case_id=? ORDER BY created_at,id',c.id),proposals:await rows(env,'SELECT * FROM call_proposals WHERE case_id=? ORDER BY version DESC',c.id),candidates:await candidates(env,c)};
+ const jobs=await rows(env,'SELECT * FROM call_jobs WHERE case_id=?',c.id),proposals=await rows(env,'SELECT * FROM call_proposals WHERE case_id=? ORDER BY version DESC',c.id);
+ return {case:c,incident,rating,jobs,chain:await chainView(env,c,jobs,proposals),contacts:await rows(env,'SELECT * FROM call_contacts WHERE case_id=?',c.id),attempts:await rows(env,'SELECT a.* FROM call_attempts a JOIN call_jobs j ON j.id=a.job_id WHERE j.case_id=? ORDER BY a.created_at DESC',c.id),events:await rows(env,'SELECT * FROM call_events WHERE case_id=? ORDER BY created_at,id',c.id),proposals,candidates:await candidates(env,c)};
 }
 async function claim(env,a,j,c,b){
  if(c.stage==='closed')fail(409,'El expediente ya está cerrado.');
+ if((await ensureChain(env,c.id)).state==='paused')fail(409,'La cadena está pausada.');
  const mode=b.mode||'human';if(!['human','assistant','ai'].includes(mode))fail(400,'Modalidad no válida.');
  if(mode==='ai')fail(503,'La telefonía IA no está activada. Usa una persona o el piloto gratuito.');
  if(mode==='assistant'&&!c.is_test)fail(400,'El asistente con guion solo funciona en expedientes de prueba.');
- const r=await q(env,"UPDATE call_jobs SET status='reserved',mode=?,owner=?,lease_until=? WHERE id=? AND attempt_id IS NULL AND (status='pending' OR (status='reserved' AND (owner=? OR lease_until<?)))",mode,a.email,NOW()+300000,j.id,a.email,NOW()).run();
+ const r=await q(env,"UPDATE call_jobs SET status='reserved',mode=?,owner=?,lease_until=? WHERE id=? AND attempt_id IS NULL AND EXISTS(SELECT 1 FROM call_chains WHERE case_id=call_jobs.case_id AND state='active') AND EXISTS(SELECT 1 FROM call_cases WHERE id=call_jobs.case_id AND stage!='closed') AND (status='pending' OR (status='reserved' AND (owner=? OR lease_until<?)))",mode,a.email,NOW()+300000,j.id,a.email,NOW()).run();
  if(!r.meta.changes)fail(409,'Otra persona o llamada ya tiene reservado este trabajo.');
  await audit(env,c.id,a.email,'reserved',{job_id:j.id,mode}).run();return {ok:true};
 }
@@ -57,7 +62,7 @@ async function start(env,a,j,c,b){
  const contact=await q(env,'SELECT * FROM call_contacts WHERE case_id=? AND kind=?',c.id,j.target).first();
  if(channel==='manual'&&!contact?.phone)fail(400,'Guarda primero el teléfono autorizado del contacto.');
  let out;try{out=await env.DB.batch([
-  q(env,`INSERT INTO call_attempts(id,job_id,actor,mode,channel,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM call_jobs WHERE id=? AND status='reserved' AND owner=? AND lease_until>?)`,key,j.id,a.email,j.mode,channel,NOW(),j.id,a.email,NOW()),
+  q(env,`INSERT INTO call_attempts(id,job_id,actor,mode,channel,created_at,cycle) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM call_jobs WHERE id=? AND status='reserved' AND owner=? AND lease_until>?)`,key,j.id,a.email,j.mode,channel,NOW(),j.cycle,j.id,a.email,NOW()),
   q(env,"UPDATE call_jobs SET status='in_call',attempt_id=?,lease_until=NULL WHERE id=? AND EXISTS(SELECT 1 FROM call_attempts WHERE id=? AND job_id=?)",key,j.id,key,j.id),
   audit(env,c.id,a.email,'attempt_started',{job_id:j.id,attempt_id:key,channel,meaning:channel==='manual'?'Marcador abierto; conexión no acreditada':'Pendiente de conexión'})
  ]);}catch{fail(409,'El intento ya existe o la reserva ha cambiado.');}if(!out[0].meta.changes)fail(409,'La reserva ha cambiado.');return {attempt_id:key,tel:channel==='manual'?'tel:'+contact.phone:null};
@@ -69,14 +74,17 @@ async function finish(env,a,j,c,b){
  const notes=text(b.notes,3,2000),availability=String(b.availability||'').slice(0,1000),retry=Number(b.retry_at||0);
  if(retry&&(!Number.isFinite(retry)||retry<=NOW()||retry>NOW()+30*86400000))fail(400,'El reintento debe estar entre ahora y 30 días.');
  if(b.outcome==='availability'&&!availability.trim())fail(400,'Indica la disponibilidad acordada.');
- const status=b.outcome==='human_handoff'?'pending':retry?'retry':'done';
+ const policy=await ensureChain(env,c.id),failed=['no_answer','busy','voicemail'].includes(b.outcome),count=j.attempt_count+1;
+ const exhausted=failed&&count>=policy.max_attempts;
+ const nextRetry=exhausted||['declined','other','human_handoff'].includes(b.outcome)?0:retry||(failed?NOW()+policy.retry_minutes*60000:0);
+ const status=b.outcome==='human_handoff'?'pending':exhausted||['declined','other'].includes(b.outcome)?'escalated':nextRetry?'retry':'done';
  const attempt=j.attempt_id;
  const result=await env.DB.batch([
   q(env,"UPDATE call_attempts SET status='completed',outcome=?,notes=?,availability=?,ended_at=? WHERE id=? AND actor=? AND ended_at IS NULL",b.outcome,notes,availability,NOW(),attempt,a.email),
   q(env,'UPDATE call_rooms SET closed_at=? WHERE attempt_id=? AND closed_at IS NULL',NOW(),attempt),
-  q(env,"UPDATE call_jobs SET status=?,owner=NULL,lease_until=NULL,attempt_id=NULL,retry_at=?,mode=CASE WHEN ?='human_handoff' THEN 'human' ELSE mode END WHERE id=? AND attempt_id=?",status,retry||null,b.outcome,j.id,attempt),
-  audit(env,c.id,a.email,'call_result',{job_id:j.id,attempt_id:attempt,outcome:b.outcome,notes,availability,retry_at:retry||null})
- ]);if(!result[0].meta.changes)fail(409,'La llamada ya terminó.');return {ok:true,status};
+  q(env,"UPDATE call_jobs SET status=?,owner=NULL,lease_until=NULL,attempt_id=NULL,retry_at=?,attempt_count=attempt_count+1,mode=CASE WHEN ?='human_handoff' THEN 'human' ELSE mode END WHERE id=? AND attempt_id=?",status,nextRetry||null,b.outcome,j.id,attempt),
+  audit(env,c.id,a.email,'call_result',{job_id:j.id,attempt_id:attempt,outcome:b.outcome,notes,availability,retry_at:nextRetry||null,attempt_count:count,status})
+ ]);if(!result[0].meta.changes)fail(409,'La llamada ya terminó.');return {ok:true,status,retry_at:nextRetry||null,attempt_count:count};
 }
 async function proposal(env,a,c,b){
  if(['repairing','awaiting_rating','closed'].includes(c.stage))fail(409,'La intervención ya está en curso o terminada.');
@@ -90,6 +98,7 @@ async function proposal(env,a,c,b){
  const version=(await q(env,'SELECT COALESCE(MAX(version),0)+1 n FROM call_proposals WHERE case_id=?',c.id).first()).n,pid=id();
  const statements=[];if(current)statements.push(q(env,"UPDATE call_proposals SET status='superseded' WHERE id=? AND status='proposed'",current.id));
  statements.push(q(env,'INSERT INTO call_proposals(id,case_id,version,installer_id,start_at,end_at,timezone,scope,cost_cents,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',pid,c.id,version,tech.id,start,end,tz,scope,cost,a.email,NOW()),q(env,"INSERT OR IGNORE INTO call_jobs(id,case_id,target,purpose,created_at) VALUES(?,?,'installer','Acordar la propuesta de intervención',?)",'installer:'+c.id,c.id,NOW()),q(env,"INSERT INTO call_contacts(case_id,kind,name) VALUES(?,'installer',?) ON CONFLICT(case_id,kind) DO UPDATE SET name=excluded.name,phone=CASE WHEN name=excluded.name THEN phone ELSE NULL END",c.id,tech.name),audit(env,c.id,a.email,'proposal_created',{id:pid,version,installer_id:tech.id}));
+ statements.push(q(env,"UPDATE call_jobs SET status='pending',owner=NULL,lease_until=NULL,retry_at=NULL,attempt_count=0,cycle=?,purpose='Recoger aceptación expresa de la propuesta '||? WHERE case_id=? AND attempt_id IS NULL",'proposal:'+pid,version,c.id));
  try{await env.DB.batch(statements);}catch{fail(409,'La agenda o la propuesta ha cambiado. Actualiza.');}return {ok:true,id:pid,version};
 }
 async function acceptProposal(env,a,c,p,b){
@@ -104,7 +113,8 @@ async function acceptProposal(env,a,c,p,b){
  st.push(q(env,`UPDATE call_proposals SET status='confirmed' WHERE id=? AND retailer_accepted=1 AND installer_accepted=1 AND status='proposed' AND NOT EXISTS(SELECT 1 FROM call_proposals x WHERE x.id!=? AND x.installer_id=? AND x.status='confirmed' AND x.start_at<? AND x.end_at>?) ${c.is_test?'':"AND EXISTS(SELECT 1 FROM installer_incidents WHERE id=? AND status='open') AND EXISTS(SELECT 1 FROM installer_accounts WHERE id=? AND available=1 AND latitude=? AND longitude=? AND skills=?)"}`,p.id,p.id,p.installer_id,p.end_at,p.start_at,...(c.is_test?[]:[c.incident_id,p.installer_id,eligible.latitude,eligible.longitude,JSON.stringify(eligible.skills)])));
  if(!c.is_test)st.push(q(env,"UPDATE installer_incidents SET status='assigned',installer_id=?,assigned_at=? WHERE id=? AND status='open' AND EXISTS(SELECT 1 FROM call_proposals WHERE id=? AND status='confirmed')",p.installer_id,NOW(),c.incident_id,p.id),q(env,`INSERT OR IGNORE INTO installer_notifications(id,incident_id,installer_id,distance_km,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM call_proposals WHERE id=? AND status='confirmed')`,id(),c.incident_id,p.installer_id,distanceKm((await candidates(env,c)).find(t=>t.id===p.installer_id)||c,c),NOW(),p.id));
  st.push(q(env,"UPDATE call_cases SET stage='scheduled' WHERE id=? AND EXISTS(SELECT 1 FROM call_proposals WHERE id=? AND status='confirmed')",c.id,p.id),audit(env,c.id,a.email,'proposal_acceptance',{proposal_id:p.id,version:p.version,party,evidence,test:!!c.is_test}));
- await env.DB.batch(st);const now=await q(env,'SELECT * FROM call_proposals WHERE id=?',p.id).first();
+ st.push(q(env,"UPDATE call_jobs SET status='done',owner=NULL,lease_until=NULL,retry_at=NULL WHERE case_id=? AND target=? AND attempt_id IS NULL AND EXISTS(SELECT 1 FROM call_proposals WHERE id=? AND status IN ('proposed','confirmed'))",c.id,party,p.id));
+ await env.DB.batch(st);await syncChainJobs(env);const now=await q(env,'SELECT * FROM call_proposals WHERE id=?',p.id).first();
  return {ok:true,proposal:now,conflict:now.status!=='confirmed'&&!!now.retailer_accepted&&!!now.installer_accepted};
 }
 async function pilot(env,a){
@@ -157,11 +167,12 @@ async function handleCallsInternal(request,env){
   }
   if(path==='/pilot'&&method==='POST')return response(request,await pilot(env,a),201);
   if(path==='/cases'&&method==='GET'){
-   await syncCalls(env);const all=await rows(env,`SELECT c.*,i.status AS incident_status,j.id AS job_id,j.status AS call_status,j.owner AS call_owner,j.target,j.mode FROM call_cases c JOIN call_jobs j ON j.case_id=c.id LEFT JOIN installer_incidents i ON i.id=c.incident_id WHERE (?=1 OR (c.is_test=1 AND c.created_by=?) OR (c.is_test=0 AND c.retailer_id IN (SELECT retailer_id FROM call_operators WHERE email=?))) ORDER BY CASE c.priority WHEN 'urgent' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 1000`,a.admin?1:0,a.email,a.email);
+   await syncCalls(env);const all=await rows(env,`SELECT c.*,i.status AS incident_status,j.id AS job_id,j.status AS call_status,j.owner AS call_owner,j.target,j.mode,j.retry_at,j.attempt_count,ch.state AS chain_state,ch.coordinator FROM call_cases c JOIN call_jobs j ON j.case_id=c.id LEFT JOIN call_chains ch ON ch.case_id=c.id LEFT JOIN installer_incidents i ON i.id=c.incident_id WHERE (?=1 OR (c.is_test=1 AND c.created_by=?) OR (c.is_test=0 AND c.retailer_id IN (SELECT retailer_id FROM call_operators WHERE email=?))) ORDER BY CASE c.priority WHEN 'urgent' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 1000`,a.admin?1:0,a.email,a.email);
    return response(request,{cases:all,limit:1000});
   }
-  let m=/^\/cases\/([^/]+)(?:\/(contacts|proposals|advance))?$/.exec(path);
+  let m=/^\/cases\/([^/]+)(?:\/(contacts|proposals|advance|chain))?$/.exec(path);
   if(m){const c=await ownCase(env,a,decodeURIComponent(m[1]));if(method==='GET'&&!m[2])return response(request,await details(env,a,c.id));const b=await jsonBody(request);
+   if(m[2]==='chain')return response(request,await changeChain(env,a,c,b,audit));
    if(m[2]==='contacts'){
     if(!['retailer','installer'].includes(b.kind))fail(400,'Contacto no válido.');const phone=String(b.phone||'').replace(/[\s()-]/g,'');if(phone&&!/^\+[1-9]\d{7,14}$/.test(phone))fail(400,'Usa formato internacional, por ejemplo +34…');
     const tz=text(b.timezone||'Europe/Madrid',1,80);try{new Intl.DateTimeFormat('es',{timeZone:tz});}catch{fail(400,'Zona horaria no válida.');}
@@ -171,7 +182,7 @@ async function handleCallsInternal(request,env){
    if(m[2]==='advance'){
     if(!c.is_test)fail(400,'El avance real se registra desde los portales del técnico y del comercio.');
     const next={scheduled:'repairing',repairing:'awaiting_rating',awaiting_rating:b.satisfied===true?'closed':'reopened',reopened:'repairing'}[c.stage];if(!next)fail(409,'Confirma primero una cita.');
-    await env.DB.batch([q(env,'UPDATE call_cases SET stage=? WHERE id=? AND stage=?',next,c.id,c.stage),...(next==='closed'?[q(env,"UPDATE call_jobs SET status='done',owner=NULL,lease_until=NULL,retry_at=NULL WHERE case_id=? AND status IN ('pending','reserved','retry') AND attempt_id IS NULL",c.id)]:[]),audit(env,c.id,a.email,'pilot_stage',{from:c.stage,to:next,notes:text(b.notes,5,1000),synthetic:true})]);return response(request,{ok:true,stage:next});
+    await env.DB.batch([q(env,'UPDATE call_cases SET stage=? WHERE id=? AND stage=?',next,c.id,c.stage),...(next==='closed'?[q(env,"UPDATE call_jobs SET status='done',owner=NULL,lease_until=NULL,retry_at=NULL WHERE case_id=? AND status IN ('pending','reserved','retry') AND attempt_id IS NULL",c.id)]:[]),audit(env,c.id,a.email,'pilot_stage',{from:c.stage,to:next,notes:text(b.notes,5,1000),synthetic:true})]);await syncChainJobs(env);return response(request,{ok:true,stage:next});
    }fail(404,'Ruta no encontrada.');
   }
   m=/^\/jobs\/([^/]+)\/(claim|start|finish|release|room)$/.exec(path);
