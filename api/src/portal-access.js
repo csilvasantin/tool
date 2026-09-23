@@ -2,6 +2,7 @@ import {ORIGINS,hash,random,statement,rows,text,passwordHash,jsonBody,rateLimit,
 const CLIENT='861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com';
 import {ADMIN,superuser,bindSuperuser} from './portal-roles.js';
 import {googlePortal,finishGoogleSignup} from './portal-google.js';
+import {googleRedirect} from './portal-google-redirect.js';
 export {ADMIN};
 const GOOGLE_COOKIE='__Host-yk_portal_google',ADMIN_COOKIE='__Host-yk_portal_admin';
 const cookie=(r,name)=>r.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
@@ -54,10 +55,21 @@ export async function finishReset(env,kind,token,password){
   statement(env,`UPDATE portal_password_resets SET used_by=? WHERE kind=? AND account_id=? AND used_by IS NULL AND ${owned}`,claim,kind,reset.account_id,reset.id,claim)
  ]);if(!result[0].meta.changes)fail(400,'Este enlace ya se ha utilizado.');return {ok:true,message:'Contraseña actualizada. Entra de nuevo; se han cerrado las sesiones y revocado los tokens de agentes.'};
 }
+export async function loginGoogleIdentity(request,env,p,b={kind:'retailer',intent:'login'},adminOnly=false){
+ const role=await bindSuperuser(env,p);
+   if(role){
+    const token=random(),created=await statement(env,'INSERT INTO portal_admin_sessions SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM portal_superusers WHERE email=? AND google_sub=? AND revoked_at IS NULL)',await hash(token),p.email,p.sub,Date.now()+3600000,p.email,p.sub).run();
+    if(!created.meta.changes)fail(403,'La autorización ha cambiado.');
+    return response(request,{ok:true,email:p.email,role:'superuser',redirect:'/superusuario'},200,setCookie(ADMIN_COOKIE,token,3600));
+   }
+   if(adminOnly)fail(403,'Esta cuenta no tiene acceso de superusuario.');
+   return await googlePortal(request,env,b,p);
+}
 export async function handleAccess(request,env){
  const path=new URL(request.url).pathname.slice('/api/portal-access'.length);
  try{
   if(request.method==='OPTIONS')return response(request,{});
+  if(['/google/redirect-challenge','/google/redirect-callback','/google/redirect-complete'].includes(path))return googleRedirect(request,env,{client:CLIENT,verifyGoogle,login:loginGoogleIdentity});
   if(request.method==='GET'&&path==='/config')return response(request,{google_client_id:CLIENT,email_recovery:!!(env.RESEND_API_KEY&&env.PORTAL_MAIL_FROM),superuser_email:ADMIN});
   if(request.method!=='POST'||!ORIGINS.has(request.headers.get('origin')))fail(403,'Origen no permitido.');
   await rateLimit(env,'portal-access-ip:'+(request.headers.get('CF-Connecting-IP')||'local'),30,900000);
@@ -68,14 +80,7 @@ export async function handleAccess(request,env){
   }
   if(path==='/google/admin'||path==='/google/login'){
    if(path==='/google/login'&&!['installer','retailer'].includes(b.kind))fail(400,'Selecciona tu portal.');
-   const p=await googleIdentity(request,env,b),role=await bindSuperuser(env,p);
-   if(role){
-    const token=random(),created=await statement(env,'INSERT INTO portal_admin_sessions SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM portal_superusers WHERE email=? AND google_sub=? AND revoked_at IS NULL)',await hash(token),p.email,p.sub,Date.now()+3600000,p.email,p.sub).run();
-    if(!created.meta.changes)fail(403,'La autorización ha cambiado.');
-    return response(request,{ok:true,email:p.email,role:'superuser',redirect:'/superusuario'},200,setCookie(ADMIN_COOKIE,token,3600));
-   }
-   if(path==='/google/admin')fail(403,'Esta cuenta no tiene acceso de superusuario.');
-   return await googlePortal(request,env,b,p);
+   return await loginGoogleIdentity(request,env,await googleIdentity(request,env,b),b,path==='/google/admin');
   }
   const kind=b.kind;if(!['installer','retailer'].includes(kind))fail(400,'Selecciona tu portal.');
   if(path==='/google/register')return await finishGoogleSignup(request,env,b);
@@ -108,6 +113,7 @@ export async function adminIdentity(request,env){
 export async function adminLogout(request,env){await statement(env,'DELETE FROM portal_admin_sessions WHERE token_hash=?',await hash(cookie(request,ADMIN_COOKIE))).run();return response(request,{ok:true},200,setCookie(ADMIN_COOKIE,'',0));}
 export async function sweepPortalAccess(env){
  const now=Date.now();await env.DB.batch([
+  statement(env,'DELETE FROM portal_google_redirects WHERE expires_at<?',now-3600000),
   statement(env,'DELETE FROM portal_google_challenges WHERE expires_at<?',now-3600000),
   statement(env,'DELETE FROM portal_google_signup WHERE expires_at<?',now-3600000),
   statement(env,'DELETE FROM portal_admin_sessions WHERE expires_at<?',now),

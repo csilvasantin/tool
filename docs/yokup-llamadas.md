@@ -43,3 +43,22 @@ Pruebas automatizadas: exclusión humano/asistente, repetición de inicio, aisla
 ## Pendiente para el generador telefónico completo
 
 Telefonía PSTN y agente de voz conversacional no están implementados ni conectados en esta entrega. La opción gratuita valida la coordinación; no sustituye la validación del agente telefónico. WebRTC usa STUN y no TURN: algunas redes bloquearán la conexión. La validación con micrófonos y redes de dos participantes reales queda pendiente; el transporte ya se ha probado con audio sintético. Notificaciones externas, transferencia en vivo, horarios automáticos de marcación, reconciliación con proveedor, límites de gasto y retención configurable se abordan al elegir el proveedor. La misión original no debe figurar como generador telefónico completo terminado con esta evidencia.
+
+## Acceso Google desde navegadores integrados (23/09/2026)
+
+El centro usa GIS en modo redirect, con FedCM desactivado para el botón. Google
+vuelve a la URI ya autorizada `https://www.yokup.com/auth/callback`. El gate distingue
+el estado `portal-calls.<aleatorio>` y lo envía al backend de portales; el acceso de
+flota conserva su ruta. No se añaden orígenes ni permisos en Google Cloud.
+
+La migración `0013_portal_google_redirect.sql` guarda challenges de cinco minutos.
+El callback comprueba CSRF, firma, audience y nonce; devuelve un relevo de un solo
+uso de 60 segundos a data.yokup.com. El relevo exige la cookie HttpOnly/Secure del
+navegador que inició el proceso y solo entonces emite la sesión habitual. Los roles
+se consultan en el servidor. La redirección final es fija a `/llamadas`; una cuenta
+sin permiso de operador sigue sin acceder. Las respuestas de relevo no se cachean
+ni transmiten el código por Referer. No se guardan credenciales en localStorage.
+
+La interfaz distingue conectar, elegir cuenta y fallo; preparar el botón ya no
+muestra «Guardado» ni acredita un inicio de sesión. Desplegar primero migración y
+API, después frontend/gate con su script oficial.

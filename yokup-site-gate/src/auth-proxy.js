@@ -59,7 +59,10 @@ export async function authProxy(request, fetchImpl = fetch) {
     if (body == null) return Response.json({error:"invalid_form"}, {status:400, headers:{"Cache-Control":"no-store"}});
     const form = new URLSearchParams(body);
     if (!equalText(cookies(request.headers.get("cookie")).g_csrf_token, form.get("g_csrf_token"))) return Response.json({error:"csrf_invalid"}, {status:403, headers:{"Cache-Control":"no-store"}});
-    const upstream = await fetchImpl(API_ORIGIN + "/auth/callback", {
+    const callbackUrl = /^portal-calls\.[a-f0-9]{64}$/.test(form.get("state") || "")
+      ? "https://data.yokup.com/api/portal-access/google/redirect-callback"
+      : API_ORIGIN + "/auth/callback";
+    const upstream = await fetchImpl(callbackUrl, {
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded", Cookie:String(request.headers.get("cookie") || ""), Origin:PUBLIC_ORIGIN},
       body, redirect:"manual"
