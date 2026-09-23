@@ -2,13 +2,13 @@ const stages=[
  ['Detectar','Se simula una alerta de router sin conexión. Ningún dispositivo real ha emitido esta alerta.'],
  ['Abrir expediente','Yokup crea un expediente de prueba con su contacto y una tarea de asistencia.'],
  ['Preparar ayuda','Primero se intenta recuperar la conexión con un reinicio eléctrico. Si no funciona, el resultado queda pendiente de revisión técnica.'],
- ['Llamar','Lucía se presenta como asistente virtual, pide permiso y guía el apagado, la espera y el encendido.'],
+ ['Hablar','La asistente virtual se presenta como asistente virtual, pide permiso y guía el apagado, la espera y el encendido.'],
  ['Confirmar resultado','La respuesta llega al historial del expediente. Sin confirmación, no se da por solucionada la incidencia.']
 ];
 export function mountRouterDemo({host,me,api,openCase,element:E}){
  if(!me.admin){host.hidden=true;return;}host.hidden=false;
  host.replaceChildren();const launch=E('button','Demo completa · reiniciar router','primary');launch.type='button';const panel=E('div',undefined,'router-demo-panel');panel.hidden=true;
- const title=E('h2','De la alerta a la llamada, en una demo.'),notice=E('p','Verás la cadena con datos ficticios. Al final puedes recibir una llamada real en castellano. Voz neuronal sintética de Lucía; no es una operadora humana.');
+ const title=E('h2','De la alerta a la asistencia, en una demo.'),notice=E('p','Verás la cadena con datos ficticios. Ensaya primero con notas de voz en castellano por Telegram. También puedes optar por una llamada telefónica con Twilio. Las voces son sintéticas; no son operadoras humanas.');
  const steps=E('ol',undefined,'router-demo-steps');const items=stages.map(([title,desc])=>{const li=E('li');li.append(E('strong',title),E('p',desc));steps.append(li);return li;});
  const form=E('form',undefined,'form-grid'),label=E('label','Móvil autorizado para la prueba'),phone=E('input');phone.type='tel';phone.placeholder='+34…';phone.value=me.telephone_demo_to||'';phone.setAttribute('aria-label','Móvil de la demo');label.append(phone);
  const consent=E('label',undefined,'inline-check wide'),check=E('input');check.type='checkbox';consent.append(check,document.createTextNode('Quiero recibir una llamada real al número indicado al terminar el recorrido. Solo funciona con el móvil verificado de la cuenta.'));
@@ -47,6 +47,20 @@ export function mountRouterDemo({host,me,api,openCase,element:E}){
   }catch(error){message.textContent=(dialStarted?'Comprueba el expediente antes de repetir: ':'')+error.message;}
   finally{if(cancelled)message.textContent='Recorrido detenido. No se ha enviado una llamada.';running=false;start.disabled=dialStarted;phone.disabled=false;check.disabled=false;cancel.hidden=true;fresh.hidden=dialStarted||!cid;}
  };
+ const telegram=E('button','Ensayar por Telegram · sin Twilio','primary');telegram.type='button';
+ const tgInfo=E('p','Notas de voz en castellano. Responde con voz, texto o botones en un chat privado. La transcripción necesita que el servicio de voz del Mac esté activo. Es un ensayo guiado, no una llamada en directo.','small');
+ const tgLink=E('a','Abrir chat privado de Yokup');tgLink.hidden=true;tgLink.target='_blank';tgLink.rel='noopener noreferrer';
+ const tgStatus=E('p');tgStatus.setAttribute('role','status');
+ telegram.onclick=async()=>{
+  if(running)return;telegram.disabled=true;tgLink.hidden=true;tgStatus.textContent='Preparando expediente y enlace privado…';
+  try{let tgKey=sessionStorage.getItem('yokup-router-telegram-key');if(!tgKey){tgKey=crypto.randomUUID();sessionStorage.setItem('yokup-router-telegram-key',tgKey);}
+   const demo=await api('/router-demo',{request_key:tgKey});cid=demo.id;view.hidden=false;
+   const linked=await api('/cases/'+encodeURIComponent(cid)+'/telegram-demo',{});
+   tgLink.href=linked.url;tgLink.hidden=false;tgStatus.textContent='Abre el chat privado y pulsa Iniciar. El enlace dura 30 minutos. Recibirás la primera nota de voz; tus respuestas quedarán en este expediente. No se utiliza Twilio.';
+   step(3);
+  }catch(error){tgStatus.textContent=error.message;}finally{telegram.disabled=false;}
+ };
+
  if(me.capabilities.telephone_trial)panel.append(E('p','Cuenta de prueba: Twilio puede anteponer un aviso en inglés. Si pide pulsar una tecla, pulsa un número para continuar al guion de Yokup en castellano.','small'));
- form.append(label,consent,start,cancel);panel.append(title,notice,steps,form,config,message,view,fresh);host.append(launch,panel);if(location.hash==='#router-demo'){panel.hidden=false;launch.setAttribute('aria-expanded','true');}
+ form.append(label,consent,start,cancel);panel.append(title,notice,telegram,tgInfo,tgLink,tgStatus,steps,form,config,message,view,fresh);host.append(launch,panel);if(location.hash==='#router-demo'){panel.hidden=false;launch.setAttribute('aria-expanded','true');}
 }

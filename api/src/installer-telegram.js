@@ -1,3 +1,4 @@
+import {receiveTelegramDemo,flushTelegramDemo} from './calls-telegram.js';
 // Avisos de oportunidad por Telegram (Carlos, 18-sep-2026). Cada aviso nuevo de un
 // instalador con chat vinculado sale una vez; si Telegram falla se reintenta en el
 // siguiente barrido. Sin TELEGRAM_BOT_TOKEN no se envía nada.
@@ -18,11 +19,19 @@ export async function sendTelegramAlerts(env){
 // «/start CÓDIGO» enviado al bot vincula ese chat con el instalador dueño del código.
 export async function linkTelegramChats(env){
  if(!env.TELEGRAM_BOT_TOKEN)return;
+ const owner=String(Date.now()+90000)+':'+crypto.randomUUID();
+ const lock=await env.DB.prepare("INSERT INTO telegram_state(key,value) VALUES('poll_lock',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE CAST(substr(telegram_state.value,1,13) AS INTEGER)<?").bind(owner,Date.now()).run();
+ if(!lock.meta.changes)return;
+ try{await pollTelegramChats(env);await flushTelegramDemo(env);}finally{await env.DB.prepare("DELETE FROM telegram_state WHERE key='poll_lock' AND value=?").bind(owner).run();}
+}
+async function pollTelegramChats(env){
+ if(!env.TELEGRAM_BOT_TOKEN)return;
  const api=`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
  const offset=Number((await env.DB.prepare("SELECT value FROM telegram_state WHERE key='offset'").bind().first())?.value||0);
  let updates=[];
- try{const r=await fetch(`${api}/getUpdates?offset=${offset}&timeout=0&allowed_updates=%5B%22message%22%5D`);if(!r.ok){console.warn('telegram getUpdates',r.status);return;}updates=(await r.json()).result||[];if(updates.length)console.log('telegram updates',updates.length);}catch(e){console.warn('telegram getUpdates',String(e));return;}
+ try{const r=await fetch(`${api}/getUpdates?offset=${offset}&timeout=0&allowed_updates=%5B%22message%22%5D`,{signal:AbortSignal.timeout(15000)});if(!r.ok){console.warn('telegram getUpdates',r.status);return;}updates=(await r.json()).result||[];if(updates.length)console.log('telegram updates',updates.length);}catch(e){console.warn('telegram getUpdates',String(e));return;}
  for(const u of updates){
+  if(await receiveTelegramDemo(env,u))continue;
   const m=u.message,code=/^\/start\s+([a-f0-9]{12,64})$/.exec((m?.text||'').trim())?.[1];
   if(!code||!m.chat)continue;
   const link=await env.DB.prepare('SELECT l.installer_id,a.name FROM installer_telegram_links l JOIN installer_accounts a ON a.id=l.installer_id WHERE l.code=? AND l.expires_at>?').bind(code,Date.now()).first();

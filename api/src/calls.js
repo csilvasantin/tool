@@ -1,3 +1,5 @@
+import {startTelegram,telegramDetails,telegramWorkerReady,telegramWorkerRoute} from './calls-telegram.js';
+import {linkTelegramChats} from './installer-telegram.js';
 import {ROUTER_TITLE} from './calls-router.js';
 import {telephoneReady,startTelephone,telephoneWebhook,telephoneDetails,reconcileTelephone} from './calls-telephone.js';
 import {ensureChain,syncChainJobs,chainView,changeChain} from './calls-chain.js';
@@ -43,7 +45,7 @@ async function details(env,a,caseId){
  const c=await ownCase(env,a,caseId);let incident=null,rating=null;
  if(c.incident_id){incident=await q(env,'SELECT status,installer_id,resolution FROM installer_incidents WHERE id=?',c.incident_id).first();rating=await q(env,'SELECT stars,satisfied,comment,followup_id FROM retailer_ratings WHERE incident_id=?',c.incident_id).first();}
  const jobs=await rows(env,'SELECT * FROM call_jobs WHERE case_id=?',c.id),proposals=await rows(env,'SELECT * FROM call_proposals WHERE case_id=? ORDER BY version DESC',c.id);
- return {case:c,incident,rating,jobs,telephone:await telephoneDetails(env,c.id),chain:await chainView(env,c,jobs,proposals),contacts:await rows(env,'SELECT * FROM call_contacts WHERE case_id=?',c.id),attempts:await rows(env,'SELECT a.* FROM call_attempts a JOIN call_jobs j ON j.id=a.job_id WHERE j.case_id=? ORDER BY a.created_at DESC',c.id),events:await rows(env,'SELECT * FROM call_events WHERE case_id=? ORDER BY created_at,id',c.id),proposals,candidates:await candidates(env,c)};
+ return {case:c,incident,rating,jobs,telephone:await telephoneDetails(env,c.id),telegram:await telegramDetails(env,c.id),chain:await chainView(env,c,jobs,proposals),contacts:await rows(env,'SELECT * FROM call_contacts WHERE case_id=?',c.id),attempts:await rows(env,'SELECT a.* FROM call_attempts a JOIN call_jobs j ON j.id=a.job_id WHERE j.case_id=? ORDER BY a.created_at DESC',c.id),events:await rows(env,'SELECT * FROM call_events WHERE case_id=? ORDER BY created_at,id',c.id),proposals,candidates:await candidates(env,c)};
 }
 async function claim(env,a,j,c,b){
  if(c.stage==='closed')fail(409,'El expediente ya está cerrado.');
@@ -161,12 +163,13 @@ async function roomRoute(request,env,path){
 async function handleCallsInternal(request,env){
  try{
   const url=new URL(request.url),path=url.pathname.slice('/api/calls'.length),method=request.method;
+  if(path.startsWith('/telegram-worker/'))return await telegramWorkerRoute(request,env,path.slice('/telegram-worker'.length),linkTelegramChats);
   if(path.startsWith('/telephone/'))return await telephoneWebhook(request,env,path,finish);
   if(method==='OPTIONS')return response(request,{});
   if(method!=='GET'&&!ORIGINS.has(request.headers.get('origin'))&&!/^Bearer ykcall_[a-f0-9]{64}$/.test(request.headers.get('authorization')||''))fail(403,'Origen no permitido.');
   if(path.startsWith('/rooms/'))return await roomRoute(request,env,path.slice(7));
   const a=await callsActor(request,env);await rateLimit(env,'calls:'+a.email,180,60000);
-  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env),telephone_trial:env.TWILIO_TRIAL_MODE==='true'},telephone_demo_to:a.admin?(env.TWILIO_DEMO_TO||''):'',telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
+  if(path==='/me')return response(request,{email:a.email,admin:a.admin,scopes:a.scopes,capabilities:{human:true,browser:true,free_pilot:true,telegram_demo:await telegramWorkerReady(env),telephone_ai:false,telephone_guided:a.admin&&telephoneReady(env),telephone_trial:env.TWILIO_TRIAL_MODE==='true'},telephone_demo_to:a.admin?(env.TWILIO_DEMO_TO||''):'',telephone_note:telephoneReady(env)?'Prueba telefónica guiada con reconocimiento de voz, en expedientes sintéticos. No es conversación libre con IA.':'Telefonía guiada pendiente de configurar Twilio.'});
   if(path==='/tokens'){
    if(a.tokenId)fail(403,'Gestiona credenciales desde tu sesión web.');
    if(method==='GET')return response(request,{tokens:await rows(env,'SELECT id,label,expires_at,revoked_at FROM call_tokens WHERE email=? ORDER BY created_at DESC',a.email)});
@@ -187,8 +190,9 @@ async function handleCallsInternal(request,env){
    await syncCalls(env);const all=await rows(env,`SELECT c.*,i.status AS incident_status,j.id AS job_id,j.status AS call_status,j.owner AS call_owner,j.target,j.mode,j.retry_at,j.attempt_count,ch.state AS chain_state,ch.coordinator FROM call_cases c JOIN call_jobs j ON j.case_id=c.id LEFT JOIN call_chains ch ON ch.case_id=c.id LEFT JOIN installer_incidents i ON i.id=c.incident_id WHERE (?=1 OR (c.is_test=1 AND c.created_by=?) OR (c.is_test=0 AND c.retailer_id IN (SELECT retailer_id FROM call_operators WHERE email=?))) ORDER BY CASE c.priority WHEN 'urgent' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 1000`,a.admin?1:0,a.email,a.email);
    return response(request,{cases:all,limit:1000});
   }
-  let m=/^\/cases\/([^/]+)(?:\/(contacts|proposals|advance|chain))?$/.exec(path);
+  let m=/^\/cases\/([^/]+)(?:\/(contacts|proposals|advance|chain|telegram-demo))?$/.exec(path);
   if(m){const c=await ownCase(env,a,decodeURIComponent(m[1]));if(method==='GET'&&!m[2])return response(request,await details(env,a,c.id));const b=await jsonBody(request);
+   if(m[2]==='telegram-demo'&&method==='POST')return response(request,await startTelegram(env,a,c),201);
    if(m[2]==='chain')return response(request,await changeChain(env,a,c,b,audit));
    if(m[2]==='contacts'){
     if(!['retailer','installer'].includes(b.kind))fail(400,'Contacto no válido.');const phone=String(b.phone||'').replace(/[\s()-]/g,'');if(phone&&!/^\+[1-9]\d{7,14}$/.test(phone))fail(400,'Usa formato internacional, por ejemplo +34…');
