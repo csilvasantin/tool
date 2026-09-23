@@ -28,7 +28,7 @@ print('Modelo local listo; no se usan créditos de telefonía.', flush=True)
 
 
 def api(path, data=None, lease=None, raw=False):
-    headers = {'Authorization': 'Bearer ' + secret}
+    headers = {'Authorization': 'Bearer ' + secret, 'User-Agent': 'Yokup-Router-Voice/1.0'}
     if lease:
         headers['X-Job-Lease'] = lease
     if data is not None:
