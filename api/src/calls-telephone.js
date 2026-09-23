@@ -90,14 +90,18 @@ export async function startTelephone(env,a,j,c,b){
  ]);}catch{fail(409,'Ya existe una conversación activa. No se ha enviado otra llamada.');}
  if(!out[0].meta.changes)fail(409,'La llamada no está disponible.');
  const body=new URLSearchParams({To:contact.phone,From:env.TWILIO_FROM,Url:`${root}/${key}/voice?turn=0`,Method:'POST',StatusCallback:`${root}/${key}/status`,StatusCallbackMethod:'POST',Timeout:'25',TimeLimit:c.title===ROUTER_TITLE?'300':'180'});
- for(const e of ['initiated','ringing','answered','completed'])body.append('StatusCallbackEvent',e);
+ if(env.TWILIO_TRIAL_MODE==='true'){for(const key of ['Method','StatusCallbackMethod','Timeout','TimeLimit'])body.delete(key);}
+ else for(const e of ['initiated','ringing','answered','completed'])body.append('StatusCallbackEvent',e);
  let res,data;
  try{res=await transport(env,providerUrl(env),{method:'POST',headers:{...authHeaders(env),'Content-Type':'application/x-www-form-urlencoded'},body:body.toString(),signal:AbortSignal.timeout(12000)});data=await res.json();}
  catch{await q(env,"UPDATE call_telephone SET provider_status='unknown' WHERE attempt_id=? AND call_sid IS NULL",key).run();return {attempt_id:key,status:'unknown',message:'Twilio no ha confirmado el resultado. No repitas: comprueba su consola.'};}
  if(res.status>=500){await q(env,"UPDATE call_telephone SET provider_status='unknown' WHERE attempt_id=? AND call_sid IS NULL",key).run();return {attempt_id:key,status:'unknown',message:'Estado no confirmado. Comprueba Twilio antes de continuar.'};}
  if(!res.ok){
-  await env.DB.batch([q(env,"UPDATE call_telephone SET provider_status='rejected' WHERE attempt_id=?",key),q(env,"UPDATE call_attempts SET status='completed',outcome='other',notes=?,ended_at=? WHERE id=?",'Twilio rechazó la llamada. Código '+String(data.code||res.status).slice(0,12),Date.now(),key),q(env,"UPDATE call_jobs SET status='escalated',attempt_id=NULL,owner=NULL WHERE id=? AND attempt_id=?",j.id,key),event(env,c.id,'telephone_rejected',{notes:'Twilio rechazó la llamada. Código '+String(data.code||res.status).slice(0,12)})]);
-  fail(502,'Twilio rechazó la llamada (código '+String(data.code||res.status).replace(/[^0-9]/g,'')+'). No se ha reintentado.');
+  const rawError=data.message||data.error?.message||data.error||data.errors||data;
+  const reason=clean(typeof rawError==='string'?rawError:JSON.stringify(rawError)).split(env.TWILIO_AUTH_TOKEN).join('[redacted]');
+  const rejection='Twilio rechazó la llamada. Código '+String(data.code||res.status).slice(0,12)+'. '+reason;
+  await env.DB.batch([q(env,"UPDATE call_telephone SET provider_status='rejected' WHERE attempt_id=?",key),q(env,"UPDATE call_attempts SET status='completed',outcome='other',notes=?,ended_at=? WHERE id=?",rejection,Date.now(),key),q(env,"UPDATE call_jobs SET status='escalated',attempt_id=NULL,owner=NULL WHERE id=? AND attempt_id=?",j.id,key),event(env,c.id,'telephone_rejected',{notes:rejection})]);
+  fail(502,rejection+' No se ha reintentado.');
  }
  if(!sidPattern.test(data.sid||'')){await q(env,"UPDATE call_telephone SET provider_status='unknown' WHERE attempt_id=? AND call_sid IS NULL",key).run();return {attempt_id:key,status:'unknown'};}
  await env.DB.batch([q(env,"UPDATE call_telephone SET call_sid=?,provider_status=CASE WHEN provider_status IN ('starting','unknown') THEN ? ELSE provider_status END WHERE attempt_id=? AND (call_sid IS NULL OR call_sid=?)",data.sid,data.status||'queued',key,data.sid),event(env,c.id,'telephone_started',{attempt_id:key,notes:'Llamada telefónica de demostración enviada; pendiente de respuesta.'})]);

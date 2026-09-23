@@ -117,3 +117,10 @@ test('router refusal and ambiguous responses never instruct a reset or confirm r
  const rejected=advanceTelephone({...s,step:'confirm',turn:5,restored:true},'no');assert.equal(rejected.outcome,'human_handoff');
  const failed=advanceTelephone({...s,step:'confirm',turn:5,restored:false},'sí');assert.equal(failed.outcome,'human_handoff');assert.match(failed.notes,/sigue sin conexión/);
 });
+test('new Twilio trial sends only supported fields and reports structured rejection safely',async()=>{
+ const f=await fixture();f.env.TWILIO_TRIAL_MODE='true';
+ f.env.TWILIO_FETCH=async(url,options)=>{f.sent.push({url,options});return Response.json({error:{message:'Unsupported parameter TimeLimit'}},{status:400});};
+ const result=await dial(f);assert.equal(result.status,502);assert.match(result.body.error,/Unsupported parameter TimeLimit/);
+ assert.deepEqual([...new URLSearchParams(f.sent[0].options.body).keys()].sort(),['From','StatusCallback','To','Url']);
+ assert.equal(f.db.prepare('SELECT provider_status FROM call_telephone').get().provider_status,'rejected');assert.equal(f.sent.length,1);
+});
