@@ -15,9 +15,14 @@ test("Running Man consume el endpoint factual específico sin feeds truncados",(
   assert.match(source,/datos\.workObservations = valid && Array\.isArray\(payload\.observations\)/,"observaciones separadas de los participantes");
 });
 
-test("la carrera nace de hechos dentro del mismo ámbito que el ranking",()=>{
+test("las pistas del running man salen de presencia+foco y active-work vivo",()=>{
   assert.match(source,/function trabajosEnCurso\(\)/);
-  assert.match(source,/todosTrabajos=trabajosCarrera\(\);\s*var trabajos=todosTrabajos\.filter\(function\(work\)\{return scopeKeys\.has\(work\.key\);\}\)/);
+  assert.match(source,/function trabajosDesdePresencia\(\)/);
+  assert.match(source,/function trabajosParaPistas\(\)/);
+  assert.match(source,/var todosTrabajos=\(typeof trabajosParaPistas === "function" \? trabajosParaPistas : trabajosCarrera\)\(\);/);
+  // Mismo ámbito que el ranking; la presencia completa focos dentro de ese ámbito.
+  assert.match(source,/var trabajos=todosTrabajos\.filter\(function\(work\)\{return scopeKeys\.has\(work\.key\);\}\);/);
+  assert.doesNotMatch(source,/todosTrabajos=trabajosCarrera\(\);\s*var trabajos=todosTrabajos\.filter\(function\(work\)\{return scopeKeys\.has\(work\.key\);\}\)/);
   assert.match(source,/byKey\[trabajo\.key\] \|\| \{ agente:trabajo\.agente/);
   assert.doesNotMatch(source,/filasElegibles\.slice\(0, 3\)/);
   assert.match(source,/data-participants/);

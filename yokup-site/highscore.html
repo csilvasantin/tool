@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="lucas-lanes-fix" content="pistas-presence-focus-20260924" />
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="/favicon.ico?v=v.2026.08.02.202305" sizes="any">
 <link rel="icon" type="image/png" href="/favicon-32x32.png?v=v.2026.08.02.202305" sizes="32x32">
@@ -3427,7 +3428,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     (presenceAvailable ? presences : []).forEach(function (presence) {
       var updated = Number(presence && presence.updated || 0), pid = Number(presence && presence.pid || 0);
       var host = normaliza(presence && presence.host).toLowerCase();
-      if (!(presence && presence.verified && presence.source === "process_snapshot" &&
+      var source = normaliza(presence && presence.source).toLowerCase();
+      var processLive = source === "process_snapshot" || source === "process-snapshot";
+      if (!(presence && presence.verified && processLive &&
         (host === "app" || host === "cli") && presence.online !== 0 && presence.online !== false &&
         pid > 0 && updated >= now - 30 && updated <= now + 5)) return;
       var raw = normaliza(presence.persona || presence.agent || presence.assignee), machine = normaliza(presence.machine || presence.loc);
@@ -3440,7 +3443,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     // Los elementos llegan normalizados por trabajosEnCurso; un CLI pausado o
     // cualquier fila no ejecutándose quedan fuera de esta unión.
     (workAvailable ? activeWork : []).forEach(function (work) {
-      if (!work || work.state !== "running" || work.sessionSurface !== "app" || work.cliPaused) return;
+      // App o CLI: si el trabajo corre de verdad, el ámbito activo debe verlo.
+      if (!work || work.state !== "running" || work.cliPaused) return;
+      if (work.sessionSurface && work.sessionSurface !== "app" && work.sessionSurface !== "cli") return;
       var key = normaliza(work.key) || hsAgentKey(work.agente || work.agent);
       if (key) active.add(key);
     });
@@ -5109,6 +5114,76 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     pendientesCarrera = 0;
   }
   function liberaParrilla() { rosterCarrera = null; }
+
+  // Pistas del running man = quién trabaja AHORA. active-work a veces solo
+  // trae al líder; la presencia verificada con foco completa el resto.
+  // Sin presencia, devolvemos exactamente trabajosCarrera() (contratos Morfeo).
+  function trabajosDesdePresencia() {
+    var id = window.ykAgentIdentity, now = Number(datos.presenceNow || 0);
+    if (!(Number.isFinite(now) && now > 0) || !Array.isArray(datos.presencia)) return [];
+    var byKey = Object.create(null);
+    datos.presencia.forEach(function (presence) {
+      var updated = Number(presence && presence.updated || 0), pid = Number(presence && presence.pid || 0);
+      var host = normaliza(presence && presence.host).toLowerCase();
+      var source = normaliza(presence && presence.source).toLowerCase();
+      var processLive = source === "process_snapshot" || source === "process-snapshot";
+      if (!(presence && presence.verified && processLive &&
+        (host === "app" || host === "cli") && presence.online !== 0 && presence.online !== false &&
+        pid > 0 && updated >= now - 30 && updated <= now + 5)) return;
+      var raw = normaliza(presence.persona || presence.agent || presence.assignee);
+      var machine = normaliza(presence.machine || presence.loc);
+      var parsed = id && id.parse ? id.parse(raw) : null;
+      if (!raw || (parsed && parsed.role && parsed.role !== "main")) return;
+      var display = id && id.display ? id.display(raw, machine) : raw;
+      var key = claveAgenteCarrera(display);
+      if (!key) return;
+      var focus = normaliza(presence.focus || presence.task || "");
+      var title = focus || ("En " + (machine || host || "máquina") + " · latido vivo");
+      var at = updated * 1000;
+      var prev = byKey[key];
+      if (prev && prev._hasFocus && !focus) return;
+      if (prev && !!prev._hasFocus === !!focus && Number(prev.at) >= at) return;
+      byKey[key] = {
+        key:key, agente:display, machine:machine, executor:display,
+        reference:"", projectId:"", projectName:normaliza(presence.project) || "",
+        projectSource:"presence", detailUrl:"",
+        kind: focus ? "mission" : "session", title:title,
+        state:"running", reachable:true, raceRevision:"presence:" + key + ":" + updated,
+        assignmentAt:at, assignmentBasis:"presence_focus",
+        startedAt:at, at:at, endedAt:0, elapsedMs:null, timingBasis:"presence",
+        presenceAt:at, sessionDedicatedMs:null, sessionState:"open",
+        sessionBasis:"presence_process", sessionSurface:host || "",
+        runtime:normaliza(presence.runtime) || "", activityExpiresAt:(updated + 30) * 1000,
+        cliPaused:presence.cli_paused === true, activityReason:"", operationalState:"",
+        _hasFocus:!!focus
+      };
+    });
+    return Object.keys(byKey).map(function (k) {
+      var row = byKey[k]; delete row._hasFocus; return row;
+    });
+  }
+
+  function trabajosParaPistas() {
+    var fromWork = trabajosCarrera();
+    var fromPresence = trabajosDesdePresencia();
+    if (!fromPresence.length) return fromWork;
+    var byKey = Object.create(null);
+    fromWork.forEach(function (work) { byKey[work.key] = work; });
+    // Presencia rellena huecos y puede enriquecer el título; NUNCA pisa el
+    // estado/superficie que ya decidió active-work (contratos APP/CLI Morfeo).
+    fromPresence.forEach(function (work) {
+      var prev = byKey[work.key];
+      if (!prev) { byKey[work.key] = work; return; }
+      var focusTitle = normaliza(work.title);
+      var prevTitle = normaliza(prev.title);
+      if (focusTitle && focusTitle.indexOf("latido vivo") < 0 &&
+          (!prevTitle || prevTitle.indexOf("latido vivo") >= 0)) {
+        byKey[work.key] = Object.assign({}, prev, { title: work.title });
+      }
+    });
+    return Object.keys(byKey).map(function (k) { return byKey[k]; });
+  }
+
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
     var focused = document.activeElement, focusedLane = focused && focused.getAttribute && focused.getAttribute("data-race-role") === "agent" && focused.closest ? focused.closest(".refresh-lane") : null;
@@ -5116,7 +5191,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (typeof hsRenderWorkObservations === "function") hsRenderWorkObservations();
     var completas=listaVisible(aplicaAgentScope(listaCompletaCache||[])),byKey=Object.create(null);
     var scopeKeys=new Set(completas.map(function(row){return claveAgenteCarrera(row.agente);}));
-    var todosTrabajos=trabajosCarrera();
+    var todosTrabajos=(typeof trabajosParaPistas === "function" ? trabajosParaPistas : trabajosCarrera)();
+    // Mismo ámbito que el ranking (scope manual incluido); la presencia
+    // solo añade corredores que ya entran en ese ámbito.
     var trabajos=todosTrabajos.filter(function(work){return scopeKeys.has(work.key);});
     completas.forEach(function (fila) { byKey[claveAgenteCarrera(fila && fila.agente)] = fila; });
     var corredores = trabajos.map(function (trabajo, index) {
