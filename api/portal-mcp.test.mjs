@@ -64,7 +64,7 @@ test('MCP full cycle uses retailer and installer web ownership, rating and proxi
  const inbox=output(await invoke(env,installer,'installer_inbox'));assert.equal(inbox.notifications[0].id,id);
  const before=await invoke(env,retailer,'retailer_intervention_rate',{incident_id:id,stars:5,satisfied:true,comment:'Funciona',request_key:key()});assert.equal(output(before).http_status,409);
  assert.equal((await invoke(env,installer,'installer_accept',{incident_id:id,request_key:key()})).body.result.isError,false);
- assert.equal((await invoke(env,installer,'installer_resolve',{incident_id:id,resolution:'Cable de alimentación sustituido y encendido comprobado.',request_key:key()})).body.result.isError,false);
+ assert.equal((await invoke(env,installer,'installer_resolve',{incident_id:id,resolution:'Cable de alimentación sustituido y encendido comprobado.',evidence_url:'https://evidencia.test/cierre.jpg',request_key:key()})).body.result.isError,false);
  const ratingArgs={incident_id:id,stars:2,satisfied:false,comment:'La pantalla vuelve a apagarse tras diez minutos.',request_key:key()};
  const rated=await invoke(env,retailer,'retailer_intervention_rate',ratingArgs);assert.equal(rated.body.result.isError,false);assert.ok(output(rated).followup_id);
  const replay=await invoke(env,retailer,'retailer_intervention_rate',ratingArgs);assert.equal(output(replay).replayed,true);
@@ -85,7 +85,7 @@ test('MCP cannot claim outside installer specialty/availability or overwrite ano
  const b=await actor(env,'installer');await sweepInstallers(env);await call(env,'/me',account({available:false}),a.cookie,'PATCH');
  assert.equal(output(await invoke(env,a,'installer_accept',{incident_id:id,request_key:key()})).http_status,409);
  assert.equal((await invoke(env,b,'installer_accept',{incident_id:id,request_key:key()})).body.result.isError,false);
- assert.equal(output(await invoke(env,a,'installer_resolve',{incident_id:id,resolution:'No puede modificar una reparación ajena.',request_key:key()})).http_status,409);
+ assert.equal(output(await invoke(env,a,'installer_resolve',{incident_id:id,resolution:'No puede modificar una reparación ajena.',evidence_url:'https://evidencia.test/cierre.jpg',request_key:key()})).http_status,409);
 });
 test('audit is account scoped, omits tokens and descriptions, and records both success and business rejection',async()=>{
  const {env}=setup(),a=await actor(env,'retailer'),b=await actor(env,'retailer');await invoke(env,a,'retailer_dashboard');await invoke(env,a,'retailer_device_create',{site_id:'not-owned',name:'Secret description',skill:'audio',request_key:key()});

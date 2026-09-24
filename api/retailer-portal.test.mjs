@@ -31,7 +31,7 @@ test('manual issue is the same installer job, with unique post-repair customer r
  assert.equal((await retail(env,'/incidents/'+id+'/rating',{stars:5,satisfied:true,comment:''},a.cookie)).status,409);
  const inbox=(await call(env,'/inbox',undefined,tech.cookie)).body;assert.equal(inbox.notifications.length,1);assert.equal(inbox.notifications[0].id,id);assert.equal(inbox.notifications[0].description,b.description);
  assert.equal((await call(env,'/incidents/'+id+'/accept',{},tech.cookie)).status,200);
- assert.equal((await call(env,'/incidents/'+id+'/resolve',{resolution:'Amplificador revisado, cable sustituido y audio comprobado.'},tech.cookie)).status,200);
+ assert.equal((await call(env,'/incidents/'+id+'/resolve',{resolution:'Amplificador revisado, cable sustituido y audio comprobado.',evidence_url:'https://evidencia.test/cierre.jpg'},tech.cookie)).status,200);
  assert.equal((await retail(env,'/dashboard',undefined,a.cookie)).body.stats.awaiting_rating,1);
  const rating={stars:5,satisfied:true,comment:'Buen servicio y equipo funcionando.'};assert.equal((await retail(env,'/incidents/'+id+'/rating',rating,a.cookie)).status,201);
  assert.equal((await retail(env,'/incidents/'+id+'/rating',rating,a.cookie)).status,409);
@@ -41,7 +41,7 @@ test('manual issue is the same installer job, with unique post-repair customer r
 test('dissatisfied retailer creates one follow-up preserving the original repair and rating',async()=>{
  const {env,db}=setup(),a=await shop(env),other=await shop(env),tech=await call(env,'/register',account({skills:['audio']}));
  const id=(await retail(env,'/incidents',incidentBody(a.device),a.cookie)).body.id;
- await call(env,'/incidents/'+id+'/accept',{},tech.cookie);await call(env,'/incidents/'+id+'/resolve',{resolution:'Parte de prueba con comprobación de reproducción.'},tech.cookie);
+ await call(env,'/incidents/'+id+'/accept',{},tech.cookie);await call(env,'/incidents/'+id+'/resolve',{resolution:'Parte de prueba con comprobación de reproducción.',evidence_url:'https://evidencia.test/cierre.jpg'},tech.cookie);
  assert.equal((await retail(env,'/incidents/'+id+'/rating',{stars:2,satisfied:false,comment:'Sigue sin reproducir música.'},other.cookie)).status,404);
  assert.equal((await retail(env,'/incidents/'+id+'/rating',{stars:2,satisfied:false,comment:'No'},a.cookie)).status,400);
  const rating=await retail(env,'/incidents/'+id+'/rating',{stars:2,satisfied:false,comment:'Sigue sin reproducir música.'},a.cookie);assert.equal(rating.status,201);assert.ok(rating.body.followup_id);

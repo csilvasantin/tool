@@ -43,3 +43,17 @@ enabled = true
 
 [triggers]
 crons = ["*/2 * * * *"]
+
+# ── Yokup Desk (FLT-100938 · FLT-100940 · MorfeoMacMini · 24-sep-2026) ─────────────
+# Relojes del despacho y destino de lo digital. Secretos (wrangler secret put, NUNCA aquí):
+#   VAPID_PRIVATE        JWK P-256 del push del portal del instalador (pareja de VAPID_PUBLIC)
+#   DEEPAGENT_PANEL_KEY  clave de agentes (bóveda ADMIRA_TELEGRAM_PANEL_KEY): entrega al bot-inbox
+#                        y autoriza a los DeepAgents en /api/desk/*
+# Opcional: DESK_OPS_CHAT_ID (chat de Telegram de operaciones para escalados).
+[vars]
+VAPID_PUBLIC = "BGix-M1_GMQQyjB357C_Ypkgri-eppBsKi4WQvKI3CGjLcAdzYFBlFwu9stSA4urIBGlPduei0l1jDE1F-6CC4U"
+DEEPAGENT_PERSONA = "Smith"
+DEEPAGENT_MACHINE = "macmini"
+DEEPAGENT_PROJECT = "yokup"
+DESK_ACCEPT_MIN = "15"
+DESK_PROGRESS_MIN = "240"

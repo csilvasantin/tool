@@ -1,6 +1,7 @@
 import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
 import {sendTelegramAlerts,linkTelegramChats,telegramBot} from './installer-telegram.js';
+import {channelOf,effectiveRadius,MAX_RADIUS_KM,sweepDesk,resolveWithEvidence,recordProgress,kbFor,sendPushAlerts,validPushEndpoint,logTimeline} from './incident-desk.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'http://localhost:8788', 'http://127.0.0.1:8788']);
 const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
@@ -96,8 +97,16 @@ export async function handleInstaller(request,env,principal) {
  try {
   let path; try { path=decodeURIComponent(url.pathname.replace('/api/installer','')); } catch { fail(400,'Ruta no válida.'); }
   if(method==='OPTIONS') return response(request,{});
-  if(path==='/health') return response(request,{ok:true, radius_km:40, admira_configured:!!env.INSTALLER_ADMIRA_SECRET, notifications:env.TELEGRAM_BOT_TOKEN?['in_app','telegram']:['in_app'], telegram_bot:await telegramBot(env), version:1});
+  if(path==='/health') return response(request,{ok:true, radius_km:40, admira_configured:!!env.INSTALLER_ADMIRA_SECRET, notifications:['in_app',...(env.TELEGRAM_BOT_TOKEN?['telegram']:[]),...(env.VAPID_PRIVATE&&env.VAPID_PUBLIC?['push']:[])], telegram_bot:await telegramBot(env), version:1});
   if(path==='/events' && method==='POST') return response(request,await ingestEvent(request,env),202);
+  if(path==='/push/key' && method==='GET') return response(request,{public_key:env.VAPID_PUBLIC||null,enabled:!!(env.VAPID_PRIVATE&&env.VAPID_PUBLIC)});
+  if(path==='/push/peek' && method==='POST') {
+   // El service worker no tiene la sesión a mano: el endpoint de su suscripción (secreto de ese navegador) identifica al instalador.
+   const endpoint=validPushEndpoint((await jsonBody(request)).endpoint); if(!endpoint) fail(400,'Suscripción no válida.');
+   const sub=await statement(env,'SELECT installer_id FROM installer_push_subscriptions WHERE endpoint=?',endpoint).first(); if(!sub) fail(404,'Suscripción desconocida.');
+   const items=await rows(env,`SELECT n.id AS notification_id,i.title,d.name AS device_name,n.distance_km,rd.priority FROM installer_notifications n JOIN installer_incidents i ON i.id=n.incident_id JOIN installer_devices d ON d.id=i.device_id LEFT JOIN retailer_incident_details rd ON rd.incident_id=i.id WHERE n.installer_id=? AND n.read_at IS NULL AND i.status='open' ORDER BY n.created_at DESC LIMIT 5`,sub.installer_id);
+   return response(request,{items});
+  }
   if(method!=='GET' && !ORIGINS.has(request.headers.get('origin'))) fail(403,'Origen no permitido.');
   if((path==='/register'||path==='/login') && method==='POST') {
    await rateLimit(env,'auth-ip:'+(request.headers.get('CF-Connecting-IP')||'local'),20,15*60000);
@@ -148,20 +157,32 @@ export async function handleInstaller(request,env,principal) {
    await statement(env,'UPDATE installer_notifications SET read_at=COALESCE(read_at,?) WHERE id=? AND installer_id=?',Date.now(),read[1],account.id).run();
    return response(request,{ok:true});
   }
+  if(path==='/push/subscribe' && method==='POST') {
+   const b=await jsonBody(request), endpoint=validPushEndpoint(b.endpoint||b.subscription?.endpoint); if(!endpoint) fail(400,'Suscripción no válida.');
+   await statement(env,'INSERT INTO installer_push_subscriptions(endpoint,installer_id,created_at) VALUES(?,?,?) ON CONFLICT(endpoint) DO UPDATE SET installer_id=excluded.installer_id',endpoint,account.id,Date.now()).run();
+   return response(request,{ok:true},201);
+  }
+  if(path==='/push/unsubscribe' && method==='POST') {
+   const endpoint=validPushEndpoint((await jsonBody(request)).endpoint); if(endpoint) await statement(env,'DELETE FROM installer_push_subscriptions WHERE endpoint=? AND installer_id=?',endpoint,account.id).run();
+   return response(request,{ok:true});
+  }
+  if(path==='/kb' && method==='GET') return response(request,{items:await kbFor(env,JSON.parse(account.skills))});
+  const progress=/^\/incidents\/([\w:-]+)\/progress$/.exec(path);
+  if(progress && method==='POST') return response(request,await recordProgress(env,progress[1],'installer_id=?',[account.id],(await jsonBody(request)).note));
   const action=/^\/incidents\/([\w:-]+)\/(accept|resolve)$/.exec(path);
   if(action && method==='POST') {
    const [,id,verb]=action;
    if(verb==='accept') {
     if(!account.available) fail(409,'Activa tu disponibilidad antes de aceptar.');
     const incident=await statement(env,`SELECT i.*,d.latitude,d.longitude,d.skill FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id JOIN installer_notifications n ON n.incident_id=i.id WHERE i.id=? AND n.installer_id=?`,id,account.id).first();
-    const radius=Number(account.radius_km)||40;
-    if(!incident || distanceKm(account,incident)>=radius || !JSON.parse(account.skills).includes(incident.skill)) fail(403,'La incidencia no está en tu zona o especialidad.');
+    const radius=effectiveRadius(account.radius_km,incident?.dispatch_round);
+    if(!incident || incident.channel==='digital' || distanceKm(account,incident)>=radius || !JSON.parse(account.skills).includes(incident.skill)) fail(403,'La incidencia no está en tu zona o especialidad.');
     const result=await statement(env,`UPDATE installer_incidents SET status='assigned',installer_id=?,assigned_at=? WHERE id=? AND status='open'`,account.id,Date.now(),id).run();
     if(!result.meta.changes) fail(409,'Esta incidencia ya tiene instalador o está cerrada.');
+    await logTimeline(env,id,'aceptada',`${account.name} a ${distanceKm(account,incident).toFixed(1)} km (ronda ${incident.dispatch_round})`);
    } else {
-    const body=await jsonBody(request), resolution=text(body.resolution,20,2000);
-    const result=await statement(env,`UPDATE installer_incidents SET status='resolved',resolution=?,resolved_at=? WHERE id=? AND installer_id=? AND status='assigned'`,resolution,Date.now(),id,account.id).run();
-    if(!result.meta.changes) fail(409,'Solo puedes cerrar una incidencia asignada a ti.');
+    // Candado de «Resuelta» (FLT-100938): sin evidencia viva (captura o URL https que responde) no se cierra.
+    return response(request,await resolveWithEvidence(env,id,{installerId:account.id},await jsonBody(request)));
    }
    return response(request,{ok:true});
   }
@@ -204,18 +225,18 @@ export async function ingestEvent(request,env) {
  const operations=[statement(env,`INSERT INTO installer_devices(id,name,latitude,longitude,address,skill,last_seen,timeout_seconds)
  SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM installer_events WHERE id=? AND applied=0)
  ON CONFLICT(id) DO UPDATE SET name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude,address=excluded.address,skill=excluded.skill,last_seen=excluded.last_seen,timeout_seconds=excluded.timeout_seconds,monitoring=1 WHERE excluded.last_seen>=installer_devices.last_seen`,deviceId,name,latitude,longitude,address,device.skill,occurred,timeout,id)];
- if(event.type==='fault') operations.push(statement(env,`INSERT OR IGNORE INTO installer_incidents(id,device_id,title,reason,status,created_at)
- SELECT ?,?,?,'fault','open',? WHERE EXISTS(SELECT 1 FROM installer_events WHERE id=? AND applied=0)
- AND EXISTS(SELECT 1 FROM installer_devices WHERE id=? AND last_seen<=?)`,'event:'+await hash(id),deviceId,title,now,id,deviceId,occurred));
+ if(event.type==='fault') operations.push(statement(env,`INSERT OR IGNORE INTO installer_incidents(id,device_id,title,reason,status,created_at,channel,round_started_at)
+ SELECT ?,?,?,'fault','open',?,?,? WHERE EXISTS(SELECT 1 FROM installer_events WHERE id=? AND applied=0)
+ AND EXISTS(SELECT 1 FROM installer_devices WHERE id=? AND last_seen<=?)`,'event:'+await hash(id),deviceId,title,now,channelOf(event.channel),now,id,deviceId,occurred));
  operations.push(statement(env,'UPDATE installer_events SET applied=1 WHERE id=?',id));
  await env.DB.batch(operations);
  await dispatchNotifications(env);
  return {ok:true,event_id:id};
 }
 export async function dispatchNotifications(env) {
- const incidents=await rows(env,`SELECT i.id,d.latitude,d.longitude,d.skill FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id WHERE i.status='open'`);
+ const incidents=await rows(env,`SELECT i.id,i.dispatch_round,d.latitude,d.longitude,d.skill FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id WHERE i.status='open' AND i.channel='campo'`);
  for(const incident of incidents) {
-  const box=boundingBox(incident.latitude,incident.longitude,200);
+  const box=boundingBox(incident.latitude,incident.longitude,MAX_RADIUS_KM);
   const longitudeSql=box.allLongitudes?'1=1':box.west>box.east?'(longitude>=? OR longitude<=?)':'longitude BETWEEN ? AND ?';
   const args=[box.south,box.north,...(box.allLongitudes?[]:[box.west,box.east]),incident.id];
   const installers=await rows(env,`SELECT id,latitude,longitude,skills,radius_km,notify_zone FROM installer_accounts a WHERE available=1 AND latitude BETWEEN ? AND ? AND ${longitudeSql} AND NOT EXISTS(SELECT 1 FROM installer_notifications n WHERE n.installer_id=a.id AND n.incident_id=?)`,...args);
@@ -223,18 +244,20 @@ export async function dispatchNotifications(env) {
   for(const installer of installers) {
    if(installer.notify_zone===0) continue;
    const distance=distanceKm(installer,incident);
-   const radius=Number(installer.radius_km)||40;
+   const radius=effectiveRadius(installer.radius_km,incident.dispatch_round);
    if(distance<radius && JSON.parse(installer.skills).includes(incident.skill)) statements.push(statement(env,`INSERT OR IGNORE INTO installer_notifications(id,incident_id,installer_id,distance_km,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM installer_incidents WHERE id=? AND status='open')`,crypto.randomUUID(),incident.id,installer.id,distance,Date.now(),incident.id));
   }
   for(let start=0;start<statements.length;start+=80) await env.DB.batch(statements.slice(start,start+80));
  }
  await sendTelegramAlerts(env);
+ await sendPushAlerts(env);
 }
 export async function sweepInstallers(env) {
  const now=Date.now();
  const devices=await rows(env,'SELECT id,last_seen FROM installer_devices WHERE monitoring=1 AND last_seen+timeout_seconds*1000<?',now);
  for(const device of devices) await statement(env,`INSERT OR IGNORE INTO installer_incidents(id,device_id,title,reason,status,created_at) SELECT ?,?,'Equipo sin conexión','offline','open',? WHERE EXISTS(SELECT 1 FROM installer_devices WHERE id=? AND last_seen=? AND monitoring=1 AND last_seen+timeout_seconds*1000<?)`,'offline:'+await hash(device.id+':'+device.last_seen),device.id,now,device.id,device.last_seen,now).run();
  await linkTelegramChats(env);
+ await sweepDesk(env,now);
  await dispatchNotifications(env);
  await env.DB.batch([
   statement(env,'DELETE FROM installer_sessions WHERE expires_at<?',now),

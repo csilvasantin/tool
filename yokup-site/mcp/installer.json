@@ -224,7 +224,7 @@
     },
     {
       "name": "installer_resolve",
-      "description": "Registra la reparación real y cierra una intervención asignada al titular. No inventes una reparación. Reutiliza request_key al reintentar.",
+      "description": "Registra la reparación real y cierra una intervención asignada al titular, con evidencia: URL https viva de la captura o de la web ya funcionando. No inventes una reparación. Reutiliza request_key al reintentar.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -239,6 +239,11 @@
             "minLength": 20,
             "maxLength": 2000
           },
+          "evidence_url": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 800
+          },
           "request_key": {
             "type": "string",
             "minLength": 8,
@@ -248,6 +253,7 @@
         "required": [
           "incident_id",
           "resolution",
+          "evidence_url",
           "request_key"
         ],
         "additionalProperties": false

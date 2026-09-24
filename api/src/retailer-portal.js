@@ -3,6 +3,7 @@ import {siteImports,circuitSiteImports} from './retailer-site-imports.js';
 import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
 import { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response, dispatchNotifications } from './installer-portal.js';
+import {channelOf,afterRating,sweepDesk} from './incident-desk.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
 const publicAccount=({id,name,email})=>({id,name,email});
@@ -70,9 +71,9 @@ export async function handleRetailer(request,env,principal){
    if(previous){const i=await ownIncident(env,previous.incident_id,owner);if(i.device_id!==device.id||i.title!==title||previous.description!==description||previous.priority!==priority)fail(409,'Este envío ya se utilizó con otros datos.');return response(request,{id:i.id,duplicate:true});}
    const active=await statement(env,"SELECT id FROM installer_incidents WHERE device_id=? AND status!='resolved'",device.id).first();if(active)return response(request,{id:active.id,duplicate:true,message:'Ya hay una incidencia abierta para este equipo.'});
    const id='retail-'+crypto.randomUUID();
-   try{await env.DB.batch([statement(env,"INSERT INTO installer_incidents(id,device_id,title,reason,status,created_at) VALUES(?,?,?,'retailer','open',?)",id,device.id,title,Date.now()),statement(env,'INSERT INTO retailer_incident_details VALUES(?,?,?,?,?,?)',id,owner,description,priority,null,key)]);}catch(e){if(String(e).includes('UNIQUE')){const current=await statement(env,"SELECT id FROM installer_incidents WHERE device_id=? AND status!='resolved'",device.id).first();if(current)return response(request,{id:current.id,duplicate:true});fail(409,'El envío ya se ha registrado. Actualiza la lista.');}throw e;}
+   try{await env.DB.batch([statement(env,"INSERT INTO installer_incidents(id,device_id,title,reason,status,created_at,channel,round_started_at) VALUES(?,?,?,'retailer','open',?,?,?)",id,device.id,title,Date.now(),channelOf(b.channel),Date.now()),statement(env,'INSERT INTO retailer_incident_details VALUES(?,?,?,?,?,?)',id,owner,description,priority,null,key)]);}catch(e){if(String(e).includes('UNIQUE')){const current=await statement(env,"SELECT id FROM installer_incidents WHERE device_id=? AND status!='resolved'",device.id).first();if(current)return response(request,{id:current.id,duplicate:true});fail(409,'El envío ya se ha registrado. Actualiza la lista.');}throw e;}
    // Notification recovery is retried by the existing two-minute sweep if this request fails.
-   await dispatchNotifications(env);return response(request,{id},201);
+   if(channelOf(b.channel)==='digital')await sweepDesk(env);else await dispatchNotifications(env);return response(request,{id,channel:channelOf(b.channel)},201);
   }
   const rating=/^\/incidents\/([\w:-]+)\/rating$/.exec(path);
   if(rating&&method==='POST'){
@@ -84,9 +85,10 @@ export async function handleRetailer(request,env,principal){
    if(await statement(env,'SELECT incident_id FROM retailer_ratings WHERE incident_id=?',incident.id).first())fail(409,'Esta intervención ya está valorada.');
    const ops=[];let followupId=followup;
    if(followup){const active=await statement(env,"SELECT id FROM installer_incidents WHERE device_id=? AND status!='resolved'",incident.device_id).first();followupId=active?.id||followup;
-    if(!active){ops.push(statement(env,"INSERT INTO installer_incidents(id,device_id,title,reason,status,created_at) VALUES(?,?,?,'retailer','open',?)",followupId,incident.device_id,'Revisión: '+incident.title.slice(0,180),now),statement(env,'INSERT INTO retailer_incident_details VALUES(?,?,?,?,?,?)',followupId,owner,comment,'normal',incident.id,'review:'+incident.id));}}
+    if(!active){ops.push(statement(env,"INSERT INTO installer_incidents(id,device_id,title,reason,status,created_at,channel,round_started_at) VALUES(?,?,?,'retailer','open',?,?,?)",followupId,incident.device_id,'Revisión: '+incident.title.slice(0,180),now,channelOf(incident.channel),now),statement(env,'INSERT INTO retailer_incident_details VALUES(?,?,?,?,?,?)',followupId,owner,comment,'normal',incident.id,'review:'+incident.id));}}
    ops.push(statement(env,'INSERT INTO retailer_ratings VALUES(?,?,?,?,?,?,?,?)',incident.id,owner,incident.installer_id,b.stars,b.satisfied?1:0,comment,now,followupId));
    try{await env.DB.batch(ops);}catch(e){if(String(e).includes('UNIQUE'))fail(409,'El estado ha cambiado. Actualiza antes de volver a valorar.');throw e;}
+   await afterRating(env,incident.id,{stars:b.stars,satisfied:b.satisfied,followupId});
    if(followupId)await dispatchNotifications(env);return response(request,{ok:true,followup_id:followupId},201);
   }
   return response(request,{error:'Ruta no encontrada.'},404);

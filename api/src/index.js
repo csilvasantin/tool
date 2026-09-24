@@ -5,6 +5,7 @@ import {handleAdmin} from './portal-admin.js';
 import {handlePortalMcp} from './portal-mcp.js';
 import { handleRetailer, handleCircuit } from './retailer-portal.js';
 import { handleInstaller, sweepInstallers } from './installer-portal.js';
+import { handleDesk } from './incident-desk.js';
 import { syncRetailerCircuits } from './admira-circuit-sync.js';
 /**
  * yokup-api — Cloudflare Worker
@@ -70,6 +71,7 @@ export default {
     }
     if (new URL(request.url).pathname.startsWith('/api/circuit/')) return handleCircuit(request, env);
     if (new URL(request.url).pathname.startsWith("/api/installer/")) return handleInstaller(request, env);
+    if (new URL(request.url).pathname.startsWith('/api/desk/')) return handleDesk(request, env);
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: cors(request) });
 

@@ -71,7 +71,7 @@ test('two installers cannot accept the same job; ownership is required to resolv
  assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
  const winner=results[0].status===200?a:b,loser=winner===a?b:a;
  assert.equal((await call(env,'/inbox',undefined,winner.cookie)).body.notifications[0].address,'Dirección privada 12');
- const resolution={resolution:'Cable HDMI sustituido y reproducción comprobada.'};
+ const resolution={resolution:'Cable HDMI sustituido y reproducción comprobada.',evidence_url:'https://evidencia.test/cierre.jpg'};
  assert.equal((await call(env,`/incidents/${id}/resolve`,resolution,loser.cookie)).status,409);
  assert.equal((await call(env,`/incidents/${id}/resolve`,resolution,winner.cookie)).status,200);
  await ingestEvent(await signed(env,e),env);
