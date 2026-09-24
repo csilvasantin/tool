@@ -122,10 +122,23 @@ export async function checkEvidence(env, value) {
  try { url = new URL(String(value || '').trim()); } catch { return {ok: false, error: 'Añade la URL de la captura o de la web ya funcionando.'}; }
  if (url.protocol !== 'https:' || url.username || url.password) return {ok: false, error: 'La evidencia tiene que ser una URL https.'};
  if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.)/.test(url.hostname) || url.hostname.endsWith('.local')) return {ok: false, error: 'La evidencia tiene que ser pública.'};
- const probe = async method => { try { const r = await httpFetch(env)(url.href, {method, redirect: 'follow', signal: AbortSignal.timeout(8000)}); return r.status; } catch { return 0; } };
- let status = await probe('HEAD');
- if (!(status >= 200 && status < 400)) status = await probe('GET');
- if (!(status >= 200 && status < 400)) return {ok: false, error: `La evidencia no responde (${status || 'sin respuesta'}). Publica la captura o comprueba la URL.`};
+ const get = async href => {
+  try {
+   const r = await httpFetch(env)(href, {method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(8000)});
+   const type = String((r.headers && r.headers.get && r.headers.get('content-type')) || '');
+   const body = type.startsWith('image/') || typeof r.text !== 'function' ? '' : (await r.text()).slice(0, 200000);
+   return {status: r.status, type, body};
+  } catch { return {status: 0, type: '', body: ''}; }
+ };
+ const got = await get(url.href);
+ if (!(got.status >= 200 && got.status < 400)) return {ok: false, error: `La evidencia no responde (${got.status || 'sin respuesta'}). Publica la captura o comprueba la URL.`};
+ // Soft-404: hay webs que contestan 200 a CUALQUIER ruta con su página de «no encontrado» (lo cazó el smoke del
+ // 24-sep con www.yokup.com). Si una ruta inventada del mismo sitio devuelve lo mismo, la URL no demuestra nada.
+ // La raíz del sitio es la excepción: para «la web no carga», que la portada responda ES la prueba.
+ if (!got.type.startsWith('image/') && got.body && url.pathname !== '/') {
+  const decoy = await get(url.origin + '/__yokup-evidencia-inexistente-' + crypto.randomUUID());
+  if (decoy.status >= 200 && decoy.status < 400 && decoy.body === got.body) return {ok: false, error: 'Esa URL muestra la misma página que una dirección inexistente: no demuestra la reparación. Usa la captura publicada o la URL exacta que funciona.'};
+ }
  return {ok: true, url: url.href};
 }
 

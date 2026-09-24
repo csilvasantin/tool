@@ -93,9 +93,20 @@ test('candado de «Resuelta»: sin evidencia viva no se cierra, y no se sondea l
  assert.equal((await call(env,`/incidents/${id}/resolve`,{resolution,evidence_url:'http://evidencia.test/x'},a.cookie)).status,422,'solo https');
  assert.equal((await call(env,`/incidents/${id}/resolve`,{resolution,evidence_url:'https://evidencia.caida/x'},a.cookie)).status,422,'URL que no responde');
  assert.equal((await call(env,`/incidents/${id}/resolve`,{resolution,evidence_url:'https://127.0.0.1/x'},a.cookie)).status,422,'nada privado');
+ assert.equal((await call(env,`/incidents/${id}/resolve`,{resolution,evidence_url:'https://soft404.test/no-existe'},a.cookie)).status,422,'soft-404: el sitio contesta 200 a todo');
  assert.equal((await call(env,`/incidents/${id}/resolve`,{resolution,evidence_url:EV},a.cookie)).status,200);
  const row=db.prepare('SELECT status,evidence_url,rating_requested_at FROM installer_incidents WHERE id=?').get(id);
  assert.equal(row.status,'resolved'); assert.equal(row.evidence_url,EV); assert.ok(row.rating_requested_at);
+});
+
+test('evidencia: la raíz de un sitio que responde vale aunque el sitio conteste 200 a todo (la web ya carga)', async () => {
+ const {env,db}=setup(); const {cookie,device}=await retailer(env);
+ const a=await call(env,'/register',account({skills:['audio']}));
+ const id=(await retail(env,'/incidents',incident(device),cookie)).body.id;
+ await call(env,`/incidents/${id}/accept`,{},a.cookie);
+ const resolution='Web restaurada y verificada desde fuera de la red.';
+ assert.equal((await call(env,`/incidents/${id}/resolve`,{resolution,evidence_url:'https://soft404.test/'},a.cookie)).status,200);
+ assert.equal(db.prepare('SELECT evidence_url FROM installer_incidents WHERE id=?').get(id).evidence_url,'https://soft404.test/');
 });
 
 test('valoración: ≥4★ y satisfecho alimenta la KB; insatisfecho reabre como revisión del mismo canal', async () => {

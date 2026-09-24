@@ -6,7 +6,11 @@ function setup(){
  const db=new DatabaseSync(':memory:');for(const file of ['0001_installer_portal.sql','0002_retailer_portal.sql','0003_portal_mcp.sql','0004_retailer_site_imports.sql','0005_retailer_site_circuits.sql','0006_retailer_map_catalog.sql','0007_portal_access.sql','0008_installer_radius.sql','0009_portal_google.sql','0010_calls.sql','0011_installer_telegram.sql','0012_installer_telegram_links.sql','0013_portal_google_redirect.sql','0014_call_chains.sql','0015_call_telephone.sql','0016_call_telegram.sql','0017_incident_dispatch.sql'])db.exec(readFileSync(new URL('./migrations/'+file,import.meta.url),'utf8'));
  const prepare=sql=>({bind(...args){const exec=()=>db.prepare(sql);return {first:async()=>exec().get(...args)||null,all:async()=>({results:exec().all(...args)}),run:async()=>({meta:{changes:Number(exec().run(...args).changes)}})}; }});
  // Evidencia de cierre sin red: https://evidencia.test/… responde 200 y cualquier otra URL 404.
- const FETCH=async url=>String(url).startsWith('https://evidencia.test/')?{ok:true,status:200}:{ok:false,status:404};
+ // La ruta inventada de evidencia.test da 404 (sitio honesto); soft404.test contesta 200 a todo con la misma página.
+ const FETCH=async url=>{const u=String(url),h={get:()=>'text/html'};
+  if(u.startsWith('https://soft404.test/'))return {ok:true,status:200,headers:h,text:async()=>'<h1>Página no encontrada</h1>'};
+  if(u.startsWith('https://evidencia.test/')&&!u.includes('__yokup-evidencia-inexistente-'))return {ok:true,status:200,headers:h,text:async()=>'evidencia '+u};
+  return {ok:false,status:404,headers:h,text:async()=>'not found'};};
  const env={FETCH,INSTALLER_ADMIRA_SECRET:'test-only-secret',DB:{prepare,batch:async statements=>{db.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}}};
  return {db,env};
 }
