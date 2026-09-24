@@ -22,7 +22,10 @@ test("cada página de empresa mudada redirige 301 permanente a la misma ruta en 
     ["/objetivos","https://www.admira.live/objetivos"],
     ["/normativa","https://www.admira.live/normativa"],
     ["/admira-live","https://www.admira.live/admira-live"],
-    ["/incidencias","https://www.admira.live/incidencias"],
+    ["/consumo","https://www.admira.live/consumo"],
+    ["/espejos","https://www.admira.live/espejos"],
+    ["/flota","https://www.admira.live/highscore"],
+    ["/score","https://www.admira.live/highscore"],
     ["/equipo","https://www.admira.live/equipo"],
     ["/asistencia","https://www.admira.live/asistencia"],
     ["/status","https://www.admira.live/status"],
@@ -45,7 +48,8 @@ test("la querystring se conserva en la redirección", async () => {
 });
 
 test("el PRODUCTO de incidencias y app NO redirigen: los sirve yokup", async () => {
-  for (const ruta of ["/retailer","/instalador","/alta-punto","/llamadas","/contactanos","/app","/ticket","/circuitos"]) {
+  // FLT-100883: /incidencias vuelve a yokup (gestor agentic). No vive en admira.live.
+  for (const ruta of ["/retailer","/instalador","/alta-punto","/llamadas","/contactanos","/app","/ticket","/circuitos","/incidencias","/incidencias.html"]) {
     const r = await get(ruta);
     assert.notEqual(r.status, 301, ruta + " no debe redirigir a admira.live");
     assert.equal(await r.text(), "asset", ruta + " lo sigue sirviendo yokup");

@@ -34,10 +34,17 @@ async function fleetCensus(request, ctx, fetchImpl = fetch) {
 // Páginas de empresa mudadas a admira.live: ruta de yokup → ruta de admira.live.
 // Sólo estas redirigen; lo que no está aquí sigue sirviéndose en yokup (producto y
 // /auth). status es (propia) de admira.live; app NO viaja (descarga del técnico).
+// FLT-100883 (Jobs · 24-09-2026): yokup.com SOLO producto agentic de incidencias/tickets.
+// /incidencias NO muda a admira.live (revert del redirect erróneo). Score/flota canónicos en live.
+// Añadidos aliases /consumo /espejos /flota /score que antes caían al catch-all de la portada.
 const MUDADAS_A_ADMIRA_LIVE = {
   "/highscore":"/highscore", "/highscore.html":"/highscore",
   "/highscoreDetail":"/highscoreDetail", "/highscoreDetail.html":"/highscoreDetail",
   "/consumos":"/consumos", "/consumos.html":"/consumos",
+  "/consumo":"/consumo", "/consumo.html":"/consumo",
+  "/espejos":"/espejos", "/espejos.html":"/espejos",
+  "/flota":"/highscore", "/flota.html":"/highscore",
+  "/score":"/highscore", "/score.html":"/highscore",
   "/decisiones":"/decisiones", "/decisiones.html":"/decisiones",
   "/tareas":"/tareas", "/tareas.html":"/tareas",
   "/misiones":"/misiones", "/misiones.html":"/misiones",
@@ -46,7 +53,6 @@ const MUDADAS_A_ADMIRA_LIVE = {
   "/normativa":"/normativa", "/normativa.html":"/normativa",
   "/asignaciones":"/asignaciones/", "/asignaciones/":"/asignaciones/",
   "/admira-live":"/admira-live", "/admira-live.html":"/admira-live",
-  "/incidencias":"/incidencias", "/incidencias.html":"/incidencias",
   "/dashboard":"/dashboard", "/dashboard.html":"/dashboard",
   "/equipo":"/equipo", "/equipo.html":"/equipo",
   "/asistencia":"/asistencia", "/asistencia.html":"/asistencia",
@@ -83,11 +89,10 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
   if (incoming.pathname === "/mcp/galaxia.json") return galaxia(request, ctx, fetchImpl, release.version);
   // ── REDIRECCIONES A admira.live (Carlos, 17-09-2026 · FLT-100557) ───────────────
-  // La plataforma de EMPRESA se mudó a admira.live (tramos 1-4) y el espejo era
-  // idéntico byte a byte. Ahora yokup deja de servir esas páginas y redirige a su
-  // casa nueva. yokup.com se queda con el PRODUCTO de incidencias (portales, alta,
-  // llamadas, app, retailer, instalador) y con /auth, que NO se tocan. 301
-  // permanente: Carlos validó el corte el 17-09-2026. Se conserva la querystring.
+  // La plataforma de EMPRESA/SCORE se mudó a admira.live. yokup redirige a su casa nueva.
+  // FLT-100883: yokup.com se queda con el gestor agentic de incidencias (/incidencias,
+  // /ticket) más el PRODUCTO (portales, alta, llamadas, app, retailer, instalador) y /auth.
+  // /incidencias NO redirige a live. 301 permanente; se conserva la querystring.
   // /informes → /informes-flota (en admira.live /informes es OTRA app, el Generador).
   if (request.method === "GET" || request.method === "HEAD") {
     const destino = MUDADAS_A_ADMIRA_LIVE[incoming.pathname];
