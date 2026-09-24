@@ -46,7 +46,6 @@ const MUDADAS_A_ADMIRA_LIVE = {
   "/normativa":"/normativa", "/normativa.html":"/normativa",
   "/asignaciones":"/asignaciones/", "/asignaciones/":"/asignaciones/",
   "/admira-live":"/admira-live", "/admira-live.html":"/admira-live",
-  "/incidencias":"/incidencias", "/incidencias.html":"/incidencias",
   "/dashboard":"/dashboard", "/dashboard.html":"/dashboard",
   "/equipo":"/equipo", "/equipo.html":"/equipo",
   "/asistencia":"/asistencia", "/asistencia.html":"/asistencia",
@@ -86,7 +85,9 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   // La plataforma de EMPRESA se mudó a admira.live (tramos 1-4) y el espejo era
   // idéntico byte a byte. Ahora yokup deja de servir esas páginas y redirige a su
   // casa nueva. yokup.com se queda con el PRODUCTO de incidencias (portales, alta,
-  // llamadas, app, retailer, instalador) y con /auth, que NO se tocan. 301
+  // llamadas, app, retailer, instalador), con la herramienta /incidencias
+  // (Carlos, 24-sep-2026 · FLT-100886: canónico en yokup, no en admira.live)
+  // y con /auth, que NO se tocan. 301
   // permanente: Carlos validó el corte el 17-09-2026. Se conserva la querystring.
   // /informes → /informes-flota (en admira.live /informes es OTRA app, el Generador).
   if (request.method === "GET" || request.method === "HEAD") {

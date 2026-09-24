@@ -22,7 +22,6 @@ test("cada página de empresa mudada redirige 301 permanente a la misma ruta en 
     ["/objetivos","https://www.admira.live/objetivos"],
     ["/normativa","https://www.admira.live/normativa"],
     ["/admira-live","https://www.admira.live/admira-live"],
-    ["/incidencias","https://www.admira.live/incidencias"],
     ["/equipo","https://www.admira.live/equipo"],
     ["/asistencia","https://www.admira.live/asistencia"],
     ["/status","https://www.admira.live/status"],
@@ -42,6 +41,15 @@ test("informes se renombra a informes-flota; asignaciones lleva barra final", as
 
 test("la querystring se conserva en la redirección", async () => {
   assert.equal((await get("/highscore?e2e=nuevo&x=1")).headers.get("location"), "https://www.admira.live/highscore?e2e=nuevo&x=1");
+});
+
+test("la herramienta de incidencias la sirve yokup, no admira.live", async () => {
+  for (const ruta of ["/incidencias","/incidencias.html","/incidencias/"]) {
+    const r = await get(ruta);
+    assert.notEqual(r.status, 301, ruta + " no debe salir de yokup");
+    assert.equal(r.status, 200, ruta);
+    assert.equal(await r.text(), "asset", ruta);
+  }
 });
 
 test("el PRODUCTO de incidencias y app NO redirigen: los sirve yokup", async () => {
