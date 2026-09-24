@@ -228,6 +228,42 @@ export async function sendPushAlerts(env) {
  return sent;
 }
 
+// ── Alta de servicio: el puente con el clasificador de Oráculo (yokup-rtc) ─────────────
+// Los sensores (players DOOH sin latido, agentes de flota sin señal) y el clasificador campo/digital viven
+// en yokup-rtc; el despacho vive aquí. POST /api/desk/incidents es la frontera entre ambos:
+//   {external_id, channel:'campo'|'digital', title, description?, evidence_url?, triage?, deepagent?,
+//    device:{id, name, skill, latitude?, longitude?, address?}}
+// Idempotente por external_id. El equipo se registra sin vigilancia de latido (monitoring=0): el sensor
+// que lo vigila es el de yokup-rtc, y dos vigilantes abrirían dos incidencias por la misma caída.
+const INTAKE_SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
+export async function intakeIncident(env, b, now = Date.now()) {
+ const bad = m => { throw Object.assign(new Error(m), {status: 400}); };
+ const str = (v, min, max) => (typeof v === 'string' && v.trim().length >= min && v.trim().length <= max ? v.trim() : null);
+ const external = str(b.external_id, 4, 160) || bad('external_id requerido (4-160).');
+ const title = str(b.title, 3, 200) || bad('title requerido (3-200).');
+ const channel = channelOf(b.channel);
+ const d = b.device && typeof b.device === 'object' ? b.device : bad('device requerido.');
+ const deviceId = str(d.id, 1, 160) || bad('device.id requerido.');
+ const skill = INTAKE_SKILLS.has(d.skill) ? d.skill : (channel === 'digital' ? 'network' : bad('device.skill no válido.'));
+ const num = (v, max) => (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max ? v : null);
+ const lat = num(d.latitude, 90), lng = num(d.longitude, 180);
+ if (channel === 'campo' && (lat === null || lng === null)) bad('Una incidencia de campo necesita device.latitude y device.longitude.');
+ const id = 'desk:' + [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(external)))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
+ const known = await first(env, 'SELECT id,status,channel FROM installer_incidents WHERE id=?', id);
+ if (known) return {ok: true, id, channel: known.channel, status: known.status, duplicate: true};
+ await run(env, `INSERT INTO installer_devices(id,name,latitude,longitude,address,skill,last_seen,timeout_seconds,monitoring) VALUES(?,?,?,?,?,?,?,900,0)
+  ON CONFLICT(id) DO UPDATE SET name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude,address=excluded.address,skill=excluded.skill`,
+  deviceId, str(d.name, 1, 160) || deviceId, lat ?? 0, lng ?? 0, str(d.address, 1, 300) || '—', skill, now);
+ const active = await first(env, "SELECT id,channel,status FROM installer_incidents WHERE device_id=? AND status!='resolved'", deviceId);
+ if (active) return {ok: true, id: active.id, channel: active.channel, status: active.status, duplicate: true, message: 'Ya hay una incidencia activa para este equipo.'};
+ await run(env, "INSERT INTO installer_incidents(id,device_id,title,reason,status,created_at,channel,round_started_at,deepagent) VALUES(?,?,?,'fault','open',?,?,?,?)",
+  id, deviceId, title, now, channel, now, channel === 'digital' ? (str(b.deepagent, 1, 40) || null) : null);
+ const ev = str(b.evidence_url, 12, 800), triage = str(b.triage, 1, 400), desc = str(b.description, 1, 2000);
+ await logTimeline(env, id, 'alta', [`automática · ${external}`, desc, triage ? `triaje: ${triage}` : '', ev ? `evidencia: ${ev}` : ''].filter(Boolean).join(' · '), now);
+ if (channel === 'digital') await sweepDesk(env, now);
+ return {ok: true, id, channel, status: (await first(env, 'SELECT status FROM installer_incidents WHERE id=?', id)).status};
+}
+
 // ── API de servicio del Desk (DeepAgents y clasificador) ─────────────────────────
 // Bearer = DESK_SERVICE_KEY o la misma clave de agentes con la que el Desk entrega el encargo
 // (DEEPAGENT_PANEL_KEY = ADMIRA_TELEGRAM_PANEL_KEY de la bóveda): no hay que repartir otro secreto.
@@ -246,6 +282,7 @@ export async function handleDesk(request, env) {
   const path = new URL(request.url).pathname.replace('/api/desk', ''), method = request.method;
   const body = async () => { const raw = await request.text(); if (raw.length > 16384) throw Object.assign(new Error('Petición demasiado grande.'), {status: 413}); try { const b = JSON.parse(raw || '{}'); if (b && typeof b === 'object' && !Array.isArray(b)) return b; } catch {} throw Object.assign(new Error('JSON no válido.'), {status: 400}); };
   if (path === '/sweep' && method === 'POST') return deskJson({ok: true, ...(await sweepDesk(env))});
+  if (path === '/incidents' && method === 'POST') { const out = await intakeIncident(env, await body()); return deskJson(out, out.duplicate ? 200 : 201); }
   const m = /^\/incidents\/([\w:-]+)(?:\/(progress|resolve))?$/.exec(path);
   if (!m) return deskJson({error: 'Ruta no encontrada.'}, 404);
   const [, id, verb] = m;

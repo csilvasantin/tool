@@ -152,3 +152,21 @@ test('push: el instalador se suscribe, recibe un aviso VAPID sin carga útil y e
  const other=await retailer(env); await retail(env,'/incidents',incident(other.device,{title:'Otro'}),other.cookie);
  assert.equal((await call(env,'/push/peek',{endpoint})).status,404,'la suscripción caducada ya no existe');
 });
+
+test('alta de servicio (puente con el clasificador de yokup-rtc): idempotente, campo avisa a instaladores y digital va al DeepAgent', async () => {
+ const {env,db}=setup(); env.DEEPAGENT_PANEL_KEY='panel-test-key';
+ const sent=[]; const baseFetch=env.FETCH; env.FETCH=async(u,i)=>{ if(String(u).includes('/api/bot-inbox')){sent.push(JSON.parse(i.body));return {ok:true,status:200};} return baseFetch(u,i); };
+ const tech=await call(env,'/register',account({skills:['player']}));
+ assert.equal((await desk(env,'/incidents',{external_id:'x',title:'y'})).status,401,'sin clave no');
+ const campo={external_id:'rtc:INC-9001',channel:'campo',title:'Player sin latido desde hace 20 min',triage:'player offline · prioridad alta',evidence_url:'https://evidencia.test/latido.png',
+  device:{id:'player-bcn-7',name:'Player escaparate',skill:'player',latitude:41.3874,longitude:2.1686,address:'Calle de prueba 7'}};
+ const a=await desk(env,'/incidents',campo,'panel-test-key'); assert.equal(a.status,201); assert.equal(a.body.channel,'campo');
+ const again=await desk(env,'/incidents',campo,'panel-test-key'); assert.equal(again.status,200); assert.equal(again.body.duplicate,true); assert.equal(again.body.id,a.body.id);
+ await dispatchNotifications(env);
+ assert.equal((await call(env,'/inbox',undefined,tech.cookie)).body.notifications[0].id,a.body.id,'el instalador cercano la recibe');
+ assert.equal(db.prepare('SELECT monitoring FROM installer_devices WHERE id=?').get('player-bcn-7').monitoring,0,'el latido lo vigila yokup-rtc, no dos vigilantes');
+ assert.match(db.prepare("SELECT detail FROM incident_timeline WHERE incident_id=? AND kind='alta'").get(a.body.id).detail,/triaje: player offline.*evidencia: https:\/\/evidencia.test/);
+ assert.equal((await desk(env,'/incidents',{...campo,external_id:'rtc:INC-9002',device:{id:'sin-gps',name:'x',skill:'player'}},'panel-test-key')).status,400,'campo sin coordenadas no');
+ const dig=await desk(env,'/incidents',{external_id:'rtc:AGT-77',channel:'digital',title:'Agente de flota sin señal en MBP16',deepagent:'Morfeo',device:{id:'agent-mbp16',name:'Agente MBP16'}},'panel-test-key');
+ assert.equal(dig.status,201); assert.equal(dig.body.status,'assigned'); assert.equal(sent.at(-1).target_persona,'Morfeo');
+});

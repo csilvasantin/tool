@@ -4,7 +4,7 @@ import {handleAccess,sweepPortalAccess} from './portal-access.js';
 import {handleAdmin} from './portal-admin.js';
 import {handlePortalMcp} from './portal-mcp.js';
 import { handleRetailer, handleCircuit } from './retailer-portal.js';
-import { handleInstaller, sweepInstallers } from './installer-portal.js';
+import { handleInstaller, sweepInstallers, dispatchNotifications } from './installer-portal.js';
 import { handleDesk } from './incident-desk.js';
 import { syncRetailerCircuits } from './admira-circuit-sync.js';
 /**
@@ -71,7 +71,12 @@ export default {
     }
     if (new URL(request.url).pathname.startsWith('/api/circuit/')) return handleCircuit(request, env);
     if (new URL(request.url).pathname.startsWith("/api/installer/")) return handleInstaller(request, env);
-    if (new URL(request.url).pathname.startsWith('/api/desk/')) return handleDesk(request, env);
+    if (new URL(request.url).pathname.startsWith('/api/desk/')) {
+      const res = await handleDesk(request, env);
+      // Alta de campo desde el clasificador: avisar ya a los instaladores, sin esperar al barrido de 2 min.
+      if (ctx && request.method === 'POST' && res.status === 201 && new URL(request.url).pathname === '/api/desk/incidents') ctx.waitUntil(dispatchNotifications(env).catch(() => null));
+      return res;
+    }
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: cors(request) });
 
