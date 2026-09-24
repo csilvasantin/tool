@@ -1,6 +1,6 @@
-// Carlos, mission 1078: persistent fleet policy. Only a future explicit human
-// instruction may change this versioned setting. Modes/start/restart never do.
-export const CLI_POLICY = Object.freeze({cli_paused:true,reason:'cli_paused_by_carlos',revision:'1078'});
+// Carlos, mission 1078: persistent fleet policy. Unpaused 24-sep-2026 by Carlos TG#4164 / FLT-100915 (Jobs).
+// Only a future explicit human instruction may change this versioned setting. Modes/start/restart never do.
+export const CLI_POLICY = Object.freeze({cli_paused:false,reason:'cli_unpaused_by_carlos_tg4164',revision:'1079'});
 export function cliPolicyBlocked(target) { return CLI_POLICY.cli_paused && String(target?.host || '').trim().toLowerCase()==='cli'; }
 export function cliPolicyKeyBlocked(key) { return CLI_POLICY.cli_paused && String(key || '').toLowerCase().endsWith('|cli'); }
 export function cliPolicyError() { return Object.assign(new Error(CLI_POLICY.reason),{code:CLI_POLICY.reason,status:409}); }
