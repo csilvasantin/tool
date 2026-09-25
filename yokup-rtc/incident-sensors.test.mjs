@@ -47,3 +47,8 @@ test('dos sensores, umbral persistente y recuperación sin cierre automático de
  await runIncidentSensors(env,adapters,now+22*60000);assert.equal(recovered.length,2);
  assert.equal(env.DB.db.prepare("SELECT status FROM tickets WHERE id='A'").get().status,'open');
 });
+test('identidad de flota normaliza apellido MBP16 y nombre físico del portátil',()=>{
+ const telemetry={ok:true,presence:[{...live,persona:'Neo',machine:'MacBook Pro 16'}],control_machines:[{machine:'MacBook Pro 16',updated:now/1000,slots:[{persona:'Neo'}]}]};
+ const samples=agentSamples(telemetry,[{assignee:'NeoMBP16',loc:'MacBookPro16'}],now);
+ assert.equal(samples.length,1);assert.equal(samples[0].healthy,true);
+});

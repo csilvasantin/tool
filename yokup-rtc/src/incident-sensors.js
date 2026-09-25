@@ -1,3 +1,4 @@
+import { machineIdentityKey, sameAgentFamily, scopedAgentIdentity } from './agent-identity.js';
 // FLT-100941 (#4210): detección y clasificación; el despacho/cierre pertenece al Desk.
 export const SENSOR_VERSION = 'incident-sensors-v1';
 export const AGENT_OFFLINE_MS = 20 * 60000;
@@ -28,13 +29,13 @@ export function agentSamples(data,assignments,now=Date.now()) {
   if (!data?.ok || !Array.isArray(data.presence) || !Array.isArray(data.control_machines)) throw new Error('agents_telemetry_invalid');
   const samples=[];
   for (const assignment of assignments) {
-    const machine=canon(assignment.loc), owner=canon(assignment.assignee);
-    const control=data.control_machines.find(m=>canon(m.machine)===machine);
+    const machine=machineIdentityKey(assignment.loc), owner=canon(scopedAgentIdentity(assignment.assignee,assignment.loc));
+    const control=data.control_machines.find(m=>machineIdentityKey(m.machine)===machine);
     // Una máquina sin telemetría no demuestra la caída de un agente.
     if (!control || now-ms(control.updated)>2*60000 || ms(control.updated)>now+60000) continue;
-    const slots=(control.slots||[]).filter(s=>canon(s.persona)+machine===owner || canon(s.persona)===owner);
+    const slots=(control.slots||[]).filter(s=>sameAgentFamily(s.persona,assignment.assignee));
     if (!slots.length) continue;
-    const rows=data.presence.filter(r=>canon(r.machine)===machine && slots.some(s=>canon(s.persona)===canon(r.persona)));
+    const rows=data.presence.filter(r=>machineIdentityKey(r.machine)===machine && slots.some(s=>sameAgentFamily(s.persona,r.persona)));
     if (rows.some(r=>r.cli_paused===true || ['paused','stopped','disabled'].includes(r.operational_state))) continue;
     const verified=rows.filter(r=>(r.verified===true || r.verified===1) && r.source==='process_snapshot');
     const seen=Math.max(0,...verified.map(r=>ms(r.updated)).filter(t=>t<=now+60000));
