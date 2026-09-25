@@ -51,9 +51,9 @@ test('reservas huérfanas vencen sin reinyectar la hora antigua y ocupación dej
   assert.equal(env.DB.raw.prepare('SELECT status,reason FROM fleet_agent_mode_runs ORDER BY hour_start LIMIT 1').get().reason,'delivery_timeout');
 });
 
-test('CLI no puede activarse; Manual conserva selección separada y UTC distingue ambas horas DST',async()=>{
+test('CLI puede activarse; Manual conserva selección separada y UTC distingue ambas horas DST',async()=>{
   const env=await setup();
-  await assert.rejects(saveAgentMode(env,{...target,host:'cli',mode:'training'},'carlos@example.test',projectFor,now),/cli_paused_by_carlos/);
+  await saveAgentMode(env,{...target,host:'cli',mode:'training'},'carlos@example.test',projectFor,now);
   await saveAgentMode(env,{...target,host:'cli',mode:'manual'},'carlos@example.test',projectFor,now);
   assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM fleet_agent_modes').get().n,2);
   assert.equal(modeTargetKey(normalizeModeTarget({...target,persona:'MorfeoMacMini',machine:'Mac Mini'})),modeTargetKey(normalizeModeTarget(target)));
@@ -144,13 +144,12 @@ test('dos superficies de la misma familia no despachan simultáneamente aunque a
   assert.equal(rows.filter(row=>row.reason==='family_busy').length,1);
 });
 
-test('runner aislado permanece bloqueado por política aunque su capability y perfil coincidan',async()=>{
+test('runner CLI reactivado exige capability y perfil coincidentes',async()=>{
   const cli={...target,host:'cli'},data=telemetry();
   data.control_machines[0].capabilities.push('hourly_cli_claude');
   data.control_machines[0].hourly_targets=[cli];data.control_machines[0].slots.push(cli);
   const {evaluateModeOpportunity}=await import('./src/fleet-hourly-modes.js');
-  assert.equal(evaluateModeOpportunity({...cli,mode:'learning'},data,{},now).eligible,false);
-  assert.equal(evaluateModeOpportunity({...cli,mode:'learning'},data,{},now).reason,'cli_paused_by_carlos');
+  assert.equal(evaluateModeOpportunity({...cli,mode:'learning'},data,{},now).eligible,true);
   assert.equal(evaluateModeOpportunity({...cli,persona:'Neo',mode:'learning'},data,{},now).eligible,false);
   let queued;
   const context={CLI_POLICY,cliPolicyBlocked,automationAllowed,automationFenceSql,Request,URL,Date,hourlyModeGuard:async()=>({allowed:true}),hourlyModeTelemetry:async()=>data,hourlyModeActivity:async()=>({busy:false}),evaluateModeOpportunity};
@@ -159,7 +158,7 @@ test('runner aislado permanece bloqueado por política aunque su capability y pe
   data.control_machines[0].updated=data.control_machines[0].human_sampled_at=Date.now()/1000;
   const env={ADMIRA_TELEGRAM_PANEL_KEY:'test',TELEGRAM:{fetch:async req=>{queued=await req.json();return Response.json({ok:true,command_id:88});}}};
   const result=await context.execute(env,{id:'HMODE-isolated',pref:{...cli,mode:'training'},project:{id:'yokup',web:'www.yokup.com'},now:Date.now()});
-  assert.equal(result.status,'skipped');assert.equal(result.reason,'cli_paused_by_carlos');assert.equal(queued,undefined);
+  assert.equal(result.status,'dispatched');assert.equal(queued.host,'cli');
 });
 
 async function workContext() {

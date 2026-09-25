@@ -93,13 +93,12 @@ test("Morfeo con ventana automática y APP abierta sin turno no corre ni hereda 
   }
 });
 
-test("una decisión pendiente no esquiva la política CLI ni desplaza una misión APP en ejecución",async()=>{
+test("una decisión pendiente CLI no equivale a ejecutar una misión APP",async()=>{
   const cli={...appSession('DEC-CLI'),surface:'cli',session_id:'oraculo'};
   const {db,env,F}=harness({presence:[{...processRow('Oraculo','MacMini'),runtime:'Codex',session_id:'oraculo'}]},[cli]);
   decision(db,{id:'DEC-CLI'});
   const paused=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
-  assert.equal(paused.running_count,0);assert.equal(paused.participants[0].cli_paused,true);
-  assert.equal(paused.participants[0].activity_reason,CLI_POLICY.reason);
+  assert.equal(paused.running_count,0);assert.notEqual(paused.participants[0].cli_paused,true);
   const app=appHarness(appSession('M1'));mission(app.db);decision(app.db);
   const running=JSON.parse(JSON.stringify(await app.F.highscoreActiveWork(app.env,NOW)));
   assert.equal(running.running_count,1);assert.equal(running.participants[0].reference,'M1');
@@ -646,13 +645,13 @@ test('coordinación exacta renueva movimiento sin reiniciar reloj y vence tarea 
   assert.equal(row.state,'last_work'); assert.equal(row.activity_at,undefined); assert.equal(row.ended_at,NOW);
 });
 
- test('CLI vinculado queda pausado por política y conserva trabajo e inicio; no afirma proceso cerrado',async()=>{
+ test('CLI vinculado reactivado registra ejecución y conserva trabajo e inicio',async()=>{
  const sessions=[{...appSession('M1'),surface:'cli',session_id:'oraculo'}];
  const {db,env,F}=harness({presence:[{...processRow('OraculoMacMini','MacMini'),runtime:'Codex',session_id:'oraculo'}]},sessions);
  mission(db,{id:'M1',at:NOW-MIN});
  const row=(await F.highscoreActiveWork(env,NOW)).participants[0];
- assert.equal(row.state,'assigned_stale');assert.equal(row.cli_paused,true);assert.equal(row.operational_state,'paused_by_policy');
- assert.equal(row.session_state,'open');assert.equal(row.work_started_at,NOW-MIN);assert.equal(row.activity_reason,'cli_paused_by_carlos');
+ assert.equal(row.state,'running');assert.notEqual(row.cli_paused,true);
+ assert.equal(row.session_state,'open');assert.equal(row.work_started_at,NOW-MIN);
  });
 
 const serviceRow=(persona='Lucas')=>({persona,machine:'GrokBot',runtime:'Grok',host:'app',source:'heartbeat',verified:0,updated:NOW/1000});

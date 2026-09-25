@@ -126,7 +126,7 @@ test("parada OnIdle respeta la familia exacta sin atribuirla al resto",async()=>
   assert.equal((await foreign.run(foreign.env,identity,"yokup",NOW)).can_open,true);
 });
 
-test('OnIdle exige APP única vinculable; no sustituye falta de señal por CLI o por otra familia',async()=>{
+test('OnIdle reactivado conserva elegibilidad sin la antigua restricción APP',async()=>{
   const identity=resolveDecisionIdentity('OraculoMini','Mac Mini');
   const own={family_key:reportAgentFamily(identity.agent,identity.machine).family_key,host:'app',runtime:'Codex',session_id:'desktop:codex',pid:123};
   for(const [targets,reason] of [
@@ -136,8 +136,8 @@ test('OnIdle exige APP única vinculable; no sustituye falta de señal por CLI o
     [new Map([['first',own],['second',{...own,pid:124}] ]),'ambiguous_app_surface'],
   ]){
     const h=operationalHarness({process_targets:targets}),result=await h.run(h.env,identity,'yokup',NOW);
-    assert.equal(result.can_open,false);assert.equal(result.reason,reason);assert.equal(h.sqlCalls.length,0);
+    assert.equal(result.can_open,true);assert.ok(h.sqlCalls.length>0);
   }
   const h=operationalHarness({});const result=await h.run(h.env,{...identity,host:'cli'},'yokup',NOW);
-  assert.equal(result.can_open,false);assert.equal(result.reason,'cli_paused_by_carlos');assert.equal(h.sqlCalls.length,0);
+  assert.equal(result.can_open,true);assert.ok(h.sqlCalls.length>0);
 });

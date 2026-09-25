@@ -58,11 +58,12 @@ test("el puente usa exclusivamente hostname telegram y reenvía la identidad con
   assert.deepEqual(out.result, { ok:true, command_id:"stop_abc-123", status:"queued" });
 });
 
-test("CLI pausado no alcanza transporte; APP exacta conserva arranque y acuse saneado", async () => {
+test("CLI reactivado y APP exacta conservan arranque y acuse saneado", async () => {
   const calls=[];
   const env={TELEGRAM:{async fetch(request){calls.push(request);return Response.json({ok:true,command_id:"start-7",status:"queued",secret:"x"},{status:202});}}};
-  await assert.rejects(dispatchAgentStart(env,{machine:"MacBookAirAzul",persona:"Smith",runtime:"Grok",host:"cli",session_id:"smith"}),/cli_paused_by_carlos/);
-  assert.equal(calls.length,0);
+  await dispatchAgentStart(env,{machine:"MacBookAirAzul",persona:"Smith",runtime:"Grok",host:"cli",session_id:"smith"});
+  assert.equal(calls.length,1); assert.equal((await calls[0].clone().json()).host,'cli');
+  calls.length=0;
   const out=await dispatchAgentStart(env,target);
   assert.equal(new URL(calls[0].url).hostname,"telegram");
   assert.equal(new URL(calls[0].url).pathname,"/api/fleet/agent/control");

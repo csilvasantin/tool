@@ -380,7 +380,7 @@ test('la excepción OnIdle no relaja decisiones manuales, automáticas ni format
 });
 
 
-test('OnIdle exige una APP exacta fresca: ausencia, CLI, señal antigua o dos procesos no publican',async()=>{
+test('OnIdle reactivado no aplica el antiguo filtro de superficie APP',async()=>{
   const now=Date.now();
   const app={persona:'OraculoMacMini',machine:'admira-macmini',runtime:'Codex',
     host:'app',session_id:'desktop:codex',pid:12345,verified:1,
@@ -393,8 +393,7 @@ test('OnIdle exige una APP exacta fresca: ausencia, CLI, señal antigua o dos pr
   ]){
     const {env,state}=decisionEnv({now,presence});
     const result=await response(env);
-    assert.equal(result.status,409,JSON.stringify(result.json));
-    assert.equal(result.json.code,reason);
-    assert.equal(state.decisions.length,0);
+    assert.equal(result.status,200,JSON.stringify(result.json));
+    assert.equal(state.decisions.length,1);
   }
 });

@@ -16,7 +16,7 @@ test('an assigned human mission blocks both interfaces without a heartbeat expir
     for (const mode of ['learning','training']) {
       const actual = evaluateModeOpportunity({...target,host,mode},{},{busy:blockers.length>0,reason:'human_mission_assigned'});
       assert.equal(actual.eligible,false);
-      assert.equal(actual.reason,host==='cli'?'cli_paused_by_carlos':'human_mission_assigned');
+      assert.equal(actual.reason,cliPolicyBlocked({...target,host})?CLI_POLICY.reason:'human_mission_assigned');
       assert.notEqual(actual.status,'completed');
     }
   }

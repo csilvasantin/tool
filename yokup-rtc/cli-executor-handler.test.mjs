@@ -166,18 +166,18 @@ test("las rutas pending/ack autentican, atan el target y conservan ACK idempoten
   assert.equal(box.state.commands[2].result_detail,"delivered");
 });
 
- test("CLI start y mission anteriores no se entregan ni pueden ACKrunning saltando pending",async()=>{
+ test("CLI reactivado acepta start y mission autenticados y conserva el target",async()=>{
  const box=harness('grok');
- // Direct claim before polling must not resurrect the cached launch.
+ // La revisión 1079 permite reclamar el arranque; la identidad sigue siendo obligatoria.
  const claim=await worker.fetch(ack({id:'CLI-test-start',machine:'MacMini',cli:'grok',status:'running',alive:false,pid:null}),box.env,{});
- assert.equal(claim.status,409);assert.equal((await claim.json()).code,'cli_paused_by_carlos');
+ assert.equal(claim.status,200);
  box.state.commands.push({id:'CLI-old-mission',machine:'MacMini',cli:'grok',action:'mission',status:'queued',detail:'Misión humana preservada',created_at:Date.now(),updated_at:Date.now()});
  const wrong=await worker.fetch(ack({id:'CLI-test-start',machine:'MacBookPro14',cli:'grok',status:'running',alive:false,pid:null}),box.env,{});assert.equal(wrong.status,404);
- const missionClaim=await worker.fetch(ack({id:'CLI-old-mission',machine:'MacMini',cli:'grok',status:'running',alive:true,pid:42}),box.env,{});assert.equal(missionClaim.status,409);assert.equal((await missionClaim.json()).code,'cli_paused_by_carlos');
+ const missionClaim=await worker.fetch(ack({id:'CLI-old-mission',machine:'MacMini',cli:'grok',status:'running',alive:true,pid:42}),box.env,{});assert.equal(missionClaim.status,200);
  const response=await worker.fetch(pending(),box.env,{}),body=await response.json();
- assert.deepEqual(body.items,[]);assert.equal(body.runtime_policy.cli_paused,true);
+ assert.equal(body.runtime_policy.cli_paused,false);
  assert.equal(box.state.commands.find(x=>x.id==='CLI-old-mission').detail,'Misión humana preservada');
- assert.ok(box.state.commands.every(x=>['rejected','superseded'].includes(x.status)));
+ assert.equal(box.state.commands.find(x=>x.id==='CLI-old-mission').status,'running');
  });
 
  test("ACKrunning de STOP CLI y replay siguen permitidos; no implica afirmar proceso parado",async()=>{

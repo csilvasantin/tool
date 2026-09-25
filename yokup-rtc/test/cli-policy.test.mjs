@@ -29,8 +29,8 @@ test('mode activation on CLI is allowed when unpaused; APP still allowed',async(
  assert.notEqual(opp.reason,CLI_POLICY.reason);
  assert.equal(evaluateModeOpportunity({...target,mode:'manual'}).reason,'manual');
  // saveAgentMode / activate may still fail for other reasons; just assert not pause
- try { await saveAgentMode({}, {...target,mode:'learning'},'Carlos',()=>({id:'yokup',name:'Yokup'})); } catch (e) { assert.ok('cli_paused_by_carlos' not in String(e and e.message or e)); }
- try { await activateAutomationTargets({},'learning',[{target}],[],0,'Carlos'); } catch (e) { assert.ok('cli_paused_by_carlos' not in String(e and e.message or e)); }
+ try { await saveAgentMode({}, {...target,mode:'learning'},'Carlos',()=>({id:'yokup',name:'Yokup'})); } catch (e) { assert.ok(!String(e?.message || e).includes('cli_paused_by_carlos')); }
+ try { await activateAutomationTargets({},'learning',[{target}],[],0,'Carlos'); } catch (e) { assert.ok(!String(e?.message || e).includes('cli_paused_by_carlos')); }
  assert.equal(automationPermission([],'learning','oraculo|macmini|codex|cli').allowed,true);
  assert.equal(automationPermission([],'learning','oraculo|macmini|codex|app').allowed,true);
 });
@@ -56,13 +56,13 @@ test('SQL publication fence no longer strips CLI jobs when unpaused',()=>{
  }
  assert.equal(db.prepare('SELECT count(*) n FROM jobs').get().n,1);
 });
-test('automatic OnIdle still prefers APP; CLI host no longer blocked by pause policy',async()=>{
+test('automatic OnIdle no longer applies the APP-only pause policy',async()=>{
  const src=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
  const fn=src.match(/async function onIdleAppPolicy\([^]*?\n}\n__name\(onIdleAppPolicy, "onIdleAppPolicy"\);/)[0];
  let rows=[];const ctx=vm.createContext({CLI_POLICY,cliPolicyBlocked,reportAgentFamily,Date,__name:()=>{},highscoreVerifiedPresence:async()=>({process_targets:new Map(rows.map((row,i)=>[i,row]))})});vm.runInContext(fn,ctx);
  const id={agent:'OraculoMacMini',machine:'MacMini'}, app={family_key:'oraculo@macmini',host:'app',runtime:'Codex',session_id:'desktop:codex'};
  rows=[app];assert.equal((await ctx.onIdleAppPolicy({},id)).allowed,true);
- rows=[app,{...app,runtime:'Claude'}];assert.equal((await ctx.onIdleAppPolicy({},id)).reason,'ambiguous_app_surface');
+ rows=[app,{...app,runtime:'Claude'}];assert.equal((await ctx.onIdleAppPolicy({},id)).allowed,true);
  const cliIdResult=await ctx.onIdleAppPolicy({},{...id,host:'cli'});
  assert.ok(cliIdResult.reason !== 'cli_paused_by_carlos');
 });

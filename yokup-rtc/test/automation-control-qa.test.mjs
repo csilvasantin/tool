@@ -50,18 +50,18 @@ test('SQLite: reactivación explícita conserva cutoff y nunca revive una entreg
   assert.equal((await automationAllowed(env,'training',a.key,now+10)).allowed,true);
 });
 
-test('SQLite: activación CLI concurrente se rechaza y conserva APP de la familia',async()=>{
+test('SQLite: activación CLI reactivada sustituye APP sin duplicar la familia',async()=>{
   const env=await setup(),app=prepared(),cli=prepared('Morfeo','cli');
   const results=await Promise.allSettled([
     activateAutomationTargets(env,'learning',[app],[],0,actor,now),
     activateAutomationTargets(env,'training',[cli],[],0,actor,now+1)
   ]);
   const rows=env.DB.raw.prepare("SELECT * FROM fleet_agent_modes WHERE mode<>'manual'").all();
-  assert.equal(results[0].status,'fulfilled');assert.equal(results[1].status,'rejected');assert.match(results[1].reason.message,/cli_paused_by_carlos/);
-  assert.equal(rows.length,1);assert.equal(rows[0].identity_key,app.key);
+  assert.equal(results[0].status,'fulfilled');assert.equal(results[1].status,'fulfilled');
+  assert.equal(rows.length,1);assert.equal(rows[0].identity_key,cli.key);
   const old=env.DB.raw.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').get(app.key);
-  assert.equal(old.mode,'learning');assert.notEqual(old.reason,'interface_changed');
-  assert.equal(env.DB.raw.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').get(cli.key),undefined);
+  assert.equal(old.mode,'manual');assert.equal(old.reason,'interface_changed');
+  assert.equal(env.DB.raw.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').get(cli.key).mode,'training');
 });
 
 test('SQLite: parada global Training también bloquea productores sin host ni clave de interfaz',async()=>{

@@ -72,5 +72,5 @@ test('explicit same-owner APP activity restores one runner and preserves start a
 });
 test('expired activity and canonical closure cannot keep Morfeo running; CLI policy remains effective',async()=>{
  const h=morfeo();activity(h.db,{at:NOW-120001});assert.equal((await result(h)).participants.find(x=>x.agent==='MorfeoMacMini').state,'assigned_stale');h.db.prepare('UPDATE tickets SET status=?,resolved_at=? WHERE id=?').run('resolved',NOW-1000,MID);assert.equal((await result(h)).running_count,0);
- const cli=morfeo();activity(cli.db,{host:'cli'});assert.equal((await result(cli)).running_count,0);assert.equal(CLI_POLICY.cli_paused,true);
+ const cli=morfeo();activity(cli.db,{host:'cli'});assert.equal((await result(cli)).running_count,0);assert.equal(CLI_POLICY.cli_paused,false);
 });
