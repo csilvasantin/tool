@@ -1,3 +1,4 @@
+import { runIncidentSensors } from './incident-sensors.js';
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, zonasCalientes, paradas, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
@@ -2625,6 +2626,14 @@ async function runScheduledRoutine(env, event) {
   await step("expireDecisions", () => expireDecisionsAndStartBatches(env));
   // Incidencias DOOH: pantallas caídas/recuperadas.
   await step("reconcile", () => reconcile(env));
+  await step("incidentSensors", async () => {
+    const result = await runIncidentSensors(env, {
+      createPlayer: s => createTicket(env, s),
+      createAgent: s => createIncident(env, s),
+      recoverAgent: resource => resolveIncident(env, resource, "Sensor de agentes", "Proceso verificado de nuevo; cierre sujeto a evidencia en Desk.")
+    });
+    if (result.errors.length || result.delivery.errors.length) throw new Error(JSON.stringify(result));
+  });
   await step("ubicacionPurga", () => purgarHistorialUbicacion(env));
   // Monitor de webs y máquinas 24/7: caro (fetch externos) → ~cada 10 min por su
   // propia edad de latido, con independencia del ritmo del tráfico HTTP.
