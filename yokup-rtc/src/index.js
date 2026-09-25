@@ -2622,10 +2622,7 @@ async function runScheduledRoutine(env, event) {
     catch (e) { await recordBeat(env, name, false, e); out[name] = { ok: false, error: String((e && e.message) || e) }; }
   };
   try { await ensureSchema(env); } catch (e) { return out; }   // sin esquema no seguimos
-  // Relojes de decisión vencidos → recomendada + materialización de su tanda.
-  await step("expireDecisions", () => expireDecisionsAndStartBatches(env));
-  // Incidencias DOOH: pantallas caídas/recuperadas.
-  await step("reconcile", () => reconcile(env));
+  // Sensores antes del planificador: sus llamadas IA no deben retrasar la detección.
   await step("incidentSensors", async () => {
     const result = await runIncidentSensors(env, {
       createPlayer: s => createTicket(env, s),
@@ -2634,6 +2631,11 @@ async function runScheduledRoutine(env, event) {
     });
     if (result.errors.length || result.delivery.errors.length) throw new Error(JSON.stringify(result));
   });
+  // Relojes de decisión vencidos → recomendada + materialización de su tanda.
+  await step("expireDecisions", () => expireDecisionsAndStartBatches(env));
+  // Incidencias DOOH: pantallas caídas/recuperadas.
+  await step("reconcile", () => reconcile(env));
+
   await step("ubicacionPurga", () => purgarHistorialUbicacion(env));
   // Monitor de webs y máquinas 24/7: caro (fetch externos) → ~cada 10 min por su
   // propia edad de latido, con independencia del ritmo del tráfico HTTP.
