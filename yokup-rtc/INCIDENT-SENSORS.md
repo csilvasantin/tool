@@ -1,6 +1,6 @@
 # Sensores de incidencias · #4210 / FLT-100941
 
-Cada tick de dos minutos ejecuta `incidentSensors` después del reconciliador DOOH.
+Cada tick de dos minutos ejecuta `incidentSensors` antes del planificador de misiones, para evitar que sus llamadas IA retrasen la detección.
 No modifica el score ni el despacho, avisos o cierre con evidencia de Yokup Desk.
 
 | Señal | Condición | Clasificación |
