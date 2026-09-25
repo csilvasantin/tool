@@ -75,6 +75,11 @@ custom_domain = true
 [observability]
 enabled = true
 
+# Encargo #4378: id de la versión desplegada. applySchema lo sella en D1 (schema_meta) y
+# un isolate frío de la misma versión se salta las ~125 sentencias con una sola lectura.
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
 # Reconcilia flota→tickets cada 2 min aunque nadie mire la bandeja. El MISMO tick
 # */2 dispara el Consejo generador de ideas (FLT-1005): runCouncilTick corre en cada
 # tick y la idempotencia por hueco (SELECT tag='consejo' AND created_at>=slotStart)

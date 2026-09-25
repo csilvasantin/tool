@@ -370,7 +370,36 @@ __name(hash, "hash");
 // no. YOKUP_MINI_MEMBER_BACKFILL_SQL ya estaba partida y habría petado a continuación.
 function unaLinea(sql) { return String(sql).replace(/\s+/g, " ").trim(); }
 __name(unaLinea, "unaLinea");
+// Encargo #4378 · applySchema son ~125 idas y vueltas a D1 EN SERIE. Desde Madrid, al
+// lado de la base, es un suspiro; desde un colo lejano (la computadora de Jobs sale por
+// la red de Cloudflare) son ~100 ms cada una: 12-15 s de isolate frío antes de contestar
+// /fleet/missions, y el cliente se rendía. /health no asegura esquema y por eso iba bien.
+// El esquema solo cambia con un despliegue: al terminar se sella el id de la versión
+// (binding CF_VERSION_METADATA) y un isolate nuevo de ESA versión hace una sola lectura.
+// Sin el binding, o si la lectura falla, se aplica entero como siempre.
+function versionDeEsquema(env) {
+  return String(env && env.CF_VERSION_METADATA && env.CF_VERSION_METADATA.id || "");
+}
+__name(versionDeEsquema, "versionDeEsquema");
+async function esquemaSellado(env, version) {
+  if (!version) return false;
+  try {
+    const fila = await env.DB.prepare("SELECT version FROM schema_meta WHERE id = 1").first();
+    return !!fila && fila.version === version;
+  } catch { return false; }
+}
+__name(esquemaSellado, "esquemaSellado");
+async function sellarEsquema(env, version) {
+  if (!version) return;
+  try {
+    await env.DB.exec("CREATE TABLE IF NOT EXISTS schema_meta (id INTEGER PRIMARY KEY, version TEXT NOT NULL, applied_at INTEGER NOT NULL)");
+    await env.DB.prepare("INSERT OR REPLACE INTO schema_meta (id, version, applied_at) VALUES (1, ?, ?)").bind(version, Date.now()).run();
+  } catch { /* sin sello, el siguiente isolate lo aplica entero: igual que antes */ }
+}
+__name(sellarEsquema, "sellarEsquema");
 async function applySchema(env) {
+  const version = versionDeEsquema(env);
+  if (await esquemaSellado(env, version)) return;
   await env.DB.exec("CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, screen TEXT, subject TEXT, loc TEXT, role TEXT, status TEXT, priority TEXT, assignee TEXT, source TEXT, ai_triage TEXT, created_at INTEGER, updated_at INTEGER, resolved_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id TEXT, ts INTEGER, kind TEXT, author TEXT, text TEXT)");
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_screen ON tickets(screen) WHERE status NOT IN ('resolved','cancelled')");
@@ -647,16 +676,24 @@ async function applySchema(env) {
       if (sql) await env.DB.exec(unaLinea(sql));
     }
   } catch (e) { /* hosting map opcional: no tumbar ensureSchema */ }
+  await sellarEsquema(env, version);
 }
 __name(applySchema, "applySchema");
 // FLT-1015 · El esquema no cambia entre dos requests del mismo isolate. La
 // implementación anterior repetía todas las CREATE/ALTER/INDEX (más de treinta
 // round-trips D1) en cada lectura dinámica. Las escrituras y el cron conservan
 // el guard, pero comparten una sola promesa; si falla se libera para reintentar.
+// Encargo #4378 · si el cliente se rinde a mitad de applySchema, la petición se cancela y
+// esa promesa no se resuelve NUNCA: todas las siguientes del isolate esperaban colgadas
+// (logs de IAD desde las 19:41 UTC: canceladas a los 6 s con 0 ms de CPU). Una promesa
+// sin resolver con más de 20 s se da por huérfana y se relanza.
+var schemaDesde = 0, schemaHecho = false;
 var schemaReady = null;
 async function ensureSchema(env) {
+  if (schemaReady && !schemaHecho && Date.now() - schemaDesde > 20000) schemaReady = null;
   if (!schemaReady) {
-    schemaReady = applySchema(env).catch((error) => {
+    schemaDesde = Date.now(); schemaHecho = false;
+    schemaReady = applySchema(env).then(() => { schemaHecho = true; }).catch((error) => {
       schemaReady = null;
       throw error;
     });
