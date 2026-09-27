@@ -9342,17 +9342,25 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   };
   // El número que ve Carlos es el del encargo (#4502.09.27), no el FLT.
   // Si la tabla aún no está en un esquema de prueba, la calle sigue sin etiqueta.
-  try {
-    const ids = missions.map((mission) => mission.id).filter(Boolean);
-    for (let i = 0; i < ids.length; i += 80) {
-      const chunk = ids.slice(i, i + 80);
-      const found = await env.DB.prepare(
-        `SELECT mission_id, inbox_id FROM fleet_ids WHERE mission_id IN (${chunk.map(() => "?").join(",")})`
-      ).bind(...chunk).all();
-      const byMission = new Map((found.results || []).map((row) => [row.mission_id, row.inbox_id]));
-      for (const mission of missions) if (byMission.has(mission.id)) mission.inbox_id = byMission.get(mission.id);
-    }
-  } catch { /* sin fleet_ids no hay etiqueta; el id interno sigue en reference */ }
+  const attachInbox = async (rows, idOf) => {
+    try {
+      const ids = [...new Set((rows || []).map(idOf).filter(Boolean))];
+      if (!ids.length) return;
+      const byMission = new Map();
+      for (let i = 0; i < ids.length; i += 80) {
+        const chunk = ids.slice(i, i + 80);
+        const found = await env.DB.prepare(
+          `SELECT mission_id, inbox_id FROM fleet_ids WHERE mission_id IN (${chunk.map(() => "?").join(",")})`
+        ).bind(...chunk).all();
+        for (const hit of found.results || []) byMission.set(hit.mission_id, hit.inbox_id);
+      }
+      for (const row of rows) {
+        const id = idOf(row);
+        if (byMission.has(id)) row.inbox_id = byMission.get(id);
+      }
+    } catch { /* sin fleet_ids no hay etiqueta; el id interno sigue en reference */ }
+  };
+  await attachInbox(missions, (mission) => mission.id);
   for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa",
     mission.assignee, "", String(mission.id || ""));
   for (const task of tasks) {
@@ -9423,6 +9431,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // ended_at; un retoque posterior en report/updated_at no mueve el carril.
     // Un LIMIT previo por filas dejaba fuera a Neo/Trinity cuando otra persona
     // había cerrado muchas tareas más recientes.
+    await attachInbox(recentMissions, (row) => row.id);
     for (const row of recentMissions.concat(recentTasks).sort((a,b) =>
       highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at))) {
       if (row.kind === "task") {
