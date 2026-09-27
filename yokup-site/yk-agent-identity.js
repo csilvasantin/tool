@@ -66,7 +66,7 @@
     MacMini:"Mac Mini", MBP14:"MacBookPro14", MBP16:"MacBook Pro 16",
     MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
-    DGX:"DGX Spark", PGX:"ThinkStation PGX", GrokBot:"GrokBot"
+    DGX:"DGX Spark", PGX:"ThinkStation PGX", GrokBot:"GrokBot", GrokBotBox:"GrokBotBox"
   };
   /* Apellido visible = el sufijo del diccionario, TAL CUAL. No hay tabla de apodos:
      NeoMBAAzul, NeoMacMini, SmithMBAAzul. Los apellidos cortos («Azul», «Mini») y
