@@ -11,6 +11,7 @@ import {
   groupingIdentityKey,
   machineIdentityKey,
 } from "./src/agent-identity.js";
+import { resolveDecisionIdentity, selectDecisionProjectAssignment } from "./src/decision-project.js";
 
 test("aplica el apellido físico a principal, subagente e infraagente", () => {
   assert.equal(scopedAgentIdentity("Oraculo", "Mac Mini"), "OraculoMacMini");
@@ -74,6 +75,18 @@ test("las siete identidades del Consejo se reconocen en GrokBotBox", () => {
     assert.equal(sameAgentFamily(owner, `${persona}GrokBot`), true);
   }
   assert.equal(sameAgentFamily("CypherGrokBotBox", "SmithGrokBotBox"), false);
+});
+
+test("Jobs y los siete agentes reciben una ventana sólo con su equipo físico", () => {
+  const project = {id:"yokup", name:"Yokup", status:"activo"};
+  for (const persona of ["Arquitecto", "Morfeo", "Neo", "Oraculo", "Trinity", "Niobe", "Cypher", "Jobs"]) {
+    const agent = `${persona}GrokBotBox`;
+    assert.deepEqual(resolveDecisionIdentity(persona, "GrokBotBox"), {ok:true, agent, machine:"GrokBotBox"});
+    const members = [{project_id:"yokup",kind:"agent",ref:agent},{project_id:"yokup",kind:"machine",ref:"grokbotbox"}];
+    assert.equal(selectDecisionProjectAssignment([project], members, agent, "GrokBotBox", "yokup"), project);
+    assert.equal(selectDecisionProjectAssignment([project], members, agent, "MacMini", "yokup"), null);
+    assert.equal(resolveDecisionIdentity(agent, "MacMini").ok, false);
+  }
 });
 
 test("una máquina vacía o desconocida nunca hereda Mini por prefijo vacío", () => {
