@@ -73,9 +73,11 @@ test('missing, invalid or unseeded fleet key fails closed',async()=>{
  delete h.env.MCP_FLOTA_SEED;
  assert.equal((await handleMcp(h.request({}, {headers:{Authorization:'Bearer '+key}}),h.env)).status,401);
 });
-test('directory persona that Yokup cannot distinguish fails closed',async()=>{
+test('Cypher authenticates independently without inheriting Smith projects',async()=>{
  const h=await setup(), key=await claveFlota(fleetSeed,'Cypher','MacMini');
- assert.equal((await handleMcp(h.request({}, {headers:{Authorization:'Bearer '+key}}),h.env)).status,401);
+ const r=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+key}});
+ assert.equal(r.result.structuredContent.actor,'CypherMacMini');
+ assert.deepEqual(r.result.structuredContent.projects,[]);
 });
 test('vendored fleet identity module matches the canonical published checksum',async()=>{
  const source=await readFile(new URL('./src/identidad-flota.mjs',import.meta.url));
