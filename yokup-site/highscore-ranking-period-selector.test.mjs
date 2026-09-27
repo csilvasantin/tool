@@ -252,7 +252,7 @@ test("los cuatro periodos conservan cada equipo y normalizan alias físicos", ()
       proyecto:"admira.live",runtime:"Codex",actividadAt:80,total:25},
     {agente:"Agente Smith Azul",base:"Smith",suffix:"MBAAzul",maquinas:["MacBook Air Azul"],maquinasVivas:[],
       proyecto:"xpace.os",runtime:"Grok",actividadAt:30,total:30},
-    {agente:"CypherDGX",base:"Smith",suffix:"DGX",maquinas:["DGX Spark"],maquinasVivas:["DGX Spark"],
+    {agente:"CypherDGX",base:"Cypher",suffix:"DGX",maquinas:["DGX Spark"],maquinasVivas:["DGX Spark"],
       proyecto:"xpace.os",runtime:"OpenCode",actividadAt:70,total:30},
     {agente:"MorfeoMBP14",base:"Morfeo",suffix:"MBP14",maquinas:["MacBookPro14"],maquinasVivas:[],
       proyecto:"admira.live",runtime:"Claude",actividadAt:20,total:45},
@@ -265,7 +265,7 @@ test("los cuatro periodos conservan cada equipo y normalizan alias físicos", ()
     agent:identity.key(row.agente),
     machines:[...new Set([...(row.maquinas || []), ...(row.maquinasVivas || [])])].sort()
   })).sort((a,b) => a.agent.localeCompare(b.agent));
-  const expectedAgents = ["morfeomba16","morfeombarosa","morfeombp14","neomacmini","neombp16","oraculomacmini","oraculombp16","smithdgx","smithmbaazul"].sort();
+  const expectedAgents = ["morfeomba16","morfeombarosa","morfeombp14","neomacmini","neombp16","oraculomacmini","oraculombp16","cypherdgx","smithmbaazul"].sort();
   ["hour","day","week","month"].forEach((period) => {
     const forward = summarize(rows, period), reverse = summarize([...rows].reverse(), period);
     assert.deepEqual(forward.map(row => row.agent), expectedAgents,
