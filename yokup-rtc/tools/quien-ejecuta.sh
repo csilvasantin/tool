@@ -30,6 +30,7 @@ fi
 
 KEY="$(printf '%s' "$MACHINE" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]')"
 case "$KEY" in
+  grokbotbox) SUFFIX="GrokBotBox" ;;
   *macmini*) SUFFIX="MacMini" ;;
   *macbookpro*14*|*mbp*14*) SUFFIX="MBP14" ;;
   *macbookpro*16*|*mbp*16*) SUFFIX="MBP16" ;;

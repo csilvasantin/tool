@@ -55,3 +55,8 @@ test("staging excluye todos los helpers deploy pero publica version.json firmado
   assert.match(deploy,/writeFile\(join\(stagingPath, "version\.json"\), JSON\.stringify\(payload/);
   assert.match(deploy,/const payload = \{[\s\S]*deployer,[\s\S]*machine,[\s\S]*signature/);
 });
+
+test("GrokBotBox firma el despliegue sin suplantar otro equipo",()=>{
+  assert.equal(validateDeployIdentity("OraculoGrokBotBox","GrokBotBox").signature,"OraculoGrokBotBox · GrokBotBox");
+  assert.throws(()=>validateDeployIdentity("OraculoGrokBotBox","MacMini"),/no coincide/);
+});

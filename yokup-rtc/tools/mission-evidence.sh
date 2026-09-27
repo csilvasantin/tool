@@ -198,7 +198,7 @@ capture_agent_image() {
     echo "el transcript de sesión no existe o está vacío: $TRANSCRIPT" >&2; return 1; }
   # Un transcript guardado ayer no acredita el proceso de hoy. Misma ventana que
   # captured_at: si el fichero no acaba de escribirse, no es proceso vivo.
-  escrito="$(stat -f '%m' "$TRANSCRIPT" 2>/dev/null || stat -c '%Y' "$TRANSCRIPT" 2>/dev/null || true)"
+  escrito="$(stat -c '%Y' "$TRANSCRIPT" 2>/dev/null || stat -f '%m' "$TRANSCRIPT" 2>/dev/null || true)"
   case "$escrito" in *[!0-9]*|'') echo "no se pudo leer la hora del transcript" >&2; return 1;; esac
   ahora="$(date +%s)"; edad=$(( ahora - escrito ))
   [ "$edad" -le 120 ] || { echo "el transcript tiene ${edad}s: no acredita proceso vivo" >&2; return 1; }
@@ -363,7 +363,7 @@ capture_time() {
     printf '%s\n' "$explicit"
     return 0
   fi
-  seconds="$(stat -f '%m' "$file" 2>/dev/null || stat -c '%Y' "$file" 2>/dev/null || true)"
+  seconds="$(stat -c '%Y' "$file" 2>/dev/null || stat -f '%m' "$file" 2>/dev/null || true)"
   case "$seconds" in *[!0-9]*|'') echo "no se pudo leer la hora de captura: $file" >&2; return 1;; esac
   printf '%s000\n' "$seconds"
 }

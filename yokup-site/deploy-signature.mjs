@@ -7,6 +7,7 @@ const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|open
 // con el actual (regla 03). La familia Oraculo del Mac Mini usa `Mini`; el alias
 // histórico `MacMini` sigue siendo entrada válida sin volver a publicarse.
 const MACHINES = [
+  { name:"GrokBotBox", suffix:"GrokBotBox", aliases:["grokbotbox", "grok bot box", "grok-bot-box"] },
   { name:"MacMini", suffix:"MacMini", legacySuffixes:["Mini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
   { name:"MacBookPro14", suffix:"MBP14", legacySuffixes:["14"], aliases:["macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"] },
   { name:"MacBookPro16", suffix:"MBP16", legacySuffixes:["16"], aliases:["macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"] },
