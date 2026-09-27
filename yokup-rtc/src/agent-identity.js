@@ -23,6 +23,7 @@ const MACHINES = [
   // nube de xAI, y la norma 04 manda decir en qué equipo se hizo cada trabajo sin
   // disfrazarlo de otro. Carlos, 4-sep-2026 (FLT-1580): «aumentar el equipo de
   // AdmiraNeXT con la conexión con el Consejo».
+  ["GrokBotBox", ["grokbotbox", "grok bot box", "grok-bot-box"]],
   ["GrokBot", ["grokbot", "grok bot", "grok-bot", "sand", "xai", "grok"]],
 ];
 const PERSONAS = [
@@ -38,7 +39,10 @@ const PERSONAS = [
   // Un solo Smith: el color NO es apellido (Carlos, 3-sep-2026). Los nombres con color
   // que ya firmó la flota se leen como Smith. «Smith Rosa/Azul/Crema/Plata» no van aquí:
   // ese color es apellido de MÁQUINA y el parser ya lo convierte en SmithMBARosa, etc.
-  ["Smith", ["smith", "cypher", "agente smith", "smith gris", "smith negro", "smithgris", "smithnegro"]],
+  ["Smith", ["smith", "agente smith", "smith gris", "smith negro", "smithgris", "smithnegro"]],
+  // Agentes independientes en GrokBotBox (#4519); Cypher ya no es Smith.
+  ["Cypher", ["cypher"]],
+  ["Arquitecto", ["arquitecto", "architect"]],
   ["WhiteRabbit", ["whiterabbit", "white rabbit"]],
   // Niobe corre de verdad en el MacMini (launchd com.admiranext.agente-niobe +
   // agent-inbox-niobe + sesión tmux + presencia), pero faltaba aquí, y una persona que

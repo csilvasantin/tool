@@ -40,7 +40,7 @@ assert.equal(id.reportDisplay("Oraculo","Mac Mini"),"OraculoMacMini");
 assert.equal(id.base("InfraOraculoMacMini"),"Oraculo");
 assert.equal(id.base("InfraOraculoMini"),"Oraculo");
 assert.equal(id.base("subOraculo"),"Oraculo");
-assert.equal(id.base("Cypher"),"Smith");
+assert.equal(id.base("Cypher"),"Cypher");
 assert.equal(id.suffix(""),"");
 assert.equal(id.suffix("equipo-desconocido"),"");
 // Los dos Linux laten con su hostname, no con su nombre de catálogo: sin estos

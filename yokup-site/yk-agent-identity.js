@@ -28,12 +28,16 @@
     ["Zenbook",["asuszenbook","asus zenbook","admira-asuszenbook"]],
     ["DGX",["dgxspark","dgx spark","dgx-spark","spark-1e61","spark1e61"]],
     ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation","lenovo-thinkstation","lenovothinkstation"]],
+    ["GrokBotBox", ["grokbotbox", "grok bot box", "grok-bot-box"]],
     ["GrokBot",["grokbot","grok bot","grok-bot","sand","xai","grok"]]
   ];
   var PERSONAS = [
     ["Oraculo",["oraculo","oráculo","oracle"]],
     ["Neo",["neo"]],["Morfeo",["morfeo","morpheus"]],["Trinity",["trinity"]],
-    ["Smith",["smith","cypher","agente smith","smith gris","smith negro","smithgris","smithnegro"]],
+    ["Smith",["smith","agente smith","smith gris","smith negro","smithgris","smithnegro"]],
+    // Agentes independientes en GrokBotBox (#4519); Cypher ya no es Smith.
+    ["Cypher", ["cypher"]],
+    ["Arquitecto", ["arquitecto", "architect"]],
     ["WhiteRabbit",["whiterabbit","white rabbit"]],
     ["Niobe",["niobe"]],
     ["Persefone",["persefone","perséfone","persephone"]],
@@ -63,7 +67,7 @@
     MacMini:"Mac Mini", MBP14:"MacBookPro14", MBP16:"MacBook Pro 16",
     MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
-    DGX:"DGX Spark", PGX:"ThinkStation PGX", GrokBot:"GrokBot"
+    DGX:"DGX Spark", PGX:"ThinkStation PGX", GrokBot:"GrokBot", GrokBotBox:"GrokBotBox"
   };
   /* Apellido visible = el sufijo del diccionario, TAL CUAL. No hay tabla de apodos:
      NeoMBAAzul, NeoMacMini, SmithMBAAzul. Los apellidos cortos («Azul», «Mini») y

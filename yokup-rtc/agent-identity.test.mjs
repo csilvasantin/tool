@@ -51,7 +51,7 @@ test("el apellido es el del diccionario, sin acortar ni apodos (regla 02)", () =
 test("lee aliases históricos sin perder la familia operativa", () => {
   assert.equal(baseAgentIdentity("InfraOraculoMini"), "Oraculo");
   assert.equal(baseAgentIdentity("subOraculo"), "Oraculo");
-  assert.equal(baseAgentIdentity("Cypher"), "Smith");
+  assert.equal(baseAgentIdentity("Cypher"), "Cypher");
   assert.equal(sameAgentFamily("Oráculo", "SubOraculo16"), true);
   assert.equal(sameAgentFamily("NeoMini", "InfraOraculoMini"), false);
 });
