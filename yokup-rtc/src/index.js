@@ -9196,6 +9196,19 @@ __name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
 // calle; `running` requiere progreso material reciente o actividad explícita
 // vigente ligada a esta misión y sesión. Presence sola sólo añade reachability.
 async function highscoreActiveWork(env, ahora = Date.now()) {
+  // #4502.09.27 a partir del encargo (fleet_ids.inbox_id) y el día de Madrid.
+  // FLT-… sigue siendo la referencia interna de la calle.
+  const encargoEtiquetaVisible = (id, ts) => {
+    const n = Number(id);
+    if (!Number.isInteger(n) || n <= 0) return "";
+    let ms = Number(ts || 0);
+    if (!ms) return "";
+    if (ms < 4102444800) ms *= 1000;
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", month: "2-digit", day: "2-digit" }).formatToParts(new Date(ms));
+    const mm = (parts.find((p) => p.type === "month") || {}).value;
+    const dd = (parts.find((p) => p.type === "day") || {}).value;
+    return mm && dd ? `#${n}.${mm}.${dd}` : "";
+  };
   const [missions, tasks, decisions, objectives, presence, pidx] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,project,project_id,created_at,started_at,resolved_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
       `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
@@ -9282,6 +9295,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
       race_revision:raceRevision };
+    const etiquetaVisible = encargoEtiquetaVisible(item.inbox_id, item.created_at);
+    if (etiquetaVisible) candidate.etiqueta = etiquetaVisible;
     const scopedProject = resolveProject(pidx, item.project_id || item.project || "");
     if (scopedProject.id) {
       candidate.project_id = scopedProject.id;
@@ -9325,6 +9340,19 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
         (stateRank === previousRank && !!candidate.activity_at === !!previous.activity_at && priority[kind] === priority[previous.kind] && at > previous.active_at))
       byFamily.set(family.family_key, candidate);
   };
+  // El número que ve Carlos es el del encargo (#4502.09.27), no el FLT.
+  // Si la tabla aún no está en un esquema de prueba, la calle sigue sin etiqueta.
+  try {
+    const ids = missions.map((mission) => mission.id).filter(Boolean);
+    for (let i = 0; i < ids.length; i += 80) {
+      const chunk = ids.slice(i, i + 80);
+      const found = await env.DB.prepare(
+        `SELECT mission_id, inbox_id FROM fleet_ids WHERE mission_id IN (${chunk.map(() => "?").join(",")})`
+      ).bind(...chunk).all();
+      const byMission = new Map((found.results || []).map((row) => [row.mission_id, row.inbox_id]));
+      for (const mission of missions) if (byMission.has(mission.id)) mission.inbox_id = byMission.get(mission.id);
+    }
+  } catch { /* sin fleet_ids no hay etiqueta; el id interno sigue en reference */ }
   for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa",
     mission.assignee, "", String(mission.id || ""));
   for (const task of tasks) {
