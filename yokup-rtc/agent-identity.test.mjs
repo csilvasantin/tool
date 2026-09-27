@@ -6,6 +6,10 @@ import {
   parseAgentIdentity,
   sameAgentFamily,
   scopedAgentIdentity,
+  reportAgentIdentity,
+  reportAgentFamily,
+  groupingIdentityKey,
+  machineIdentityKey,
 } from "./src/agent-identity.js";
 
 test("aplica el apellido físico a principal, subagente e infraagente", () => {
@@ -51,9 +55,25 @@ test("el apellido es el del diccionario, sin acortar ni apodos (regla 02)", () =
 test("lee aliases históricos sin perder la familia operativa", () => {
   assert.equal(baseAgentIdentity("InfraOraculoMini"), "Oraculo");
   assert.equal(baseAgentIdentity("subOraculo"), "Oraculo");
-  assert.equal(baseAgentIdentity("Cypher"), "Smith");
+  assert.equal(baseAgentIdentity("Cypher"), "Cypher");
   assert.equal(sameAgentFamily("Oráculo", "SubOraculo16"), true);
   assert.equal(sameAgentFamily("NeoMini", "InfraOraculoMini"), false);
+});
+
+test("las siete identidades del Consejo se reconocen en GrokBotBox", () => {
+  assert.equal(machineSuffix("grokbotbox"), "GrokBotBox");
+  assert.equal(machineSuffix("GrokBot"), "GrokBot");
+  assert.notEqual(machineIdentityKey("GrokBotBox"), machineIdentityKey("GrokBot"));
+  for (const persona of ["Arquitecto", "Morfeo", "Neo", "Oraculo", "Trinity", "Niobe", "Cypher"]) {
+    const owner = `${persona}GrokBotBox`;
+    assert.deepEqual(parseAgentIdentity(owner), {role:"main", persona, suffix:"GrokBotBox", legacy:false});
+    assert.equal(scopedAgentIdentity(persona, "grokbotbox"), owner);
+    assert.equal(reportAgentIdentity(persona, "GrokBotBox"), owner);
+    assert.equal(reportAgentFamily(owner, "GrokBotBox").family_name, owner);
+    assert.equal(groupingIdentityKey(persona, "GrokBotBox"), groupingIdentityKey(owner, "grok bot box"));
+    assert.equal(sameAgentFamily(owner, `${persona}GrokBot`), true);
+  }
+  assert.equal(sameAgentFamily("CypherGrokBotBox", "SmithGrokBotBox"), false);
 });
 
 test("una máquina vacía o desconocida nunca hereda Mini por prefijo vacío", () => {

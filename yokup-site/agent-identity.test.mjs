@@ -40,7 +40,17 @@ assert.equal(id.reportDisplay("Oraculo","Mac Mini"),"OraculoMacMini");
 assert.equal(id.base("InfraOraculoMacMini"),"Oraculo");
 assert.equal(id.base("InfraOraculoMini"),"Oraculo");
 assert.equal(id.base("subOraculo"),"Oraculo");
-assert.equal(id.base("Cypher"),"Smith");
+assert.equal(id.base("Cypher"),"Cypher");
+for (const persona of ["Arquitecto", "Morfeo", "Neo", "Oraculo", "Trinity", "Niobe", "Cypher"]) {
+  const owner = `${persona}GrokBotBox`;
+  assert.equal(id.parse(owner).persona, persona);
+  assert.equal(id.parse(owner).suffix, "GrokBotBox");
+  assert.equal(id.scoped(persona, "grokbotbox"), owner);
+  assert.equal(id.reportDisplay(persona, "grokbotbox"), owner);
+}
+assert.equal(id.suffix("grokbot"), "GrokBot");
+assert.equal(id.suffix("grokbotbox"), "GrokBotBox");
+assert.equal(id.same("CypherGrokBotBox", "SmithGrokBotBox"), false);
 assert.equal(id.suffix(""),"");
 assert.equal(id.suffix("equipo-desconocido"),"");
 // Los dos Linux laten con su hostname, no con su nombre de catálogo: sin estos

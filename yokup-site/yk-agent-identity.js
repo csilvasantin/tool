@@ -28,12 +28,15 @@
     ["Zenbook",["asuszenbook","asus zenbook","admira-asuszenbook"]],
     ["DGX",["dgxspark","dgx spark","dgx-spark","spark-1e61","spark1e61"]],
     ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation","lenovo-thinkstation","lenovothinkstation"]],
+    ["GrokBotBox",["grokbotbox","grok bot box","grok-bot-box"]],
     ["GrokBot",["grokbot","grok bot","grok-bot","sand","xai","grok"]]
   ];
   var PERSONAS = [
     ["Oraculo",["oraculo","oráculo","oracle"]],
     ["Neo",["neo"]],["Morfeo",["morfeo","morpheus"]],["Trinity",["trinity"]],
-    ["Smith",["smith","cypher","agente smith","smith gris","smith negro","smithgris","smithnegro"]],
+    ["Smith",["smith","agente smith","smith gris","smith negro","smithgris","smithnegro"]],
+    ["Cypher",["cypher"]],
+    ["Arquitecto",["arquitecto","architect"]],
     ["WhiteRabbit",["whiterabbit","white rabbit"]],
     ["Niobe",["niobe"]],
     ["Persefone",["persefone","perséfone","persephone"]],

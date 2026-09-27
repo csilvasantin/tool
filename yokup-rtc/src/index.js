@@ -6646,7 +6646,7 @@ function cleanMissionAttributions(value) {
   let subject = String(value || "");
   const boundary = "(^|[.!?]\\s+)";
   const date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
-  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith|Persefone|Seraph|Wozniak|Jobs|Disney|Lucas)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+  const agent = "(?:(?:Sub|Infra)?(?:Arquitecto|Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith|Persefone|Seraph|Wozniak|Jobs|Disney|Lucas)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
   const sube = (_m, sep, ch) => sep + (ch ? ch.toUpperCase() : "");
   subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*(.?)", "gi"), sube);
   subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*(.?)", "gi"), sube);
