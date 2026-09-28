@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
+process.env.TZ='Europe/Madrid';
+
 const source=await readFile(new URL('./yk-decisions.js',import.meta.url),'utf8');
 const page=await readFile(new URL('./decisiones.html',import.meta.url),'utf8');
 const viewSource=await readFile(new URL('./yk-informes-view.js',import.meta.url),'utf8');
@@ -30,7 +32,7 @@ test('Decisiones replica los filtros temporales y el selector de tres vistas de 
   assert.match(html,/>Detalle<\/button>[\s\S]*>Cuadrícula<\/button>[\s\S]*>Lista<\/button>/);
 });
 
-test('Hoy es el periodo por defecto y los presets respetan el día de Madrid',()=>{
+test('Hoy es el periodo por defecto y los presets respetan el día local (Madrid en esta prueba)',()=>{
   const today=row('hoy',8),yesterday={...row('ayer',8),created_at:Date.UTC(2026,8,2,8,15)};
   assert.equal(context.DV.decisionInRange(today,'today','',now),true);
   assert.equal(context.DV.decisionInRange(yesterday,'today','',now),false);

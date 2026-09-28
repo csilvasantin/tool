@@ -43,3 +43,18 @@ test("las cinco opciones válidas se conservan accionables y en el orden recibid
   options.forEach((option,index)=>assert.match(rendered[index],new RegExp(option.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))));
   rendered.forEach(button=>assert.doesNotMatch(button,/\bdisabled\b/));
 });
+
+test("las decisiones cerradas conservan identidad, proyecto y chosen=0",()=>{
+  const target={id:'DEC-closed',agent:'JobsGrokBot',projectId:'admira-live'};
+  const row={id:target.id,agent:target.agent,project_id:target.projectId,project:'Admira Live',machine:'GrokBot',status:'decided',chosen:0,chosen_by:'Jobs',options:['Primera','Segunda'],created_at:1790547229367,decided_at:1790547263300};
+  for(const status of ['decided','expired','cancelled']) {
+    assert.equal(T.targetDecisionError({...row,status},target),'');
+    assert.match(T.targetDecisionError({...row,status,agent:'Neo'},target),/otro agente/);
+    assert.match(T.targetDecisionError({...row,status,project_id:'otro'},target),/otro proyecto/);
+  }
+  assert.match(T.targetDecisionError({...row,status:'unknown'},target),/estado desconocido/);
+  const html=T.card(row,{stamp:true,expanded:true});
+  assert.match(html,/effective[^>]*disabled[^>]*aria-current="true"[^>]*>[\s\S]*?Primera/);
+  assert.match(html,/eligió <b>Jobs/);
+  assert.doesNotMatch(html,/data-dec=/);
+});
