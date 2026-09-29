@@ -21,4 +21,12 @@
 /consumos/        /consumos.html     200
 /supervisor       /supervisor.html   200
 /supervisor/      /supervisor.html   200
+# Preview demo Alsea (FLT-101251). Antes del catch-all: si no, /alsea y /en
+# caen en la home con un 200.
+/alsea            /alsea/index.html      200
+/alsea/           /alsea/index.html      200
+/en               /en/index.html         200
+/en/              /en/index.html         200
+/en/alsea         /en/alsea/index.html   200
+/en/alsea/        /en/alsea/index.html   200
 /*                /index.html   200
