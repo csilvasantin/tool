@@ -10,6 +10,8 @@ Misión Yokup: DCL-ddbf664aa6fb02dee68ef968 (Hoy #239). Contrato revisado con Wo
 - El comercio ve el técnico, el estado, las fechas y el parte de reparación. Solo el titular del establecimiento puede valorar, una sola vez y tras la resolución. La valoración es visible al técnico asignado y al control del circuito autenticado.
 - Si el equipo sigue fallando, la valoración conserva la intervención original y crea una revisión vinculada, o enlaza la incidencia activa existente. No se borra el historial ni se presenta al cliente como satisfecho.
 - La API devuelve todas las incidencias activas y las 200 resueltas más recientes. Los contadores consideran todo el histórico.
+- `/retailer/incidencia?id=<id>` (y `/comercio/incidencia`) es la ficha de seguimiento con el aspecto del portal; sin `id` es el formulario «Comunicar incidencia» prerrellenable desde apps externas (`origen`, `establecimiento`, `equipo`, `problema`, `detalle`, `gravedad`). Ver «Integrar una app o un agente» en `docs/portal-mcp.md`. `/retailer?next=/retailer/…` vuelve a esa ruta tras entrar (solo rutas relativas bajo /retailer o /comercio).
+- `source` se guarda como prefijo `[Origen: …]` de `retailer_incident_details.description` (sin migración); la API lo expone separado como `source` y devuelve la descripción limpia.
 
 **Conexión real con Admira pendiente:** no hay credenciales ni productor de inventario/eventos configurados. Las altas e incidencias manuales funcionan; los endpoints de enlace y eventos fallan con 503 sin sus secretos. El portal muestra esta limitación. La activación con el backend real de admira.app permanece en la misión del instalador #183, tarea c. No se afirma SSO, sincronización automática de inventario ni notificaciones push/email.
 
@@ -34,7 +36,9 @@ Base `https://data.yokup.com/api/retailer`. JSON con cookies y Origin permitido.
 | GET | `/me`, `/dashboard` | Perfil y datos del propietario |
 | POST | `/sites` | name, kind, country ISO2, city, address, latitude, longitude |
 | POST | `/devices` | site_id, name, skill |
-| POST | `/incidents` | device_id, title, description, priority normal/urgent, request_key |
+| GET | `/incidents?status=&site_id=&limit=` | Lista del comercio: status open/assigned/resolved/to_rate/all, limit ≤200 (50) |
+| GET | `/incidents/:id` | Ficha con `timeline`, `source` y `follow_url` (404 fuera de tus establecimientos) |
+| POST | `/incidents` | device_id, title, description, priority normal/urgent, request_key, source opcional (≤32: xpaceos, admira.store); responde `follow_url` |
 | POST | `/incidents/:id/rating` | stars 1..5, satisfied boolean, comment; obligatorio ≥10 caracteres si no funciona |
 
 `kind`: kiosk, tobacco, supermarket, hospitality, other. `skill`: screen, audio, hvac, player, network, kiosk, sensor. Coordenadas del establecimiento determinan los técnicos cercanos; una alerta autenticada puede actualizar las coordenadas del equipo.

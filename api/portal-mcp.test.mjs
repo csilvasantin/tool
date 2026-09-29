@@ -49,7 +49,7 @@ test('revocation and expiration apply to the next MCP call, and another audience
 });
 test('read-only tools cannot mutate, impersonate an account or access token management through MCP',async()=>{
  const {env,db}=setup(),a=await actor(env,'retailer',['retailer:read']);const list=await rpc(env,a);
- assert.deepEqual(list.body.result.tools.map(t=>t.name),['retailer_whoami','retailer_dashboard']);
+ assert.deepEqual(list.body.result.tools.map(t=>t.name),['retailer_whoami','retailer_dashboard','retailer_incident_get','retailer_incidents_list']);assert.ok(list.body.result.tools.filter(t=>t.name!=='retailer_whoami').every(t=>t.annotations.readOnlyHint));
  assert.equal((await invoke(env,a,'retailer_device_create',{})).body.error.code,-32602);
  assert.equal((await invoke(env,a,'retailer_dashboard',{account_id:'someone-else'})).body.error.code,-32602);
  assert.equal((await invoke(env,a,'mcp_token_create',{})).body.error.code,-32602);
@@ -71,6 +71,23 @@ test('MCP full cycle uses retailer and installer web ownership, rating and proxi
  assert.equal(db.prepare('SELECT COUNT(*) n FROM retailer_ratings').get().n,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM installer_incidents').get().n,2);
  const web=(await retail(env,'/dashboard',undefined,retailer.cookie)).body;assert.equal(web.incidents.find(i=>i.id===id).stars,2);
  assert.equal((await call(env,'/inbox',undefined,installer.cookie)).body.reputation.average,2);
+});
+test('agents open incidents with source and follow them with get/list tools inside the owner perimeter',async()=>{
+ const {env}=setup(),retailer=await actor(env,'retailer'),reader=await actor(env,'retailer',['retailer:read']),outsider=await actor(env,'retailer');const device=await ownedDevice(env,retailer);
+ const args={device_id:device,title:'Pantalla no enciende',description:'La pantalla del escaparate está en negro.',priority:'urgent',source:'admira.store',request_key:key()};
+ assert.equal((await invoke(env,retailer,'retailer_incident_create',{...args,source:'bad source!'})).body.error.code,-32602);
+ const created=output(await invoke(env,retailer,'retailer_incident_create',args));assert.equal(created.http_status,201);assert.equal(created.source,'admira.store');assert.match(created.follow_url,/^https:\/\/www\.yokup\.com\/retailer\/incidencia\?id=retail-/);
+ assert.equal(output(await invoke(env,retailer,'retailer_incident_create',args)).replayed,true);
+ const again=output(await invoke(env,retailer,'retailer_incident_create',{...args,source:undefined,request_key:key()}));assert.equal(again.duplicate,true);assert.equal(again.id,created.id);assert.equal(again.follow_url,created.follow_url);
+ const got=output(await invoke(env,retailer,'retailer_incident_get',{incident_id:created.id}));assert.equal(got.incident.source,'admira.store');assert.equal(got.incident.status,'open');assert.equal(got.incident.follow_url,created.follow_url);assert.equal(got.incident.timeline.length,4);
+ assert.equal(output(await invoke(env,outsider,'retailer_incident_get',{incident_id:created.id})).http_status,404);
+ assert.equal((await invoke(env,reader,'retailer_incident_get',{})).body.error.code,-32602);
+ assert.equal(output(await invoke(env,retailer,'retailer_incidents_list',{})).incidents.length,1);
+ assert.equal(output(await invoke(env,retailer,'retailer_incidents_list',{status:'open',limit:5})).incidents[0].id,created.id);
+ assert.equal(output(await invoke(env,retailer,'retailer_incidents_list',{status:'resolved'})).incidents.length,0);
+ assert.equal((await invoke(env,retailer,'retailer_incidents_list',{status:'closed'})).body.error.code,-32602);
+ assert.equal((await invoke(env,retailer,'retailer_incidents_list',{limit:500})).body.error.code,-32602);
+ assert.equal(output(await invoke(env,outsider,'retailer_incidents_list',{})).incidents.length,0);
 });
 test('idempotent inventory creation handles reordered args, changed payload conflicts and pending receipts',async()=>{
  const {env,db}=setup(),a=await actor(env,'retailer');const args={name:'Local',kind:'other',country:'ES',city:'Barcelona',address:'Dirección propia 12',latitude:41.38,longitude:2.17,request_key:key()};
