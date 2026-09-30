@@ -233,7 +233,10 @@ function incidenceRowHtml(t){
   const detail=[t.loc&&("Ubicación: "+t.loc),t.role&&("Tipo declarado: "+t.role),t.priority&&("Severidad: "+t.priority)].filter(Boolean);
   // Piel «Portal del comercio» (FLT-101292): estado y gravedad como píldoras
   // sobre el título; data-state/data-sev sólo alimentan el CSS de la tarjeta.
-  const sev=String(t.priority||"normal").toLowerCase(), sevLabel=SEVERITY_LABEL[sev]||t.priority||"Normal";
+  // El Portal del comercio y los sensores mandan la gravedad en inglés (urgent/high/low):
+  // se normaliza para que la píldora diga «Urgente» y coja su color, no «urgent» en gris.
+  const SEV_ALIAS={urgent:"urgente",high:"alta",medium:"normal",low:"baja"};
+  const sev0=String(t.priority||"normal").toLowerCase(), sev=SEV_ALIAS[sev0]||sev0, sevLabel=SEVERITY_LABEL[sev]||t.priority||"Normal";
   return '<article class="tk incident-row '+(t.status==="open"?'open ':'')+(t.id===FOCUS?'inc-focus ':'')+'" data-id="'+esc(t.id)+'" data-kind="'+esc(kind)+'" data-state="'+esc(t.status||"open")+'" data-sev="'+esc(sev)+'" tabindex="0" role="group" aria-label="Incidencia '+esc(t.id)+' · '+esc(t.subject||'sin título')+'">'+
     '<div class="inc-main">'+
       '<div class="inc-cell inc-origin-cell"><span class="inc-project">'+esc(project)+'</span><span class="inc-origin">'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+' · '+esc(source)+'</span></div>'+
