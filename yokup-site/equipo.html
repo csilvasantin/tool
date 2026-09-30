@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="/acceso.js?v=20260811-r4-dc13dcb68064"></script>
+<script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Equipo · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#02080d">
@@ -254,11 +254,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 
 <div class="mod" id="notasMod"><div class="box notasbox"><h3 id="notasTit">Seguimiento del proyecto</h3><div class="notaslista" id="notasLista">Cargando seguimiento…</div><div class="f"><label>Nueva nota</label><textarea id="notaTexto"></textarea></div><div class="f"><label>Autor</label><input id="notaAutor"></div><div class="mbtns"><button class="save" id="notaSave">Añadir seguimiento</button><button id="notaClose">Cerrar</button><span class="msg" id="notaMsg"></span></div></div></div>
 
-<script src="/yk-agent-identity.js?v=1"></script>
+<script src="/yk-agent-identity.js?v=20260930-flt101292"></script>
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-misiones.js?v=r47"></script>
-<script src="/yk-decisions.js?v=20260723a"></script>
+<script src="/yk-misiones.js?v=20260930-flt101292"></script>
+<script src="/yk-decisions.js?v=20260930-flt101292"></script>
 <script>
 const WORKER="https://api.yokup.com";
 // Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
@@ -406,7 +406,8 @@ function presenciaMaq(id,nombre){
   const mios=PRES.filter(p=>p.machine&&norm(canon(p.machine))===c);
   return mios.length?mios.sort((a,b)=>(b.updated||0)-(a.updated||0))[0]:null;
 }
-function nombreVisibleAg(nombre,maquina){return window.ykAgentIdentity?ykAgentIdentity.display(nombre,maquina):nombre;}
+// label(): sin máquina → sólo la persona, nunca «…SINMAQ» (FLT-101292).
+function nombreVisibleAg(nombre,maquina){const id=window.ykAgentIdentity;return id?(id.label?id.label(nombre,maquina):id.display(nombre,maquina)):nombre;}
 // Agentes vivos sobre una máquina — el puente átomos→bits. Se cruza por
 // presencia, no por la ficha: quién corre dónde cambia solo y a cada rato.
 function agentesEn(id,nombre){
