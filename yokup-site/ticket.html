@@ -6,7 +6,7 @@
 <script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Ticket · Yokup Soporte</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
@@ -70,14 +70,19 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 .load{color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:30px 0}
 </style>
+<!-- FLT-101298 · Ficha clara «Portal del comercio»: piel compartida con /misiones
+     y /tareas (body.yk-light) + lo propio de la ficha (body.yk-ticket). Van
+     DESPUÉS del <style> base, que queda de respaldo sin tocar el resto de Yokup. -->
+<link rel="stylesheet" href="/yk-portal-light.css?v=1">
+<link rel="stylesheet" href="/ticket-portal.css?v=1">
 </head>
-<body data-yk-title="TICKET">
+<body class="yk-light yk-ticket" data-yk-title="TICKET">
 <div class="wrap">
   <nav>
     <!-- Volver a la bandeja de ORIGEN: misiones de flota (FLT-) o incidencias (INC-) -->
     <a href="/incidencias" class="back" id="backLink">← Bandeja</a>
   </nav>
-  <div id="root"><div class="load">Cargando ticket…</div></div>
+  <div id="root"><div class="ykl-skel tk-skel" role="status" aria-label="Cargando ticket…"><i class="s"></i><i class="l"></i><i class="m"></i><i></i><i class="s"></i></div></div>
 
   <!-- EXPERTO: JSON crudo de la entidad ticket (id de la querystring) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -123,6 +128,26 @@ function cuerpoEvento(text){
     '<div class="ev-imgs">'+urls.map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="adjunto" loading="lazy"></a>').join("")+'</div>';
 }
 
+// FLT-101298 · Ficha clara estilo Portal del comercio. La estructura se pinta de
+// una vez (ids y onclick de siempre) y los DATOS entran con textContent: el asunto,
+// el responsable o el origen nunca se interpretan como HTML.
+// El Portal y los sensores mandan la gravedad en inglés: se normaliza como en /incidencias.
+const SEV_ALIAS={urgent:"urgente",high:"alta",medium:"normal",media:"normal",low:"baja"};
+const SEV_LABEL={urgente:"Urgente",alta:"Alta",normal:"Normal",baja:"Baja"};
+function sevOf(p){ const k=String(p||"").trim().toLowerCase(); return SEV_ALIAS[k]||k; }
+function fecha(ms){ if(!ms)return ""; const d=new Date(ms>4102444800?ms:ms*1000); if(isNaN(d))return ""; const p=n=>(n<10?"0":"")+n; return p(d.getDate())+"/"+p(d.getMonth()+1)+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+function nodo(tag,cls,text){ const n=document.createElement(tag); if(cls)n.className=cls; if(text!=null)n.textContent=text; return n; }
+// Máquina con su nombre corto canónico (el completo, en el tooltip).
+function maqTxt(raw){ const s=String(raw||""), c=window.ykMaquina?ykMaquina.short(s):s; const n=nodo("span",null,c); if(c!==s)n.title=s; return n; }
+// Tarjeta de datos: rótulo del portal + valor + líneas secundarias opcionales.
+function dato(dl,label,valor,...subs){
+  const box=nodo("div","tk-datum"); box.appendChild(nodo("dt",null,label));
+  const dd=nodo("dd"); if(valor instanceof Node) dd.appendChild(valor); else dd.textContent=valor;
+  box.appendChild(dd);
+  subs.filter(s=>s!=null&&s!=="").forEach(s=>{ const sub=nodo("dd","tk-sub"); if(s instanceof Node) sub.appendChild(s); else sub.textContent=s; box.appendChild(sub); });
+  dl.appendChild(box);
+}
+
 async function render(){
   let d; try{ const r=await fetch(WORKER+"/ticket?id="+encodeURIComponent(id),{cache:"no-store"}); d=await r.json(); }catch(e){ $("root").innerHTML='<div class="load">No se pudo cargar el ticket.</div>'; return; }
   if(d.error){ $("root").innerHTML='<div class="load">Ticket no encontrado.</div>'; return; }
@@ -130,50 +155,86 @@ async function render(){
   TICKET=t;   // lo usa reasignar() para saber si la misión tiene ya agente
   // ESTADOS canónicos también aquí (Sin asignar · Asignada · En curso · Finalizada)
   const est=YkMisiones.estadoDe(t), sb=est.c, stt=est.l;
-  const actionBtns = t.status!=="resolved"
+  const cerrada=t.status==="resolved";
+  const actionBtns = !cerrada
     ? `<button class="btn" onclick="setStatus('in_progress')">▶ En curso</button><button class="btn res" onclick="setStatus('resolved')">✓ Finalizar</button>`
     : `<button class="btn" onclick="setStatus('open')">Reabrir</button>`;
+  // Historial como línea de tiempo del portal: hechos en verde, el último con
+  // anillo lima y, mientras no se cierre, un paso pendiente en gris.
+  const hitos=ev.map((e,i)=>`<li class="ev ${esc(e.kind)} done${i===ev.length-1&&!cerrada?" current":""}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text)}</li>`).join("");
+  const pendiente=cerrada?"":`<li class="ev pending"><div class="eh"><b>Pendiente</b></div><div class="et">${esFlota?"Cerrar la misión con su informe y prueba.":"Resolver la incidencia y confirmar que el equipo funciona."}</div></li>`;
+  // Incidencias unificadas (FLT-101298, #18): la que lleva el Portal del comercio
+  // lo dice junto a estado y gravedad y enlaza su ficha (el enlace se construye con
+  // el id, nunca con la URL de los datos); las del Desk sin comercio, «Yokup Desk».
   $("root").innerHTML=`
-    <div class="head">
-      <div>
-        <div class="tid">${esc(t.id)} · ${t.source==='agent-iot'?'🤖 abierto por Agente IoT':'👤 manual'}</div>
-        <h1>${esc(t.subject)}</h1>
-        <div class="meta"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc))+'</span>':''}<span>abierto hace ${ago(t.created_at)}</span><span>👷 ${esc(t.assignee)}</span>${Number(t.race_bonus_points)>0?'<span title="Un punto por carrera ganada">🏁 Bonus Track +'+Number(t.race_bonus_points)+' puntos</span>':''}${t.priority?'<span>prioridad '+esc(t.priority)+'</span>':''}${t.portal&&t.portal.url?'<a href="https://www.yokup.com/retailer/incidencia?id='+encodeURIComponent(t.portal.incident_id)+'" target="_blank" rel="noopener" title="La lleva el Portal del comercio: técnico, cita, cierre con evidencia y valoración">🏪 Portal del comercio · '+esc(t.portal.site_name||t.portal.incident_id)+' ↗</a>':t.portal?'<span>Yokup Desk · '+esc(t.portal.incident_id)+'</span>':''}</div>
+    <header class="ykl-heading tk-heading">
+      <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span class="tid" id="tkEyebrow"></span></p>
+      <h1 id="tkTitle"><span id="tkSubject"></span><br><em id="tkSubline"></em></h1>
+      <div class="tk-pills"><span class="badge ${sb}"><i></i>${stt}</span><span class="ykl-sev" id="tkSev" hidden></span>${t.portal&&t.portal.url?'<a href="https://www.yokup.com/retailer/incidencia?id='+encodeURIComponent(t.portal.incident_id)+'" target="_blank" rel="noopener" class="tk-portal" title="La lleva el Portal del comercio: técnico, cita, cierre con evidencia y valoración">🏪 Portal del comercio · '+esc(t.portal.site_name||t.portal.incident_id)+' ↗</a>':t.portal?'<span class="tk-portal">Yokup Desk · '+esc(t.portal.incident_id)+'</span>':''}</div>
+    </header>
+    <div class="tk-sheet">
+      <div class="tk-main">
+        <section class="tk-card tk-datos" aria-labelledby="tkDatosH"><h2 id="tkDatosH">Datos ${esFlota?"de la misión":"de la incidencia"}</h2><dl class="tk-data" id="tkData"></dl></section>
+        <section class="tk-card tk-hist" aria-labelledby="tkHistH"><h2 id="tkHistH">Historial</h2>
+          ${ev.length?`<ol class="tl">${hitos}${pendiente}</ol>`:`<div class="load">Sin actividad.</div>`}
+        </section>
+        <div class="composer tk-card" id="composer">
+          <h3>Añadir nota</h3>
+          <textarea id="note" placeholder="Escribe una nota del técnico… (pega ⌘V o arrastra una imagen para adjuntarla)"></textarea>
+          <div class="yk-thumbs" id="noteThumbs" style="display:none"></div>
+          <div class="crow">
+            <button class="btn res" onclick="addNote()">Añadir nota</button>
+            <button type="button" class="btn" id="noteAdjBtn" title="Adjuntar imagen — o pega/arrastra sobre la nota">📎 Imagen</button>
+            <input type="file" id="noteAdjFile" accept="image/*" multiple hidden>
+            <button class="btn ai" onclick="suggest()">🧠 Sugerir respuesta</button>
+          </div>
+        </div>
       </div>
-      <span class="badge ${sb}"><i></i>${stt}</span>
-    </div>
-    <div class="actions">
-      <a class="btn live" href="/asistencia?room=${encodeURIComponent(t.screen)}">🎥 Asistencia en vivo</a>
-      ${actionBtns}
-      <button class="btn ai" onclick="summary()">🧠 Resumen IA</button>
-      <a class="btn" href="https://admira.tv/cms.html" target="_blank" rel="noopener">admira.tv ↗</a>
-    </div>
-    ${esFlota?`
-    <div class="asig">
-      <h3>🧭 Asignación</h3>
-      <div class="crow">
-        <select id="rAgente"><option value="__keep">🤖 Agente · sin cambiar</option></select>
-        <select id="rEquipo"><option value="__keep">🖥 Equipo · sin cambiar</option></select>
-        <select id="rProyecto"><option value="__keep">📁 Proyecto · sin cambiar</option></select>
-        <button class="btn" onclick="reasignar()">Reasignar</button>
-        <span class="rmsg" id="rMsg"></span>
-      </div>
-      <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${t.loc?(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc)):"sin equipo"} · 📁 ${esc(t.project_name||"sin proyecto")}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox. El proyecto sale del censo de <a href="/equipo">Equipo</a>.</p>
-    </div>`:""}
-    <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
-    <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text)}</div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
-    <div class="composer" id="composer">
-      <h3>Añadir nota</h3>
-      <textarea id="note" placeholder="Escribe una nota del técnico… (pega ⌘V o arrastra una imagen para adjuntarla)"></textarea>
-      <div class="yk-thumbs" id="noteThumbs" style="display:none"></div>
-      <div class="crow">
-        <button class="btn" onclick="addNote()">Añadir nota</button>
-        <button type="button" class="btn" id="noteAdjBtn" title="Adjuntar imagen — o pega/arrastra sobre la nota">📎 Imagen</button>
-        <input type="file" id="noteAdjFile" accept="image/*" multiple hidden>
-        <button class="btn ai" onclick="suggest()">🧠 Sugerir respuesta</button>
-      </div>
+      <aside class="tk-side">
+        <section class="sheet-block tk-acciones" aria-labelledby="tkAccH"><h3 id="tkAccH">Acciones</h3>
+          <div class="actions">
+            <a class="btn live" href="/asistencia?room=${encodeURIComponent(t.screen)}">🎥 Asistencia en vivo</a>
+            ${actionBtns}
+            <button class="btn ai" onclick="summary()">🧠 Resumen IA</button>
+            <a class="btn" href="https://admira.tv/cms.html" target="_blank" rel="noopener">admira.tv ↗</a>
+          </div>
+        </section>
+        <div class="sum sheet-block" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
+        ${esFlota?`
+        <div class="asig sheet-block">
+          <h3>🧭 Asignación</h3>
+          <div class="crow">
+            <select id="rAgente"><option value="__keep">🤖 Agente · sin cambiar</option></select>
+            <select id="rEquipo"><option value="__keep">🖥 Equipo · sin cambiar</option></select>
+            <select id="rProyecto"><option value="__keep">📁 Proyecto · sin cambiar</option></select>
+            <button class="btn" onclick="reasignar()">Reasignar</button>
+            <span class="rmsg" id="rMsg"></span>
+          </div>
+          <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${t.loc?(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc)):"sin equipo"} · 📁 ${esc(t.project_name||"sin proyecto")}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox. El proyecto sale del censo de <a href="/equipo">Equipo</a>.</p>
+        </div>`:""}
+      </aside>
     </div>
     <div class="foot">Yokup · ticket persistido en <b>D1</b> · IA <b>Workers AI</b></div>`;
+  // ---- Datos (textContent) ----
+  const proyecto=t.project_name||t.project||"";
+  const establecimiento=esFlota?"":(t.loc||"");
+  $("tkEyebrow").textContent=(esFlota?"MISIÓN":"INCIDENCIA")+" · "+t.id;
+  $("tkSubject").textContent=t.subject||"(sin asunto)";
+  $("tkSubline").textContent=[stt,establecimiento||proyecto].filter(Boolean).join(" · ");
+  const sev=sevOf(t.priority);
+  if(sev){ $("tkSev").textContent=SEV_LABEL[sev]||t.priority; $("tkSev").dataset.sev=sev; $("tkSev").hidden=false; }
+  const dl=$("tkData");
+  dato(dl,"Proyecto · establecimiento",proyecto||"Sin proyecto",establecimiento);
+  dato(dl,"Origen",t.source==='agent-iot'?'🤖 abierto por Agente IoT':'👤 manual',t.source&&t.source!=='agent-iot'?t.source:"");
+  dato(dl,"Responsable","👷 "+(t.assignee||"sin asignar"),[t.agent_runtime,t.agent_host==="cli"?"CLI":t.agent_host==="app"?"Desktop App":""].filter(Boolean).join(" · "));
+  if(esFlota) dato(dl,"Equipo",t.loc?maqTxt(t.loc):"Sin equipo",t.screen?nodo("span","scr",t.screen):"");
+  else dato(dl,"Equipo",t.screen?nodo("span","scr",t.screen):"Sin equipo");
+  const sevPill=nodo("span","ykl-sev",sev?(SEV_LABEL[sev]||t.priority):"Sin gravedad"); if(sev) sevPill.dataset.sev=sev;
+  dato(dl,"Gravedad",sevPill,t.priority?"prioridad "+t.priority:"");
+  dato(dl,"Fechas","Abierta hace "+ago(t.created_at),
+    t.created_at?"Creada "+fecha(t.created_at):"",
+    t.resolved_at?"Finalizada "+fecha(t.resolved_at):"",
+    Number(t.race_bonus_points)>0?"🏁 Bonus Track +"+Number(t.race_bonus_points)+" puntos":"");
   if(esFlota) llenaAsig();
   montaAdjuntos();   // el composer se recrea en cada render → re-engancha
 }

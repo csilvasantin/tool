@@ -10,7 +10,7 @@
 <script src="/yk-display-ref.js?v=2"></script>
 <title>Misiones · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r20">
@@ -213,12 +213,24 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   .project-id-top{grid-template-columns:1fr}
 }
 </style>
+<!-- FLT-101298 · Piel clara «Portal del comercio» compartida con /ticket y /tareas
+     (body.yk-light). Va DESPUÉS del <style> base para vencerle sin tocar
+     yk-frame.css / yk-misiones.css / yk-cabezal.css, que siguen en oscuro fuera. -->
+<link rel="stylesheet" href="/yk-portal-light.css?v=1">
 </head>
-<body data-yk-title="MISIONES" data-yk-rail-left="OPCIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
+<body class="yk-light yk-misiones" data-yk-title="MISIONES" data-yk-rail-left="OPCIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
 <div class="wrap">
   <!-- CABEZAL COMPARTIDO con /tareas (Carlos, 2026-07-21): contadores por estado
        + día del tablero · título + buscador · alta de misión de flota. Lo inyecta
        y cablea yk-cabezal.js — UNA sola fuente del cabezal para ambas páginas. -->
+  <!-- FLT-101298 · Cabecera clara (Portal del comercio): eyebrow con punto verde,
+       título con segunda línea verde y lede. El título es el <h1> del cabezal,
+       que ykLightHeading() sube aquí al montarlo. -->
+  <header class="ykl-heading" id="ykHeading" data-em="El trabajo de la flota, hoy." data-list="Tablero de misiones" data-form="Nueva misión para la flota">
+    <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span>YOKUP · FLOTA · MISIONES</p>
+    <span class="ykl-title-slot"></span>
+    <p class="lede" id="ykLede">Quién lleva cada encargo de la flota AdmiraNeXT, en qué proyecto está y cómo avanzan sus tareas a·b·c.</p>
+  </header>
   <div id="cabezal"></div>
 
   <!-- SELECTORES/ORDENADORES + BUSCADOR en una sola línea (Carlos, 2026-07-15).
@@ -355,6 +367,24 @@ const CAB=YkCabezal.mount($("cabezal"), {
   onView:()=>load(),
   onState:f=>{userPicked=true;aplicaFiltro(f);}, onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
 });
+// FLT-101298 · Cabecera clara estilo Portal: el <h1> del cabezal compartido sube
+// a #ykHeading (se MUEVE el nodo, así #introTgl conserva su manejador) con su
+// segunda línea verde; el buscador queda como barra de la bandeja y el alta como
+// form-card con título. Todo con nodos y textContent: yk-cabezal.js no cambia.
+(function ykLightHeading(){
+  const hd=$("ykHeading"),h1=document.querySelector("#cabezal .hrow h1"),slot=hd&&hd.querySelector(".ykl-title-slot");
+  if(!hd||!h1||!slot)return;
+  const tgl=$("introTgl"),first=h1.firstChild,em=document.createElement("em");
+  if(first&&first.nodeType===3)first.textContent=first.textContent.trim()+".";
+  em.textContent=hd.dataset.em||"";
+  h1.insertBefore(document.createElement("br"),tgl);h1.insertBefore(em,tgl);
+  slot.replaceWith(h1);
+  const lede=$("ykLede");if(tgl&&lede){lede.append(" ");lede.appendChild(tgl);}
+  const intro=$("intro");if(intro)hd.appendChild(intro);
+  const title=(cls,text,box)=>{if(!box||!text)return;const h2=document.createElement("h2");h2.className=cls;h2.textContent=text;box.prepend(h2);};
+  title("ykl-listtitle",hd.dataset.list,document.querySelector("#cabezal .hrow"));
+  title("ykl-formtitle",hd.dataset.form,$("alta"));
+})();
 // La vista operativa nace en la jornada actual. El histórico completo sigue
 // disponible mediante la acción explícita «Ver todas las fechas» del resumen.
 CAB.setDay(madridToday());
