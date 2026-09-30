@@ -1,0 +1,129 @@
+/* ============================================================================
+ * ticket-portal.css — lo PROPIO de la ficha /ticket (incidencia o misión) con el
+ * look del Portal del comercio (retailer-incidencia.css: .incident-sheet,
+ * .track, .sheet-block). FLT-101298.
+ *
+ * ALCANCE: todo cuelga de body.yk-ticket, que sólo lleva ticket.html. Tokens,
+ * barra clara, cabecera, píldoras, botones y esqueleto vienen de la hoja
+ * compartida yk-portal-light.css (body.yk-light), que se carga antes.
+ * ==========================================================================*/
+
+body.yk-ticket .wrap{max-width:1240px}
+/* Volver a la bandeja de origen */
+body.yk-ticket .wrap>nav{padding:28px 0 0}
+body.yk-ticket .back{display:inline-flex;align-items:center;min-height:36px;padding:6px 14px;border:1px solid var(--p-line);border-radius:999px;background:#fff;color:var(--p-ink);font:600 13px var(--p-sans);letter-spacing:0;text-transform:none;text-decoration:none}
+body.yk-ticket .back:hover{background:#f1f5ea;border-color:var(--p-hover);color:var(--p-ink)}
+
+/* ------------------------------- Cabecera ---------------------------------- */
+body.yk-ticket .tk-heading{max-width:980px;padding:26px 0 26px}
+body.yk-ticket .tk-heading h1{font-size:clamp(34px,3.8vw,50px)}
+body.yk-ticket .tk-heading .tid{font:inherit;letter-spacing:inherit;color:var(--p-ink)}
+body.yk-ticket .tk-pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+/* Marca del Portal del comercio / Yokup Desk (incidencias unificadas, #18): píldora oscura que enlaza su ficha */
+body.yk-ticket .tk-portal{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:4px 9px;border-radius:5px;background:var(--p-dark);color:#fff;font:700 12px/1.3 var(--p-sans);letter-spacing:.2px;text-decoration:none;overflow-wrap:anywhere}
+body.yk-ticket a.tk-portal:hover,body.yk-ticket a.tk-portal:focus-visible{background:var(--p-lime);color:var(--p-ink);text-decoration:none}
+
+/* ------------------ Hoja: principal + lateral (incident-sheet) -------------- */
+body.yk-ticket .tk-sheet{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:24px;align-items:start;padding-top:28px;border-top:1px solid var(--p-line)}
+body.yk-ticket .tk-main,body.yk-ticket .tk-side{display:flex;flex-direction:column;gap:18px;min-width:0}
+body.yk-ticket .tk-card{padding:24px 26px;background:#fff;border:1px solid var(--p-line);border-radius:16px;box-shadow:0 12px 40px #153b3010;min-width:0}
+body.yk-ticket .tk-card>h2{margin:0 0 16px;font-size:20px}
+body.yk-ticket .sheet-block{padding:18px 20px;border-radius:14px;background:var(--p-soft);border:1px solid var(--p-soft-line);min-width:0}
+body.yk-ticket .sheet-block :is(h3,h4){margin:0 0 12px;font:700 11px/1.3 var(--p-sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--p-green)}
+
+/* Datos en tarjetas (proyecto · origen · responsable · equipo · gravedad · fechas) */
+body.yk-ticket .tk-data{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0}
+body.yk-ticket .tk-datum{display:flex;flex-direction:column;gap:3px;min-width:0;padding:14px 16px;border:1px solid var(--p-line);border-radius:12px;background:#fbfcf8}
+body.yk-ticket .tk-datum dt{font:700 10px/1.3 var(--p-sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--p-green)}
+body.yk-ticket .tk-datum dd{margin:0;font:700 15px/1.35 var(--p-sans);color:var(--p-ink);overflow-wrap:anywhere}
+body.yk-ticket .tk-datum dd.tk-sub{font:13px/1.4 var(--p-sans);color:var(--p-muted)}
+body.yk-ticket .tk-datum .scr{color:inherit}
+body.yk-ticket .tk-datum .ykl-sev{align-self:flex-start}
+
+/* Historial: línea de tiempo vertical (track del portal) */
+body.yk-ticket .tl{list-style:none;margin:0;padding:0;border:0;display:block}
+body.yk-ticket .ev{position:relative;padding:0 0 22px 36px}
+body.yk-ticket .ev::before{content:"";position:absolute;left:0;top:2px;width:18px;height:18px;box-sizing:border-box;border-radius:50%;border:2px solid #cbd7c4;background:#fff}
+body.yk-ticket .ev::after{content:"";position:absolute;left:8px;top:24px;bottom:2px;width:2px;background:var(--p-line)}
+body.yk-ticket .ev:last-child{padding-bottom:2px}
+body.yk-ticket .ev:last-child::after{display:none}
+body.yk-ticket .ev.done::before{background:var(--p-live);border-color:var(--p-live)}
+body.yk-ticket .ev.done::after{background:#85a748}
+body.yk-ticket .ev.current::before{box-shadow:0 0 0 5px #d8f36a99}
+body.yk-ticket .ev.pending::before{background:#fff;border-color:#cbd7c4}
+body.yk-ticket .ev.pending .eh b,body.yk-ticket .ev.pending .et{color:var(--p-muted)}
+body.yk-ticket .ev .eh{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:3px;font:13px var(--p-sans);color:var(--p-muted)}
+body.yk-ticket .ev .eh b,body.yk-ticket .ev.ai .eh b{font:700 15px/1.3 var(--p-head);color:var(--p-ink)}
+body.yk-ticket .ev .et,body.yk-ticket .ev.ai .et{font:14px/1.6 var(--p-sans);color:var(--p-ink);white-space:pre-wrap;overflow-wrap:anywhere}
+body.yk-ticket .ev-imgs a{width:132px;height:96px;border-radius:10px;border:1px solid var(--p-line);background:var(--p-paper)}
+body.yk-ticket .ev-imgs a:hover{border-color:var(--p-hover);transform:none}
+body.yk-ticket .tk-hist .load{padding:6px 0;font:14px var(--p-sans);letter-spacing:0;text-transform:none;color:var(--p-muted)}
+
+/* Nota del técnico (form-card) */
+body.yk-ticket .composer{margin:0}
+body.yk-ticket .composer h3{margin:0 0 12px;font:700 20px/1.2 var(--p-head);letter-spacing:-.5px;text-transform:none;color:var(--p-ink)}
+body.yk-ticket .composer textarea{min-height:110px;padding:12px 14px;border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:15px/1.5 var(--p-sans)}
+body.yk-ticket .composer textarea:focus{border-color:var(--p-hover)}
+body.yk-ticket .composer.yk-drag{outline:2px dashed var(--p-live);border-radius:16px}
+body.yk-ticket .crow{gap:8px;margin-top:12px}
+
+/* Botones de la ficha (.btn de siempre con piel del portal) */
+body.yk-ticket .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:10px 16px;border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:600 13px/1.2 var(--p-sans);letter-spacing:0;text-transform:none;text-decoration:none}
+body.yk-ticket .btn:hover{background:var(--p-paper);border-color:var(--p-hover);color:var(--p-ink)}
+body.yk-ticket .btn.res{background:var(--p-dark);border-color:var(--p-dark);color:#fff}
+body.yk-ticket .btn.res:hover{background:var(--p-dark2);border-color:var(--p-dark2);color:#fff}
+body.yk-ticket .btn.live{background:var(--p-lime);border-color:#c3dc55;color:var(--p-ink)}
+body.yk-ticket .btn.live:hover{background:#cbe85a}
+body.yk-ticket .btn.ai{border-color:var(--p-soft-line);color:var(--p-green)}
+body.yk-ticket .tk-acciones .actions{display:flex;flex-direction:column;gap:8px;margin:0}
+body.yk-ticket .tk-acciones .btn{width:100%}
+
+/* Resumen IA y asignación (bloques suaves del lateral) */
+body.yk-ticket .sum{display:none;margin:0}
+body.yk-ticket .sum.show{display:block}
+body.yk-ticket .sum p{font:14px/1.6 var(--p-sans);color:var(--p-ink)}
+body.yk-ticket .asig{margin:0}
+body.yk-ticket .asig .crow{flex-direction:column;align-items:stretch;margin-top:0}
+body.yk-ticket .asig select{max-width:none;min-height:44px;padding:9px 12px;border:1px solid var(--p-soft-line);border-radius:8px;background:#fff;color:var(--p-ink);font:600 13px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-ticket .asig .rmsg{font:13px var(--p-sans);color:var(--p-muted)}
+body.yk-ticket .asig .rmsg:empty{display:none}
+body.yk-ticket .asig .rhint{margin-top:12px;font:13px/1.55 var(--p-sans);color:var(--p-muted)}
+body.yk-ticket .asig .rhint a{color:var(--p-green)}
+
+/* Carga y errores */
+body.yk-ticket .tk-skel{max-width:720px;margin-top:30px}
+body.yk-ticket #root>.load{margin-top:30px;padding:38px;border:1px dashed #b8c8a5;border-radius:12px;background:#eaf0e1;color:var(--p-muted);font:15px var(--p-sans);letter-spacing:0;text-transform:none}
+
+/* ------------------------------ Responsive --------------------------------- */
+@media(max-width:1100px){
+  body.yk-ticket .tk-data{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:850px){
+  body.yk-ticket .tk-sheet{grid-template-columns:minmax(0,1fr);gap:18px;padding-top:22px}
+  /* una sola columna: datos → acciones → historial → nota → resumen → asignación */
+  body.yk-ticket .tk-sheet{display:flex;flex-direction:column;align-items:stretch}
+  body.yk-ticket :is(.tk-main,.tk-side){display:contents}
+  body.yk-ticket .tk-datos{order:1}
+  body.yk-ticket .tk-acciones{order:2}
+  body.yk-ticket .tk-hist{order:3}
+  body.yk-ticket .composer{order:4}
+  body.yk-ticket .sum{order:5}
+  body.yk-ticket .asig{order:6}
+  body.yk-ticket .tk-acciones .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:520px){
+  body.yk-ticket .wrap>nav{padding-top:20px}
+  body.yk-ticket .tk-heading{padding:20px 0 20px}
+  body.yk-ticket .tk-heading h1{font-size:32px;letter-spacing:-1.2px}
+  body.yk-ticket .tk-card{padding:18px 16px}
+  body.yk-ticket .sheet-block{padding:16px}
+  body.yk-ticket .tk-data{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  body.yk-ticket .tk-datum{padding:12px}
+  body.yk-ticket .tk-datum dd{font-size:14px}
+  body.yk-ticket .tk-acciones .actions{grid-template-columns:minmax(0,1fr)}
+  body.yk-ticket .crow .btn{flex:1 1 100%}
+  body.yk-ticket .ev-imgs a{width:112px;height:82px}
+}
+@media(prefers-reduced-motion:reduce){
+  body.yk-ticket .ev-imgs a{transition:none}
+}
