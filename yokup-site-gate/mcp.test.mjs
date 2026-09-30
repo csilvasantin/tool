@@ -87,7 +87,7 @@ test('Cypher authenticates independently without inheriting Smith projects',asyn
 });
 test('vendored fleet identity module matches the canonical published checksum',async()=>{
  const source=await readFile(new URL('./src/identidad-flota.mjs',import.meta.url));
- assert.equal(createHash('sha256').update(source).digest('hex'),'acb31b993408e26514a0a08c2748f455788a225a57849b8cbaf46788cee68c9e');
+ assert.equal(createHash('sha256').update(source).digest('hex'),'680a98dff8fa7b15053c54e547ca0b5cf4e89a23712aebcd8032ed95d56eece2');
 });
 test('origin, protocol, accept, size and malformed JSON are rejected',async()=>{
  const h=await setup();

@@ -24,12 +24,14 @@
  * su hash contra el publicado.
  */
 
-export const VERSION = 'v.05.09.2026.r1';
+export const VERSION = 'v.30.09.2026.r2';
 
-export const PERSONAS = ['Morfeo', 'Neo', 'Smith', 'Trinity', 'Oraculo', 'Niobe', 'Link', 'Cypher', 'Switch', 'Persefone', 'Seraph'];
+export const PERSONAS = ['Morfeo', 'Neo', 'Smith', 'Trinity', 'Oraculo', 'Niobe', 'Link', 'Cypher', 'Switch', 'Persefone', 'Seraph', 'Merovingio'];
 export const EQUIPOS = ['MacMini', 'MacBookPro14', 'MacBookPro16', 'MacBookAirAzul', 'MacBookAirRosa', 'MacBookAirCrema', 'MacBookAirPlata', 'MacBookAir16'];
-export const CONSEJEROS = ['Wozniak', 'Jobs', 'Lucas', 'Disney'];   // GrokBot: clave propia (MCP_KEYS), no derivada
-export const RUNTIME_POR_DEFECTO = { Oraculo: 'Codex', Trinity: 'Codex', Niobe: 'OpenCode', Persefone: 'OpenCode', Seraph: 'OpenCode', Smith: 'Grok CLI' };
+// Apellidos = GROK_CONSEJEROS de yokup-rtc/src/agent-identity.js. No entran en
+// PERSONAS ni en RUNTIME_POR_DEFECTO: su clave es MCP_KEYS, no HMAC de la semilla.
+export const CONSEJEROS = ['Wozniak', 'Jobs', 'Lucas', 'Disney', 'Musk'];   // GrokBot: clave propia (MCP_KEYS), no derivada
+export const RUNTIME_POR_DEFECTO = { Oraculo: 'Codex', Trinity: 'Codex', Niobe: 'OpenCode', Persefone: 'OpenCode', Seraph: 'OpenCode', Smith: 'Grok CLI', Merovingio: 'Grok CLI' };
 
 const enc = new TextEncoder();
 const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

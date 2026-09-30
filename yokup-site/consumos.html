@@ -127,8 +127,8 @@ tr.detail td{background:rgba(10,22,32,.85);color:var(--mut);font-size:12px}
 "use strict";
 const WORKER="https://api.yokup.com";
 const ADMIN=new URLSearchParams(location.search).has("admin");
-const DEEP_AGENTS=["Arquitecto","Consejeros","Neo","Trinity","Morfeo","Oraculo"];
-const DEEP_LABEL={Arquitecto:"Arquitecto",Consejeros:"Consejeros",Neo:"Neo",Trinity:"Trinity",Morfeo:"Morfeo",Oraculo:"Oráculo"};
+const DEEP_AGENTS=["Arquitecto","Consejeros","Merovingio","Neo","Trinity","Morfeo","Oraculo"];
+const DEEP_LABEL={Arquitecto:"Arquitecto",Consejeros:"Consejeros",Merovingio:"Merovingio",Neo:"Neo",Trinity:"Trinity",Morfeo:"Morfeo",Oraculo:"Oráculo"};
 const ROSTER=[
   {name:"Neo",motor:"Anthropic",account:"csilva@admira.com"},
   {name:"Trinity",motor:"Claude",account:"csilva@admira.com"},
@@ -149,7 +149,9 @@ function mapOwnerToDeepAgent(owner){
   if(/trinity/.test(key)) return "Trinity";
   if(/morfeo|morpheus/.test(key)) return "Morfeo";
   if(/oraculo|oracle/.test(key)) return "Oraculo";
-  if(/jobs|disney|lucas|woz|wozniak|walt|consejer|grokbot|smith|rabbit|white.?rabbit/.test(key)) return "Consejeros";
+  // Antes que Consejeros: MerovingioGrokBotBox también contiene «grokbot».
+  if(/merovingian|merovingio/.test(key)) return "Merovingio";
+  if(/jobs|disney|lucas|woz|wozniak|walt|musk|consejer|grokbot|smith|rabbit|white.?rabbit/.test(key)) return "Consejeros";
   return null;
 }
 
@@ -235,8 +237,9 @@ function subtitle(){
       "Tarifas token: <b>estimación</b> input $3/MTok · cache $0.75/MTok · output $15/MTok — no es factura. "+
       "Solo se listan proyectos con actividad en el periodo (tokens o hosting &gt; 0). Un agente en varios proyectos reparte tokens a partes iguales.";
   }
-  return "Gasto agregado por <b>DeepAgent</b>: Arquitecto, Consejeros, Neo, Trinity, Morfeo y Oráculo. "+
-    "Totales brutos (sin equal_split). Consejeros = Jobs · Disney · Lucas · Wozniak y familia GrokBot.";
+  return "Gasto agregado por <b>DeepAgent</b>: Arquitecto, Consejeros, Merovingio, Neo, Trinity, Morfeo y Oráculo. "+
+    "Totales brutos (sin equal_split). Consejeros = Jobs · Disney · Lucas · Wozniak · Musk y familia GrokBot. "+
+    "Merovingio es el deepagent Grok CLI emparejado con Musk (GrokBotBox).";
 }
 
 function updateRosterVisibility(){
