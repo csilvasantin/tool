@@ -79,7 +79,7 @@ Adopción inicial: activas y resueltas en las últimas 24 h (no se vuelca el his
 - `yokup-rtc` → `yokup-api`: binding `INCIDENT_DESK` (el nombre que `incident-sensors.js` ya esperaba). Se usa para el alta del Desk y para `POST https://yokup-api.internal/internal/incident-links/rtc-status`.
 - `yokup-api` → `yokup-rtc`: binding `RTC` (mismo nombre que en `yokup-site-gate`), para `POST https://yokup-rtc.internal/internal/portal/sync`.
 
-**Rutas internas que el fetch público no alcanza.** Ambas rutas `/internal/*` exigen:
+**Rutas internas que el fetch público no alcanza.** En yokup-rtc el puente solo atiende `/internal/portal/*`; el resto de `/internal/*` (p. ej. `/internal/mcp/incidents/*` del MCP de flota, que llega por el binding `RTC` del gate con host `api.yokup.com` y Bearer de ejecutor) sigue su camino con su propia comprobación de confianza. En yokup-api el puente es `/internal/incident-links/*`. Las dos rutas del puente exigen:
 
 - host `yokup-rtc.internal` / `yokup-api.internal`: Cloudflare enruta el tráfico público por el Host, y esos nombres no son zonas de nadie, así que una petición de Internet solo puede llegar con `api.yokup.com`, `data.yokup.com` o `*.workers.dev`;
 - y que **no** traiga `CF-Connecting-IP` ni `CF-Ray`, que el borde pone siempre en el tráfico público y que un binding no añade.

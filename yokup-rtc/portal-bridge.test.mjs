@@ -220,6 +220,28 @@ test('cableado en el worker: ruta interna antes de la verja, esquema en una lín
   assert.match(apiToml, /\[\[services\]\]\s*binding = "RTC"\s*service = "yokup-rtc"/);
 });
 
+test('/internal/ en el worker completo: /internal/portal/* solo por binding y /internal/mcp/* sigue llegando al MCP de flota', async () => {
+  const {default: worker} = await import('./src/index.js');
+  const {FLEET_INCIDENTS_PREFIX} = await import('./src/fleet-incidents.js');
+  const DB = {prepare:() => { throw new Error('d1-stub'); }, exec:async () => { throw new Error('d1-stub'); }, batch:async () => { throw new Error('d1-stub'); }};
+  const env = {DB, YOKUP_CLI_EXECUTOR_TOKEN:'executor-test-token'};
+  const go = (url, init = {}) => worker.fetch(new Request(url, init), env, {});
+  // Como llama el gate (src/mcp.js): https://api.yokup.com + ruta, Bearer de ejecutor, sin cabeceras del borde.
+  // Llega al handler del MCP (su error de D1 simulada), NO al 404 del puente del portal.
+  const gate = await go('https://api.yokup.com' + FLEET_INCIDENTS_PREFIX + '/list', {headers:{authorization:'Bearer executor-test-token', 'user-agent':'YokupMCP/1.0'}});
+  assert.deepEqual([gate.status, (await gate.json()).code], [500, 'incident_error']);
+  // Y conserva SU comprobación de confianza: sin token 401, desde el borde 403.
+  assert.equal((await go('https://api.yokup.com' + FLEET_INCIDENTS_PREFIX + '/list')).status, 401);
+  assert.equal((await go('https://api.yokup.com' + FLEET_INCIDENTS_PREFIX + '/list', {headers:{authorization:'Bearer executor-test-token', 'cf-connecting-ip':'198.51.100.7'}})).status, 403);
+  // El puente del portal: tráfico público (host público o cabeceras del borde) → 404, sin tocar D1.
+  for (const [url, headers] of [['https://api.yokup.com/internal/portal/sync', {}], ['https://yokup-rtc.internal/internal/portal/sync', {'cf-connecting-ip':'198.51.100.7'}], ['https://yokup-rtc.internal/internal/portal/sync', {'cf-ray':'8c-MAD'}]]) {
+    const r = await go(url, {method:'POST', headers:{'content-type':'application/json', ...headers}, body:'{}'});
+    assert.deepEqual([r.status, await r.json()], [404, {error:'not-found'}], url);
+  }
+  // Por el binding sí entra (aquí rechaza el cuerpo antes de tocar D1).
+  assert.equal((await go('https://yokup-rtc.internal/internal/portal/sync', {method:'POST', body:'[]'})).status, 400);
+});
+
 // ── Extremo a extremo: yokup-api real (fixture SQLite de ../api) ↔ esta bandeja, por los dos bindings ──
 test('extremo a extremo: alta en el portal, técnico, cierre desde Yokup rechazado, cierre con evidencia y valoración, sin rebotes', async () => {
   const {setup, call, account} = await import('../api/test-fixture.mjs');
