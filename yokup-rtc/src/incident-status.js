@@ -92,6 +92,7 @@ export function serializeIncidentStatus(ticket, events, now = Date.now()) {
     resolved_at: resolvedAt,
     closed_by: closing ? String(closing.author || '').slice(0, 60) : '',
     proof: ticket.status === 'resolved' && /^https:\/\//.test(String(ticket.proof_image || '')) ? ticket.proof_image : null,
-    sla: incidentSla(ticket.priority, created, responded && responded.ts, resolvedAt, now)
+    // Cerrar sin nota previa también es responder: el técnico actuó al cerrar.
+    sla: incidentSla(ticket.priority, created, (responded && responded.ts) || resolvedAt, resolvedAt, now)
   };
 }

@@ -59,3 +59,9 @@ test('serialización: respuesta = primer gesto humano, cierre con prueba https',
   assert.equal(s.proof,ticket.proof_image);
   assert.equal(serializeIncidentStatus({...ticket,status:'open',proof_image:'javascript:x'},events.slice(0,1),T0).proof,null);
 });
+
+test('cerrar sin nota previa cuenta como respuesta',()=>{
+  const s=serializeIncidentStatus({id:'INC-ABCDE2',screen:'demo:s:tpv',status:'resolved',priority:'alta',created_at:T0,updated_at:T0+20*MIN,resolved_at:T0+20*MIN},[{ts:T0,kind:'log'}],T0+21*MIN);
+  assert.equal(s.sla.responded_at,T0+20*MIN);
+  assert.equal(s.sla.response_ok,true);
+});
