@@ -31,15 +31,24 @@ export function viaBinding(req, host = PORTAL_INTERNAL_HOST) {
 async function createMirror(env, p, deps, now) {
   const site = p.site && typeof p.site === "object" ? p.site : null;
   const project = site && deps.ensureEstablishmentProject ? await deps.ensureEstablishmentProject(env, clip(site.establishment, 160), clip(site.name, 120), now) : null;
-  const id = await deps.createIncident(env, {
+  // createIncident reparte ids INC-<5 del reloj><1 azar>: dos altas en el mismo ms chocan 1 de cada 36 veces
+  // (el lote del portal crea varias seguidas). El choque no crea nada: se reintenta con otro id.
+  let id = null;
+  for (let attempt = 0; !id && attempt < 4; attempt++) {
+    try { id = await deps.createIncident(env, mirrorIncident(p, site, project)); }
+    catch (e) { if (e && e.code !== "incident_insert_conflict" || attempt === 3) throw e; }
+  }
+  return id ? first(env, "SELECT id,status FROM tickets WHERE id=?", id) : null;
+}
+function mirrorIncident(p, site, project) {
+  return {
     resource: "portal:" + p.portal_incident_id, kind: "screen", source: "portal-comercio",
     severity: p.priority === "urgent" ? "urgente" : "alta",
     subject: clip(p.title, 200) || "Incidencia del portal del comercio",
     detail: [site ? PORTAL_AUTHOR + " · " + clip(site.name, 120) : "Yokup Desk", p.device && clip(p.device.name, 120) ? "equipo " + clip(p.device.name, 120) : "", clip(p.description, 500)].filter(Boolean).join(" · "),
     ...(project ? { project_id: project.id, loc: clip(site.name, 80) } : site ? { loc: clip(site.establishment, 80), loc_name: clip(site.name, 80) } : { project_id: "yokup" }),
     by: PORTAL_AUTHOR, assignee: "Yokup Desk"
-  });
-  return id ? first(env, "SELECT id,status FROM tickets WHERE id=?", id) : null;
+  };
 }
 
 /** Aplica el estado de una incidencia de B. Crea o enlaza el ticket la primera vez. Idempotente. */
@@ -92,7 +101,7 @@ export async function applyPortalSync(env, p, deps, now = Date.now()) {
 export async function pushPortalChanges(env, deps, now = Date.now()) {
   const out = { pushed: 0, failed: 0 };
   if (!env.INCIDENT_DESK) return { ...out, skipped: "portal_binding_missing" };
-  const due = await all(env, "SELECT k.*,t.status FROM portal_links k JOIN tickets t ON t.id=k.ticket_id WHERE t.status IN ('resolved','cancelled') AND COALESCE(k.portal_state,'') NOT IN ('resolved','rated') AND k.next_attempt_at<=? ORDER BY k.updated_at LIMIT ?", now, BATCH);
+  const due = await all(env, "SELECT k.*,t.status FROM portal_links k JOIN tickets t ON t.id=k.ticket_id WHERE t.status IN ('resolved','cancelled') AND COALESCE(k.portal_state,'') NOT IN ('resolved','rated') AND k.next_attempt_at<=? ORDER BY k.updated_at,k.ticket_id LIMIT ?", now, BATCH);
   for (const row of due) {
     let error = "";
     try {

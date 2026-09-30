@@ -94,6 +94,16 @@ test('el ciclo de campo del portal manda: técnico → en curso, resuelta, valor
   assert.equal((await applyPortalSync(t.env, portal({portal_incident_id:'retail-2', state:'resolved'}), t.deps)).status, 'cancelled');
 });
 
+test('un choque de id de createIncident (mismo ms) se reintenta sin perder el espejo', async () => {
+  const t = database();
+  let calls = 0;
+  const deps = {...t.deps, createIncident: async (env, inc) => { if (++calls < 3) throw Object.assign(new Error('incident_insert_conflict'), {code:'incident_insert_conflict', status:409}); return t.deps.createIncident(env, inc); }};
+  const r = await applyPortalSync(t.env, portal(), deps);
+  assert.equal(r.created, true); assert.equal(calls, 3); assert.equal(t.ticket(r.ticket_id).screen, 'portal:retail-1');
+  const other = {...t.deps, createIncident: async () => { throw Object.assign(new Error('invalid_project_id'), {code:'invalid_project_id', status:400}); }};
+  await assert.rejects(applyPortalSync(t.env, portal({portal_incident_id:'retail-9'}), other), /invalid_project_id/);
+});
+
 test('una incidencia que nació aquí (sensor) se enlaza a su ticket, sin espejo', async () => {
   const t = database();
   t.db.prepare("INSERT INTO tickets(id,screen,subject,status,source,created_at,updated_at) VALUES('INC-AAA1','tcl-terminator','Pantalla sin señal','open','agent-iot',1,1)").run();
@@ -137,7 +147,7 @@ test('los cierres de Yokup viajan al portal; con técnico asignado se rechazan y
   t.db.prepare("UPDATE tickets SET status='cancelled' WHERE id=?").run(a);
   t.db.prepare("UPDATE tickets SET status='resolved' WHERE id=?").run(b);
   assert.deepEqual(await pushPortalChanges(t.env, t.deps, now), {pushed:2, failed:0});
-  assert.deepEqual(t.env.INCIDENT_DESK.calls.map((c) => [c.portal_incident_id, c.rtc_ticket_id, c.status]), [['retail-1', a, 'cancelled'], ['retail-2', b, 'resolved']]);
+  assert.deepEqual(t.env.INCIDENT_DESK.calls.map((c) => [c.portal_incident_id, c.rtc_ticket_id, c.status]).sort(), [['retail-1', a, 'cancelled'], ['retail-2', b, 'resolved']]);
   assert.equal(t.ticket(a).status, 'cancelled'); assert.equal(t.link('retail-1').portal_state, 'resolved');
   assert.equal(t.ticket(b).status, 'in_progress');
   assert.equal(t.events(b).at(-1).text, 'Estado → in_progress: sigue en curso en el portal del comercio (técnico Laura); se cierra allí con evidencia.');
