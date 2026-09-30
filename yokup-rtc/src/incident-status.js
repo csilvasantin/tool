@@ -96,3 +96,12 @@ export function serializeIncidentStatus(ticket, events, now = Date.now()) {
     sla: incidentSla(ticket.priority, created, (responded && responded.ts) || resolvedAt, resolvedAt, now)
   };
 }
+
+// Sesiones del gemelo (Carlos, 30-sep-2026). Cada pestaña que abre el Xtore/Matrix late en
+// /signage/screens como `xtore-<azar>` con role `xtore-game`: no es una pantalla, es un
+// visitante. Al cerrar la pestaña deja de latir y el vigilante abría «Pantalla sin señal»
+// nueva por sesión (40 abiertas en el Starbucks). Sólo se vigilan pantallas de emisión.
+export const RECONCILE_SKIP_ROLES = new Set(['xtore-game']);
+export function isMonitoredScreen(screen) {
+  return !!(screen && screen.screen) && !RECONCILE_SKIP_ROLES.has(String(screen.role || ''));
+}

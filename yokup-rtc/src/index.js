@@ -65,7 +65,7 @@ import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
 import { createAdmiraMcpClient, handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL, SUPERVISOR_IDENTITY_TRACKS_SQL } from "./supervisor.js";
 import { normalizeAccessDirectory, supervisorAccessForSession, supervisorSessionInfo } from "./supervisor-access.js";
-import { INCIDENT_STATUS_CACHE_S, INCIDENT_STATUS_MAX_ACTIVE, INCIDENT_STATUS_PREFIX, normalizeIncidentStatusQuery, prefixUpperBound, serializeIncidentStatus } from "./incident-status.js";
+import { INCIDENT_STATUS_CACHE_S, INCIDENT_STATUS_MAX_ACTIVE, INCIDENT_STATUS_PREFIX, isMonitoredScreen, normalizeIncidentStatusQuery, prefixUpperBound, serializeIncidentStatus } from "./incident-status.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -6428,6 +6428,7 @@ async function reconcile(env) {
   }
   const now = Date.now();
   for (const s of screens) {
+    if (!isMonitoredScreen(s)) continue;   // sesiones del gemelo, no pantallas
     const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(s.screen).first();
     if (!s.online) {
       if (!open) await createTicket(env, { screen: s.screen, loc: s.locName || s.loc || "", role: s.role, age: s.age_seconds });

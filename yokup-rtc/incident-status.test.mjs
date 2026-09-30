@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {INCIDENT_SLA_MIN,incidentSla,incidentStage,normalizeIncidentStatusQuery,prefixUpperBound,serializeIncidentStatus} from './src/incident-status.js';
+import {isMonitoredScreen,INCIDENT_SLA_MIN,incidentSla,incidentStage,normalizeIncidentStatusQuery,prefixUpperBound,serializeIncidentStatus} from './src/incident-status.js';
 
 const q=(o)=>normalizeIncidentStatusQuery(new URLSearchParams(o));
 const T0=1_790_000_000_000,MIN=60000;
@@ -64,4 +64,11 @@ test('cerrar sin nota previa cuenta como respuesta',()=>{
   const s=serializeIncidentStatus({id:'INC-ABCDE2',screen:'demo:s:tpv',status:'resolved',priority:'alta',created_at:T0,updated_at:T0+20*MIN,resolved_at:T0+20*MIN},[{ts:T0,kind:'log'}],T0+21*MIN);
   assert.equal(s.sla.responded_at,T0+20*MIN);
   assert.equal(s.sla.response_ok,true);
+});
+
+test('el vigilante ignora las sesiones del gemelo (xtore-game) y vigila las pantallas de emisión',()=>{
+  assert.equal(isMonitoredScreen({screen:'xtore-ncsar4',role:'xtore-game',online:false}),false);
+  assert.equal(isMonitoredScreen({screen:'xtanco-totem',role:'canal',online:false}),true);
+  assert.equal(isMonitoredScreen({screen:'tcl-terminator',online:false}),true);
+  assert.equal(isMonitoredScreen({}),false);
 });
