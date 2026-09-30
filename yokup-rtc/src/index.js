@@ -1,5 +1,6 @@
 import { runIncidentSensors } from './incident-sensors.js';
 import { ensureEstablishmentProject } from './incident-project.js';
+import { FLEET_INCIDENTS_PREFIX, handleFleetIncidents } from './fleet-incidents.js';
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, zonasCalientes, paradas, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
@@ -10028,6 +10029,8 @@ var worker_app = {
     });
     if (authResponse) return authResponse;
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+    // Incidencias del MCP de flota (FLT-101298): solo por el binding del gate (src/fleet-incidents.js).
+    if (url.pathname === FLEET_INCIDENTS_PREFIX || url.pathname.startsWith(FLEET_INCIDENTS_PREFIX + "/")) return handleFleetIncidents(req, env, url, { json, ensureSchema, createIncident, addEvent, embed });
     // ── AUTOCURACIÓN DE LA RUTINA PROGRAMADA, INDEPENDIENTE DEL CRON (FLT-1016 c) ─
     // DIAGNÓSTICO (23/24-jul-2026): el cron scheduled() de este worker NO se invoca
     // en esta cuenta —schedule "*/2 * * * *" registrado y confirmado por API, pero
