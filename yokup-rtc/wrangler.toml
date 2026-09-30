@@ -164,3 +164,13 @@ VAPID_PUBLIC = "BDqJIroeM7TZyFufMupmO6v9q-b4ahgGZ3JJL-E_5Kj1d4pBsHSVlsr-ju2J1vpr
 [[services]]
 binding = "FLEET_SVC"
 service = "admira-fleet"
+
+# ── Incidencias unificadas (FLT-101298 · MorfeoMacMini · 30-sep-2026) ───────────────
+# Service binding al portal del comercio / Yokup Desk (yokup-api): alta de las caídas del sensor
+# (POST /api/desk/incidents, que incident-sensors.js ya usaba si existía el binding) y cierres de la
+# bandeja hacia el portal (POST https://yokup-api.internal/internal/incident-links/rtc-status).
+# yokup-api empuja lo suyo por su binding RTC a /internal/portal/sync. Sin secretos nuevos.
+# Requisito: yokup-api en ESTA misma cuenta. Ver docs/incidencias-unificadas.md.
+[[services]]
+binding = "INCIDENT_DESK"
+service = "yokup-api"

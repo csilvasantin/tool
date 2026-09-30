@@ -10,6 +10,7 @@ import vm from 'node:vm';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import {isMonitoredScreen} from './src/incident-status.js';
+import {portalAssigned, PORTAL_LINKS_SQL} from './src/portal-bridge.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const pick = (re) => {
@@ -39,7 +40,7 @@ function build(screens) {
     fetch: async () => ({ json: async () => ({screens: screens.list}) }),
     createTicket: async (env, s) => { calls.created.push(s.screen); },
     notifySubs: async () => { calls.notified++; },
-    isMonitoredScreen,
+    isMonitoredScreen, portalAssigned,
     __name: () => {}
   });
   vm.runInContext([
@@ -59,7 +60,7 @@ function build(screens) {
   };
   const ticket = (id) => db.prepare('SELECT id,status,resolved_at FROM tickets WHERE id=?').get(id);
   const kinds = (id) => db.prepare('SELECT kind FROM events WHERE ticket_id=? ORDER BY id').all(id).map(r => r.kind);
-  return {env, calls, seed, ticket, kinds, reconcile: () => context.api.reconcile(env), autocloseMs: context.api.FIELD_AUTOCLOSE_MS};
+  return {db, env, calls, seed, ticket, kinds, reconcile: () => context.api.reconcile(env), autocloseMs: context.api.FIELD_AUTOCLOSE_MS};
 }
 
 test('el umbral de cierre automático es 5 minutos', () => {
@@ -133,4 +134,18 @@ test('las sesiones del gemelo (role xtore-game) no abren incidencias al dejar de
   const h = build({list:[{screen:'xtore-ncsar4', role:'xtore-game', online:false}, {screen:'tcl-terminator', online:false}]});
   await h.reconcile();
   assert.deepEqual(h.calls.created, ['tcl-terminator']);
+});
+
+// FLT-101298 · incidencias unificadas: con técnico asignado en el portal del comercio el cierre es
+// suyo (con evidencia); el latido sano no lo cierra aquí. Sin enlace (o sin tabla), como siempre.
+test('con técnico asignado en el portal del comercio el latido sano no cierra la incidencia', async () => {
+  const t = build({list:[{screen:'p7', online:true}, {screen:'p8', online:true}]});
+  t.db.exec(PORTAL_LINKS_SQL);
+  t.seed('INC-P7', 'p7', 'in_progress', [['log', 60 * MIN], ['recover', 6 * MIN]]);
+  t.seed('INC-P8', 'p8', 'open', [['log', 60 * MIN], ['recover', 6 * MIN]]);
+  t.db.prepare("INSERT INTO portal_links(ticket_id,portal_incident_id,origin,portal_state,technician_name,created_at,updated_at) VALUES('INC-P7','desk:1','rtc','assigned','Laura',1,1),('INC-P8','desk:2','rtc','open',NULL,1,1)").run();
+  await t.reconcile();
+  assert.equal(t.ticket('INC-P7').status, 'in_progress');
+  assert.deepEqual(t.kinds('INC-P7'), ['log', 'recover']);
+  assert.equal(t.ticket('INC-P8').status, 'resolved', 'si nadie la ha aceptado, se cierra y el cierre viaja al portal');
 });

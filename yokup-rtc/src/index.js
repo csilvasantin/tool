@@ -1,6 +1,7 @@
 import { runIncidentSensors } from './incident-sensors.js';
 import { ensureEstablishmentProject } from './incident-project.js';
 import { FLEET_INCIDENTS_PREFIX, handleFleetIncidents } from './fleet-incidents.js';
+import { PORTAL_INTERNAL_PREFIX, PORTAL_LINKS_SQL, handlePortalInternal, pushPortalChanges, portalAssigned, portalLinksFor } from './portal-bridge.js';
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, zonasCalientes, paradas, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
@@ -408,6 +409,8 @@ async function applySchema(env) {
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_screen ON tickets(screen) WHERE status NOT IN ('resolved','cancelled')");
   await env.DB.exec("DROP INDEX IF EXISTS idx_open_screen");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
+  // Incidencias unificadas (FLT-101298): enlace ticket ↔ incidencia del portal del comercio (src/portal-bridge.js).
+  await env.DB.exec(unaLinea(PORTAL_LINKS_SQL));
   await env.DB.exec(unaLinea(SUPERVISOR_STATIONS_SQL));
   await env.DB.exec(unaLinea(SUPERVISOR_OBSERVATIONS_SQL));
   await env.DB.exec(unaLinea(SUPERVISOR_OBSERVATIONS_INDEX_SQL));
@@ -2675,6 +2678,12 @@ async function runScheduledRoutine(env, event) {
   await step("expireDecisions", () => expireDecisionsAndStartBatches(env));
   // Incidencias DOOH: pantallas caídas/recuperadas.
   await step("reconcile", () => reconcile(env));
+  // Incidencias unificadas (FLT-101298): cierres de la bandeja que el portal del comercio aún no tiene
+  // (incluidos los del reconcile) y reintentos. El portal empuja lo suyo por su propio cron.
+  await step("portalBridge", async () => {
+    const r = await pushPortalChanges(env, portalDeps());
+    if (r.failed) throw new Error(JSON.stringify(r));
+  });
 
   await step("ubicacionPurga", () => purgarHistorialUbicacion(env));
   // Monitor de webs y máquinas 24/7: caro (fetch externos) → ~cada 10 min por su
@@ -6313,6 +6322,11 @@ async function createIncident(env, inc) {
   return id;
 }
 __name(createIncident, "createIncident");
+// Lo que el puente con el portal del comercio necesita del worker (src/portal-bridge.js, FLT-101298).
+function portalDeps() {
+  return { createIncident, addEvent, ensureEstablishmentProject, ensureSchema };
+}
+__name(portalDeps, "portalDeps");
 // Marca la incidencia ABIERTA de un recurso como recuperada (misma semántica que el
 // reconcile DOOH: evento 'recover', pendiente de verificación y cierre).
 async function resolveIncident(env, resource, by, note) {
@@ -6458,7 +6472,8 @@ async function reconcile(env) {
       if (!last || last.kind !== "recover") {
         await env.DB.prepare("UPDATE tickets SET updated_at=? WHERE id=?").bind(now, open.id).run();
         await addEvent(env, open.id, "recover", FIELD_MONITOR_AUTHOR, FIELD_RECOVER_TEXT);
-      } else if (now - last.ts >= FIELD_AUTOCLOSE_MS) {
+      // Con técnico asignado en el portal del comercio el cierre es suyo, con evidencia (FLT-101298).
+      } else if (now - last.ts >= FIELD_AUTOCLOSE_MS && !(await portalAssigned(env, open.id))) {
         await env.DB.prepare("UPDATE tickets SET status='resolved', updated_at=?, resolved_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')")
           .bind(now, now, open.id).run();
         await addEvent(env, open.id, "close", FIELD_MONITOR_AUTHOR, FIELD_AUTOCLOSE_TEXT);
@@ -6567,6 +6582,11 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
   const pidx = await projectIndex(env);
   for (const r of rows) r.project_name = resolveProject(pidx, r.project || "").name;
   await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
+  // Marca «Portal del comercio · establecimiento» (FLT-101298); el tablero de misiones no la necesita.
+  if (scope !== "fleet" && rows.length) {
+    const portal = await portalLinksFor(env, rows.map((row) => row.id));
+    for (const row of rows) if (portal.has(row.id)) row.portal = portal.get(row.id);
+  }
   // Los KPIs del tablero cuentan TODO el universo, se traiga o no. Cuando se pide
   // solo lo vivo, lo cerrado se cuenta con UNA agregada barata en vez de bajarse
   // mil filas para sumarlas en el navegador.
@@ -10022,6 +10042,11 @@ __name(menuCounters, "menuCounters");
 var worker_app = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    // Incidencias unificadas (FLT-101298): el portal del comercio (yokup-api) empuja aquí el estado de sus
+    // incidencias. SOLO /internal/portal/* y SOLO por service binding: host interno y sin cabeceras del borde
+    // (src/portal-bridge.js). El resto de /internal/* (p. ej. /internal/mcp/incidents/* del MCP de flota) sigue
+    // su camino con SU propia comprobación de confianza (src/fleet-incidents.js).
+    if (url.pathname.startsWith(PORTAL_INTERNAL_PREFIX)) return handlePortalInternal(req, env, portalDeps());
     const authResponse = await handleAuthRequest(req, env, {
       clientId:AUTH_CLIENT_ID, whitelist, makeSession, readSession, revokeSession,
       sessionAllowed:async (_environment, session) => (await currentSupervisorAccess(session)).allowed === true,
@@ -12586,6 +12611,8 @@ var worker_app = {
         await attachDisplayRefs(env, "mission", t, (row) => row.id, (row) => row.created_at);
         const { results } = await env.DB.prepare("SELECT * FROM events WHERE ticket_id=? ORDER BY id ASC").bind(id).all();
         t.race_bonus_points = (results || []).filter(event => event.kind === "race_bonus").length;
+        const portal = (await portalLinksFor(env, [t.id])).get(t.id);
+        if (portal) t.portal = portal;
         return json({ ticket: t, events: results || [] });
       } catch (e) {
         return json({ error: String(e) }, 500);
@@ -12668,6 +12695,9 @@ var worker_app = {
             }));
           } catch (e) {}
         }
+        // Cierres en bloque de incidencias enlazadas → portal del comercio (FLT-101298); si lo lleva un
+        // técnico, el portal lo rechaza y el ticket vuelve a «En curso» con el motivo en su cronología.
+        if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(pushPortalChanges(env, portalDeps()).catch(() => {}));
         return json({ ok: true, updated, reconciliation_partial:targetBatches.some((row) => !row.ok), target_batches:targetBatches });
       } catch (e) {
         return json({ error: String(e) }, 500);
@@ -14318,6 +14348,10 @@ Todo en español.`;
         const b = await req.json();
         await ensureSchema(env);
         const current = await env.DB.prepare("SELECT id,source,assignee,loc,screen FROM tickets WHERE id=?").bind(b.id).first();
+        // Un trabajo de campo que lleva un técnico se cierra en el portal del comercio, con evidencia (FLT-101298).
+        const held = (b.status === "resolved" || b.status === "cancelled") ? await portalAssigned(env, b.id) : null;
+        if (held) return json({ ok: false, portal_assigned: true,
+          error: "La lleva un técnico en el portal del comercio" + (held.technician_name ? " (" + held.technician_name + ")" : "") + ": se cierra allí con evidencia." }, 409);
         if (b.status === "resolved" && current && current.source === "fleet" && !(await hasMissionProof(env, b.id))) {
           return json({ ok: false, error: "No se puede finalizar sin pantallazo del trabajo realizado", missing_proof: [b.id] }, 409);
         }
@@ -14382,6 +14416,8 @@ Todo en español.`;
             }
           }
         }
+        // El cierre viaja al portal del comercio si la incidencia está enlazada (FLT-101298).
+        if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(pushPortalChanges(env, portalDeps()).catch(() => {}));
         return json({ ok: true, batch, target_batch:targetBatch,
           reconciliation_partial:!!(targetBatch && !targetBatch.ok) });
       } catch (e) {
