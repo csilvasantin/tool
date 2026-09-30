@@ -160,7 +160,8 @@ test('POST /tickets/status con 250 ids: todas canceladas, nota en cada ficha y ~
   const context = vm.createContext({
     Date, Number, String, Math, JSON, Array, Set, Map, Request, __name: () => {},
     json: (o, s = 200) => ({status:s, body:o}), ensureSchema: async () => {},
-    hasMissionProof: async () => true, ascendMissionProof: async () => {}, reconcileBatchTargetMission: async () => ({ok:true})
+    hasMissionProof: async () => true, ascendMissionProof: async () => {}, reconcileBatchTargetMission: async () => ({ok:true}),
+    ctx: null, pushPortalChanges: async () => ({}), portalDeps: () => ({})
   });
   vm.runInContext([
     fn('addEvent'),

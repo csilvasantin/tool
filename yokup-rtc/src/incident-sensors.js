@@ -58,7 +58,10 @@ export async function queueSignal(env,ticketId,signal,now=Date.now()) {
     description:signal.detail,triage:c.reason,
     device:{id:(signal.sensor==='player'?'player:':'')+signal.resource,name:signal.resource,
       skill:signal.sensor==='player'?'player':'network',address:signal.loc||signal.machine||'Flota',
-      ...(Number.isFinite(signal.latitude)&&Number.isFinite(signal.longitude)?{latitude:signal.latitude,longitude:signal.longitude}:{})}};
+      ...(Number.isFinite(signal.latitude)&&Number.isFinite(signal.longitude)?{latitude:signal.latitude,longitude:signal.longitude}:{})},
+    // Incidencias unificadas (FLT-101298): el Desk la pone en el equipo del comercio de ese establecimiento
+    // (circuito, superficie del Xpacio o player del censo) para que la vea en su portal.
+    ...(signal.sensor==='player'&&signal.locId?{admira:{store_id:String(signal.locId),device_id:String(signal.resource)}}:{})};
   await run(env,`INSERT INTO incident_sensor_outbox(ticket_id,resource,channel,kind,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
     ON CONFLICT(ticket_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at WHERE incident_sensor_outbox.status!='delivered'`,ticketId,signal.resource,c.channel,c.kind,JSON.stringify(payload),now,now);
 }
@@ -73,7 +76,8 @@ export async function flushSensorOutbox(env,now=Date.now()) {
       await run(env,"UPDATE incident_sensor_outbox SET status='obsolete',updated_at=? WHERE ticket_id=?",now,row.ticket_id);
       continue;
     }
-    if (row.channel==='campo' && (!Number.isFinite(payload.device.latitude)||!Number.isFinite(payload.device.longitude))) error='player_coordinates_required';
+    // Sin coordenadas solo sale si trae establecimiento: el Desk usa las del comercio (o lo rechaza y se reintenta).
+    if (row.channel==='campo' && !payload.admira && (!Number.isFinite(payload.device.latitude)||!Number.isFinite(payload.device.longitude))) error='player_coordinates_required';
     else if (!env.ADMIRA_TELEGRAM_PANEL_KEY) error='desk_credentials_missing';
     else {
       try {

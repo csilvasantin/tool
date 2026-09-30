@@ -143,6 +143,9 @@ body.inc-portal .inc-owner::before{content:"Responsable · equipo"}
 body.inc-portal .inc-pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
 body.inc-portal .inc-ref,body.inc-portal .inc-ref.tkopen{display:inline-block;padding:4px 9px;border:0;border-radius:5px;background:#edf3df;color:var(--p-ink);font:700 12px var(--p-sans);letter-spacing:.2px;text-transform:none;text-decoration:none}
 body.inc-portal .inc-ref:hover{background:var(--p-lime);text-decoration:none}
+/* Incidencias unificadas (FLT-101298): marca del Portal del comercio / Yokup Desk con enlace a su ficha. */
+body.inc-portal .inc-comercio{display:inline-block;padding:4px 9px;border-radius:5px;background:var(--p-dark);color:#fff;font:700 12px var(--p-sans);letter-spacing:.2px;text-decoration:none;max-width:100%;overflow-wrap:anywhere}
+body.inc-portal a.inc-comercio:hover,body.inc-portal a.inc-comercio:focus-visible{background:var(--p-lime);color:var(--p-ink);text-decoration:none}
 body.inc-portal .badge{display:inline-flex;padding:4px 9px;border:0;border-radius:5px;font:700 12px var(--p-sans);letter-spacing:.2px;text-transform:none}
 body.inc-portal .badge i{width:6px;height:6px}
 body.inc-portal .b-open{background:#fbe3dc;color:var(--p-red);border:0}

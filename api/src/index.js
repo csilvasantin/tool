@@ -9,6 +9,7 @@ import { handleDesk } from './incident-desk.js';
 import { syncRetailerCircuits } from './admira-circuit-sync.js';
 import { scheduledXpacioSync } from './admira-xpacio-sync.js';
 import { sweepLifecycleAlerts } from './device-lifecycle.js';
+import { syncIncidentLinks, handleIncidentLinksInternal } from './incident-links.js';
 /**
  * yokup-api — Cloudflare Worker
  * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
@@ -57,8 +58,19 @@ const JSON_ARRAY_COLS = {
 const BOOL_COLS = { stores: ["from_admira"] };
 
 export default {
-  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); ctx.waitUntil(scheduledXpacioSync(env)); ctx.waitUntil(sweepLifecycleAlerts(env).catch(e => console.error('lifecycle_sweep_failed', e && e.message))); },
+  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); ctx.waitUntil(scheduledXpacioSync(env)); ctx.waitUntil(sweepLifecycleAlerts(env).catch(e => console.error('lifecycle_sweep_failed', e && e.message))); ctx.waitUntil(syncIncidentLinks(env).catch(e => console.error('incident_links_sync_failed', e && e.message))); },
   async fetch(request, env, ctx) {
+    // Incidencias unificadas (FLT-101298): /internal/* solo por el service binding de yokup-rtc; y tras cualquier
+    // escritura con éxito del portal, el Desk o los MCP, el diff con la bandeja Yokup (docs/incidencias-unificadas.md).
+    if(new URL(request.url).pathname.startsWith('/internal/'))return handleIncidentLinksInternal(request,env);
+    const res=await routeRequest(request,env,ctx);
+    if(ctx&&env.RTC&&!['GET','HEAD','OPTIONS'].includes(request.method)&&res.status<400&&/^\/(api\/(retailer|installer|desk)\/|mcp\/)/.test(new URL(request.url).pathname))ctx.waitUntil(syncIncidentLinks(env).catch(e=>console.error('incident_links_sync_failed',e&&e.message)));
+    return res;
+  },
+};
+
+async function routeRequest(request, env, ctx) {
+  {
     if(new URL(request.url).pathname==='/mcp/calls')return handleCallsMcp(request,env);
     if(new URL(request.url).pathname.startsWith('/api/calls/'))return handleCalls(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-access/'))return handleAccess(request,env);
@@ -91,8 +103,8 @@ export default {
     } catch (e) {
       return json(request, { error: String((e && e.message) || e) }, e.status || 500);
     }
-  },
-};
+  }
+}
 
 async function route(p, request, env, url) {
   const [resource, id] = p;
