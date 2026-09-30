@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
+import {isMonitoredScreen} from './src/incident-status.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const pick = (re) => {
@@ -38,6 +39,7 @@ function build(screens) {
     fetch: async () => ({ json: async () => ({screens: screens.list}) }),
     createTicket: async (env, s) => { calls.created.push(s.screen); },
     notifySubs: async () => { calls.notified++; },
+    isMonitoredScreen,
     __name: () => {}
   });
   vm.runInContext([
@@ -125,4 +127,10 @@ test('una pantalla online sin incidencia no genera nada', async () => {
   await t.reconcile();
   assert.deepEqual(t.calls.created, []);
   assert.equal(t.calls.notified, 0);
+});
+
+test('las sesiones del gemelo (role xtore-game) no abren incidencias al dejar de latir', async () => {
+  const h = build({list:[{screen:'xtore-ncsar4', role:'xtore-game', online:false}, {screen:'tcl-terminator', online:false}]});
+  await h.reconcile();
+  assert.deepEqual(h.calls.created, ['tcl-terminator']);
 });
