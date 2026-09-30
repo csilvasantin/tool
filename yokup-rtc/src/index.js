@@ -10026,6 +10026,43 @@ var worker_app = {
         })().catch(() => {}));
       }
     } catch (e) {}
+    // Vuelta del ciclo al gemelo (DEC-munpe1fhy7kq): XpaceOS lee aquí el estado de
+    // las incidencias que abrió. Sólo recursos `demo:` (src/incident-status.js).
+    // ?prefix=demo:<tienda>: → las activas de la tienda (índice idx_active_screen)
+    // ?ids=INC-a,INC-b      → las que el gemelo ya conoce, aunque estén cerradas.
+    if (url.pathname === "/incident/status" && req.method === "GET") {
+      const q = normalizeIncidentStatusQuery(url.searchParams);
+      if (!q.ok) return json({ ok: false, error: q.error }, 400);
+      const cache = caches.default, key = new Request(url.toString(), { method: "GET" });
+      const hit = await cache.match(key);
+      if (hit) return hit;
+      try {
+        const rows = new Map();
+        if (q.prefix) {
+          const { results } = await env.DB.prepare("SELECT id,screen,subject,status,priority,assignee,created_at,updated_at,resolved_at,proof_image FROM tickets WHERE screen>=? AND screen<? AND status NOT IN ('resolved','cancelled') LIMIT ?")
+            .bind(q.prefix, prefixUpperBound(q.prefix), INCIDENT_STATUS_MAX_ACTIVE).all();
+          for (const r of results || []) rows.set(r.id, r);
+        }
+        if (q.ids.length) {
+          const { results } = await env.DB.prepare("SELECT id,screen,subject,status,priority,assignee,created_at,updated_at,resolved_at,proof_image FROM tickets WHERE id IN (" + q.ids.map(() => "?").join(",") + ")")
+            .bind(...q.ids).all();
+          for (const r of results || []) if (String(r.screen || "").startsWith(INCIDENT_STATUS_PREFIX)) rows.set(r.id, r);
+        }
+        const ids = [...rows.keys()], byTicket = new Map(ids.map((id) => [id, []]));
+        if (ids.length) {
+          const { results } = await env.DB.prepare("SELECT ticket_id,ts,kind,author FROM events WHERE ticket_id IN (" + ids.map(() => "?").join(",") + ") ORDER BY id ASC")
+            .bind(...ids).all();
+          for (const e of results || []) byTicket.get(e.ticket_id)?.push(e);
+        }
+        const now = Date.now();
+        const res = json({ ok: true, now, incidents: ids.map((id) => serializeIncidentStatus(rows.get(id), byTicket.get(id), now)) });
+        res.headers.set("cache-control", "public, max-age=" + INCIDENT_STATUS_CACHE_S);
+        ctx.waitUntil(cache.put(key, res.clone()));
+        return res;
+      } catch (e) {
+        return json({ ok: false, error: String(e && e.message || e) }, 500);
+      }
+    }
     // ── MEDIA (imágenes de misiones) ──────────────────────────────────────────
     // GET /media/<key> → PÚBLICO: sirve la imagen de R2 (el LLM la ve por URL).
     if (url.pathname.startsWith("/media/") && req.method === "GET") {
@@ -11246,43 +11283,6 @@ var worker_app = {
     // monitor o agente reporta aquí y aparece en /incidencias. PÚBLICO (como
     // /fleet/informe). Body: {subject, resource, kind, project, severity, source,
     // detail, by}. Con {resolve:true, resource} cierra (recupera) la del recurso.
-    // Vuelta del ciclo al gemelo (DEC-munpe1fhy7kq): XpaceOS lee aquí el estado de
-    // las incidencias que abrió. Sólo recursos `demo:` (src/incident-status.js).
-    // ?prefix=demo:<tienda>: → las activas de la tienda (índice idx_active_screen)
-    // ?ids=INC-a,INC-b      → las que el gemelo ya conoce, aunque estén cerradas.
-    if (url.pathname === "/incident/status" && req.method === "GET") {
-      const q = normalizeIncidentStatusQuery(url.searchParams);
-      if (!q.ok) return json({ ok: false, error: q.error }, 400);
-      const cache = caches.default, key = new Request(url.toString(), { method: "GET" });
-      const hit = await cache.match(key);
-      if (hit) return hit;
-      try {
-        const rows = new Map();
-        if (q.prefix) {
-          const { results } = await env.DB.prepare("SELECT id,screen,subject,status,priority,assignee,created_at,updated_at,resolved_at,proof_image FROM tickets WHERE screen>=? AND screen<? AND status NOT IN ('resolved','cancelled') LIMIT ?")
-            .bind(q.prefix, prefixUpperBound(q.prefix), INCIDENT_STATUS_MAX_ACTIVE).all();
-          for (const r of results || []) rows.set(r.id, r);
-        }
-        if (q.ids.length) {
-          const { results } = await env.DB.prepare("SELECT id,screen,subject,status,priority,assignee,created_at,updated_at,resolved_at,proof_image FROM tickets WHERE id IN (" + q.ids.map(() => "?").join(",") + ")")
-            .bind(...q.ids).all();
-          for (const r of results || []) if (String(r.screen || "").startsWith(INCIDENT_STATUS_PREFIX)) rows.set(r.id, r);
-        }
-        const ids = [...rows.keys()], byTicket = new Map(ids.map((id) => [id, []]));
-        if (ids.length) {
-          const { results } = await env.DB.prepare("SELECT ticket_id,ts,kind,author FROM events WHERE ticket_id IN (" + ids.map(() => "?").join(",") + ") ORDER BY id ASC")
-            .bind(...ids).all();
-          for (const e of results || []) byTicket.get(e.ticket_id)?.push(e);
-        }
-        const now = Date.now();
-        const res = json({ ok: true, now, incidents: ids.map((id) => serializeIncidentStatus(rows.get(id), byTicket.get(id), now)) });
-        res.headers.set("cache-control", "public, max-age=" + INCIDENT_STATUS_CACHE_S);
-        ctx.waitUntil(cache.put(key, res.clone()));
-        return res;
-      } catch (e) {
-        return json({ ok: false, error: String(e && e.message || e) }, 500);
-      }
-    }
     if (url.pathname === "/incident" && req.method === "POST") {
       try {
         const b = await req.json().catch(() => ({}));
