@@ -45,4 +45,7 @@ test("no estropea la redacción del resto del texto", () => {
 
 test("sigue quitando la firma del responsable", () => {
   assert.equal(cleanMissionAttributions("Responsable: MorfeoMacMini. Publicar el aviso."), "Publicar el aviso.");
+  assert.equal(cleanMissionAttributions("Responsable: MuskGrokBot. Publicar el aviso."), "Publicar el aviso.");
+  assert.equal(cleanMissionAttributions("Responsable: Musk en GrokBot. Cerrar la silla."), "Cerrar la silla.");
+  assert.equal(cleanMissionAttributions("Responsable: MerovingioGrokBotBox. Anotar el paso."), "Anotar el paso.");
 });

@@ -70,7 +70,7 @@ test("los consejeros de GrokBot tienen carné: persona del diccionario y equipo 
   assert.equal(machineSuffix("grokbot"), "GrokBot");
   assert.equal(machineSuffix("Grok Bot"), "GrokBot");
   assert.equal(machineSuffix("sand"), "GrokBot", "el bundle de la app también se lee como equipo GrokBot");
-  for (const [persona, largo] of [["Wozniak", "Steve Wozniak"], ["Jobs", "Steve Jobs"], ["Disney", "Walt Disney"], ["Lucas", "George Lucas"]]) {
+  for (const [persona, largo] of [["Wozniak", "Steve Wozniak"], ["Jobs", "Steve Jobs"], ["Disney", "Walt Disney"], ["Lucas", "George Lucas"], ["Musk", "Elon Musk"]]) {
     const id = `${persona}GrokBot`;
     assert.equal(baseAgentIdentity(id), persona);
     assert.equal(parseAgentIdentity(id).suffix, "GrokBot");
@@ -81,7 +81,26 @@ test("los consejeros de GrokBot tienen carné: persona del diccionario y equipo 
   }
   assert.equal(parseAgentIdentity("SubWozniakGrokBot").role, "sub");
   assert.equal(sameAgentFamily("WozniakGrokBot", "JobsGrokBot"), false, "cada consejero es su propia familia aunque compartan equipo");
+  assert.equal(sameAgentFamily("MuskGrokBot", "JobsGrokBot"), false);
   assert.equal(sameAgentFamily("WozniakGrokBot", "MorfeoMacMini"), false);
+  assert.equal(baseAgentIdentity("Elon"), "Elon", "el alias suelto elon no es Musk");
+  assert.equal(parseAgentIdentity("Elon").legacy, true);
+  assert.equal(scopedAgentIdentity("elonmusk", "GrokBot"), "MuskGrokBot");
+});
+
+test("Merovingio es deepagent de GrokBotBox y no se confunde con Musk", () => {
+  assert.equal(machineSuffix("GrokBotBox"), "GrokBotBox");
+  for (const alias of ["Merovingio", "merovingian", "El Merovingio"]) {
+    assert.equal(baseAgentIdentity(alias), "Merovingio", alias);
+    assert.equal(scopedAgentIdentity(alias, "GrokBotBox"), "MerovingioGrokBotBox", alias);
+  }
+  const id = parseAgentIdentity("MerovingioGrokBotBox");
+  assert.equal(id.persona, "Merovingio");
+  assert.equal(id.suffix, "GrokBotBox");
+  assert.equal(id.legacy, false);
+  assert.equal(parseAgentIdentity("SubMerovingioGrokBotBox").role, "sub");
+  assert.equal(sameAgentFamily("MerovingioGrokBotBox", "MuskGrokBot"), false);
+  assert.equal(sameAgentFamily("Merovingio", "SmithGrokBotBox"), false);
 });
 
 test("Niobe está en el diccionario y su apellido case con su máquina", () => {

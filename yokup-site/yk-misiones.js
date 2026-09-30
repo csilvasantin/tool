@@ -365,7 +365,7 @@
     var subject = String(value || "");
     var boundary = "(^|[.!?]\\s+)";
     var date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
-    var agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Morfeo|Neo|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+    var agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Morfeo|Neo|Trinity|Cypher|Smith|Agente\\s+Smith|Merovingio)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
     subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*", "gi"), "$1");
     subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*", "gi"), "$1");
     return subject.replace(/[ \t]{2,}/g, " ").trim();

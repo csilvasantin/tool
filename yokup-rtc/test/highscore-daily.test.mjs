@@ -67,6 +67,9 @@ test("solo puntúan agentes de la flota: ni asientos del Consejo ni Carlos", () 
   assert.equal(F.highscoreAgent("Carlos · Oraculo"),"Oraculo","firma compartida: puntúa el agente, no el humano");
   assert.equal(F.highscoreAgent("MorfeoAir16"),"MorfeoAir16");
   assert.equal(F.highscoreAgent("NiobeMacMini"),"NiobeMacMini");
+  assert.equal(F.highscoreAgent("MerovingioGrokBotBox"),"MerovingioGrokBotBox");
+  assert.equal(F.highscoreAgent("El Merovingio"),"El Merovingio");
+  assert.equal(F.highscoreAgent("CEO · Elon Musk"),"","la silla coetánea no puntúa como agente");
   assert.equal(F.highscoreAgent("SubNiobeMini"),"",
     "los objetivos puntúan a la principal; la capa ejecutora se atribuye en mission_tasks");
   assert.equal(F.highscoreAgent("CEO · Steve Jobs"),"","un asiento del Consejo no es un agente");

@@ -43,13 +43,19 @@
     ["Niobe",["niobe"]],
     ["Persefone",["persefone","perséfone","persephone"]],
     ["Seraph",["seraph","serafín","serafin"]],
+    // Deepagent Grok CLI emparejado con Musk. Equipo habitual: GrokBotBox.
+    // Misma ficha que en yokup-rtc/src/agent-identity.js.
+    ["Merovingio",["merovingio","merovingian","el merovingio"]],
     // Consejo de Silicio conectado por GrokBot. En la API ya son personas
     // canónicas; el navegador mantiene la misma tabla para no partir sus puntos
     // entre el alias plano y el apellido del equipo remoto.
+    // Misma lista que GROK_CONSEJEROS en yokup-rtc/src/agent-identity.js.
+    // Sin alias suelto «elon»: «Elon Musk» ya normaliza a elonmusk.
     ["Wozniak",["wozniak","steve wozniak","stevewozniak","woz"]],
     ["Jobs",["jobs","steve jobs","stevejobs"]],
     ["Disney",["disney","walt disney","waltdisney"]],
-    ["Lucas",["lucas","george lucas","georgelucas"]]
+    ["Lucas",["lucas","george lucas","georgelucas"]],
+    ["Musk",["musk","elon musk","elonmusk"]]
   ];
   var LEGACY_SUFFIXES = {
     "14":"MBP14", "16":"MBP16", "air16":"MBA16", "plata16":"MBA16",

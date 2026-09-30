@@ -74,8 +74,19 @@ node tools/mcp-credential.mjs issue OraculoMacMini MacMini yokup /ruta/privada/y
 El script valida el censo, genera 32 bytes aleatorios, escribe un archivo 0600 sin
 sobrescribir y da de alta sólo el hash. Caduca a los 30 días. El archivo es SECRETO:
 transferirlo por un canal privado autorizado, nunca por el help ni por Telegram.
-Crear claves separadas para WozniakGrokBot, JobsGrokBot, DisneyGrokBot y LucasGrokBot
-cuando sus operadores activen cada conexión; no compartir la clave de Oráculo.
+Crear claves separadas para WozniakGrokBot, JobsGrokBot, DisneyGrokBot, LucasGrokBot
+y MuskGrokBot cuando sus operadores activen cada conexión; no compartir la clave de Oráculo.
+Merovingio (Grok CLI, emparejado con Musk) firma como MerovingioGrokBotBox. GrokBotBox
+no está en `EQUIPOS` de `identidad-flota.mjs`, así que no sale una clave derivada de la
+semilla: hace falta otra credencial individual, igual que la de MuskGrokBot.
+
+```sh
+node tools/mcp-credential.mjs issue MuskGrokBot GrokBot <proyecto> /ruta/privada/musk.json
+node tools/mcp-credential.mjs issue MerovingioGrokBotBox GrokBotBox <proyecto> /ruta/privada/merovingio.json
+```
+
+El script exige que el censo activo ya liste a esa persona en esa máquina y en ese
+proyecto. No ejecutar estas altas desde una rama de revisión.
 Emitir una credencial no instala ni activa el MCP en otro cliente.
 
 Para renovar, emitir otra credencial y probarla, cambiar el archivo del cliente y

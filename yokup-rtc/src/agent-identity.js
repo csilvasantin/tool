@@ -26,6 +26,21 @@ const MACHINES = [
   ["GrokBotBox", ["grokbotbox", "grok bot box", "grok-bot-box"]],
   ["GrokBot", ["grokbot", "grok bot", "grok-bot", "sand", "xai", "grok"]],
 ];
+// Los consejeros del Consejo de Silicio que trabajan desde GrokBot (Carlos, 4-sep-2026,
+// FLT-1580). Su apellido de equipo es GrokBot: WozniakGrokBot, JobsGrokBot,
+// DisneyGrokBot, LucasGrokBot, MuskGrokBot. El alias corto es el apellido; el
+// nombre completo también se lee («Steve Wozniak» → Wozniak, «Elon Musk» → Musk).
+// No hay alias suelto «elon»: es un prefijo y podría comerse otro nombre.
+// Un coetáneo nuevo se añade en ESTA lista. grok-consejeros-sync.test.mjs exige
+// la misma lista en el navegador, en cleanMissionAttributions, en consumos.html
+// y en CONSEJEROS de identidad-flota.mjs.
+export const GROK_CONSEJEROS = [
+  ["Wozniak", ["wozniak", "steve wozniak", "stevewozniak", "woz"]],
+  ["Jobs", ["jobs", "steve jobs", "stevejobs"]],
+  ["Disney", ["disney", "walt disney", "waltdisney"]],
+  ["Lucas", ["lucas", "george lucas", "georgelucas"]],
+  ["Musk", ["musk", "elon musk", "elonmusk"]],
+];
 const PERSONAS = [
   ["Oraculo", ["oraculo", "oráculo", "oracle"]],
   ["Neo", ["neo"]],
@@ -56,14 +71,13 @@ const PERSONAS = [
   ["Persefone", ["persefone", "perséfone", "persephone"]],
   // Seraph: OpenCode + Qwen 3.6 en MacBookAirPlata (Carlos, 3-sep-2026, misión 0211).
   ["Seraph", ["seraph", "serafín", "serafin"]],
-  // Los consejeros del Consejo de Silicio que trabajan desde GrokBot (Carlos, 4-sep-2026,
-  // FLT-1580). Su apellido de equipo es GrokBot: WozniakGrokBot, JobsGrokBot,
-  // DisneyGrokBot, LucasGrokBot. El alias corto es el apellido de la persona real; el
-  // nombre completo también se lee para que «Steve Wozniak» firme como Wozniak.
-  ["Wozniak", ["wozniak", "steve wozniak", "stevewozniak", "woz"]],
-  ["Jobs", ["jobs", "steve jobs", "stevejobs"]],
-  ["Disney", ["disney", "walt disney", "waltdisney"]],
-  ["Lucas", ["lucas", "george lucas", "georgelucas"]],
+  // Merovingio: deepagent de Grok CLI emparejado con la silla Musk (GrokBot).
+  // El equipo habitual es GrokBotBox → MerovingioGrokBotBox. Cierra misiones
+  // como Niobe o Smith: si no está aquí, validateMissionActor responde 403.
+  // «el merovingio» normaliza a elmerovingio. No hay alias de una sola palabra
+  // que sea prefijo de otra persona.
+  ["Merovingio", ["merovingio", "merovingian", "el merovingio"]],
+  ...GROK_CONSEJEROS,
 ];
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.

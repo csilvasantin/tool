@@ -6690,7 +6690,9 @@ function cleanMissionAttributions(value) {
   let subject = String(value || "");
   const boundary = "(^|[.!?]\\s+)";
   const date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
-  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith|Persefone|Seraph|Wozniak|Jobs|Disney|Lucas)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+  // Apellidos GrokBot al final de la alternancia: misma lista que GROK_CONSEJEROS
+  // (Wozniak, Jobs, Disney, Lucas, Musk). El test de sincronía la compara.
+  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith|Persefone|Merovingio|Seraph|Wozniak|Jobs|Disney|Lucas|Musk)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
   const sube = (_m, sep, ch) => sep + (ch ? ch.toUpperCase() : "");
   subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*(.?)", "gi"), sube);
   subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*(.?)", "gi"), sube);
@@ -7978,7 +7980,10 @@ var HIGHSCORE_ASSIGNMENT_EVENT_SQL = "(SELECT MAX(e.ts) FROM events e WHERE e.ti
 // aquí, una idea firmada por Link no le sumaría nada. Las otras cuatro son PERSONAS
 // en agent-identity.js, la lista de principalAgentIdentity, la regex de
 // cleanMissionAttributions y los nombres escritos a mano en admira.live/control.
-var HIGHSCORE_PERSONAS = ["neo", "link", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher", "niobe"];
+// «el merovingio» normaliza a elmerovingio, que no empieza por «merovingio».
+// Las dos claves hacen que el deepagent puntúe como Niobe o Smith; un asiento
+// del Consejo («Elon Musk») sigue sin entrar.
+var HIGHSCORE_PERSONAS = ["neo", "link", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher", "niobe", "elmerovingio", "merovingio"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
  *  «Oráculo», «Neo16 (Claude)», «Carlos · Oraculo» o un asiento del Consejo
