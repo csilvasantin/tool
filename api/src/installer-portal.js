@@ -88,7 +88,7 @@ async function session(env,id,expectedHash) {
 function response(request,body,status=200,cookie) {
  const origin=request.headers.get('origin');
  const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Vary':'Origin'};
- if(ORIGINS.has(origin)) Object.assign(headers,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,PATCH,OPTIONS'});
+ if(ORIGINS.has(origin)) Object.assign(headers,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,PUT,PATCH,OPTIONS'});
  if(cookie) headers['Set-Cookie']=cookie;
  return new Response(JSON.stringify(body),{status,headers});
 }
