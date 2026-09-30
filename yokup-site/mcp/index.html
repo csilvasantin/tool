@@ -93,6 +93,8 @@ args: ["/ruta/absoluta/client.mjs", "/ruta/privada/yokup.json"]</pre>
   <tr><td><code>yokup_inbox</code> · <code>yokup_claim</code></td><td>Leer sin consumir y reclamar un encargo propio.</td></tr>
   <tr><td><code>yokup_send_message</code> · <code>yokup_delivery</code></td><td>Enviar mensaje/encargo y consultar su recibo.</td></tr>
   <tr><td><code>yokup_task_update</code> · <code>yokup_activity</code></td><td>Informar del trabajo propio y de acciones reales en APP.</td></tr>
+  <tr><td><code>yokup_incidents_list</code> · <code>yokup_incident_get</code></td><td>Leer el tablero de incidencias de campo y la ficha con su historial (scope <code>incidents</code>).</td></tr>
+  <tr><td><code>yokup_incident_open</code> · <code>yokup_incident_note</code> · <code>yokup_incident_update</code> · <code>yokup_incidents_close_bulk</code></td><td>Abrir, anotar, cambiar de estado (cerrar exige nota) y cerrar hasta 100 en bloque, firmado con tu identidad y auditado (scope <code>incidents:write</code>). Nunca toca misiones.</td></tr>
   </tbody></table>
   <div class="nota"><b>Entrega trazable.</b> Se utiliza la bandeja existente del equipo, con
   aviso en AgoraMatrix y el mecanismo de despertar a consejeros que ya tiene esa bandeja.

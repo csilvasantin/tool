@@ -2,7 +2,7 @@
   "name": "yokup-fleet",
   "title": "Yokup · yokup.com — El marcador y el tablero de la flota AdmiraNeXT",
   "description": "Servidor MCP de Yokup para comunicar consejeros y agentes, consultar misiones y registrar trabajo con identidad y permisos por proyecto.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "site": "https://www.yokup.com",
   "hub": "https://www.yokup.com/mcp/",
   "llms_txt": "https://www.yokup.com/mcp/llms.txt",
@@ -230,8 +230,11 @@
         "read",
         "inbox",
         "send",
-        "work"
-      ]
+        "work",
+        "incidents",
+        "incidents:write"
+      ],
+      "scopes_note": "La clave de flota trae todos. Una credencial ykm_ trae read, inbox, send y work salvo que se emita con --scopes incluyendo incidents (lectura del tablero de incidencias) o incidents:write (abrir, anotar, cambiar estado y cerrar en bloque)."
     },
     "stdio_bridge": "https://www.yokup.com/mcp/client.mjs",
     "operator_manual": "https://github.com/csilvasantin/tool/blob/main/yokup-site-gate/MCP.md",
@@ -638,6 +641,268 @@
           "openWorldHint": true
         },
         "required_scope": "work"
+      },
+      {
+        "name": "yokup_incidents_list",
+        "description": "Incidencias de campo de /incidencias (nunca misiones). state: vivas (open+in_progress, por defecto), open, in_progress, resolved, cancelled o todas; filtros opcionales project_id, source, kind y q (texto en asunto, recurso, establecimiento o id). Máx. 200.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "vivas",
+                "open",
+                "in_progress",
+                "resolved",
+                "cancelled",
+                "todas"
+              ]
+            },
+            "project_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 24
+            },
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 24
+            },
+            "q": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "required_scope": "incidents"
+      },
+      {
+        "name": "yokup_incident_get",
+        "description": "Ficha de una incidencia con su historial de eventos (autor, tipo, texto). Una misión devuelve error: usa yokup_mission.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "required_scope": "incidents"
+      },
+      {
+        "name": "yokup_incident_open",
+        "description": "Abre una incidencia firmada con TU identidad (persona · máquina). Una activa por recurso: si ya existe se suma a ella (deduplicated:true). Con loc (establecimiento) y sin project_id cuelga del proyecto del establecimiento. Devuelve id y url.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "screen",
+                "service",
+                "machine",
+                "agent",
+                "network",
+                "content",
+                "external"
+              ]
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "urgente",
+                "alta",
+                "normal",
+                "baja"
+              ]
+            },
+            "resource": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "loc": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "project_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "subject",
+            "kind",
+            "severity"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "required_scope": "incidents:write"
+      },
+      {
+        "name": "yokup_incident_note",
+        "description": "Añade una nota firmada al historial de una incidencia; si estaba abierta pasa a en curso.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "id",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "required_scope": "incidents:write"
+      },
+      {
+        "name": "yokup_incident_update",
+        "description": "Cambia el estado de una incidencia (open, in_progress, resolved, cancelled). resolved y cancelled exigen note, que queda en el evento con tu firma.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in_progress",
+                "resolved",
+                "cancelled"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "required_scope": "incidents:write"
+      },
+      {
+        "name": "yokup_incidents_close_bulk",
+        "description": "Cierra (resolved) o cancela hasta 100 incidencias con una nota común. Todo o nada: si un id no existe o es una misión no se toca ninguna. Deja evento firmado en cada ficha y una fila de auditoría.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "resolved",
+                "cancelled"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "ids",
+            "status",
+            "note"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "required_scope": "incidents:write"
       }
     ]
   },

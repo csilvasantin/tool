@@ -1,15 +1,25 @@
 import { parseAgentIdentity, machineSuffix, canonicalMachineSuffix, groupingIdentityKey, isKnownPersona, identityKey } from '../../yokup-rtc/src/agent-identity.js';
 import { identidadPorClave } from './identidad-flota.mjs';
+import { FLEET_INCIDENTS_PREFIX, INCIDENT_LIST_STATES, INCIDENT_STATUSES, INCIDENT_BULK_STATUSES, INCIDENT_KINDS, INCIDENT_SEVERITIES, INCIDENT_LIST_MAX, INCIDENT_BULK_MAX } from '../../yokup-rtc/src/fleet-incidents.js';
 
-export const MCP_VERSION = '1.2.0';
+export const MCP_VERSION = '1.3.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const ORIGINS = new Set(['https://yokup.com', 'https://www.yokup.com']);
 const obj = (properties = {}, required = []) => ({type:'object', properties, required, additionalProperties:false});
 const str = (maxLength = 160) => ({type:'string', minLength:1, maxLength});
 const project = {project_id:str(80)};
 const mission = {...project, mission:str(80)};
-const definition = (name, description, inputSchema, scope, readOnly = true) => ({name, description, inputSchema, scope,
- annotations:{readOnlyHint:readOnly, destructiveHint:false, idempotentHint:readOnly, openWorldHint:!readOnly}});
+const oneOf = values => ({type:'string', enum:[...values]});
+const incidentId = {id:str(64)};
+// Scopes (FLT-101298): `incidents` lee el tablero de incidencias de campo y
+// `incidents:write` abre, anota, cambia de estado y cierra en bloque. Van aparte de
+// read/work porque su alcance NO es el proyecto de la credencial sino el tablero
+// entero de /incidencias (las incidencias cuelgan del proyecto del establecimiento,
+// donde no hay agentes censados). La clave de flota los trae; una ykm_ solo si se
+// emite con ellos (tools/mcp-credential.mjs --scopes).
+export const FLEET_SCOPES = Object.freeze(['read','inbox','send','work','incidents','incidents:write']);
+const definition = (name, description, inputSchema, scope, readOnly = true, idempotent = readOnly) => ({name, description, inputSchema, scope,
+ annotations:{readOnlyHint:readOnly, destructiveHint:false, idempotentHint:idempotent, openWorldHint:!readOnly}});
 export const TOOLS = [
  definition('yokup_whoami','Identidad autenticada, proyectos y permisos de ESTA conexión.',obj(),'read'),
  definition('yokup_projects','Proyectos autorizados de esta conexión.',obj(),'read'),
@@ -22,7 +32,13 @@ export const TOOLS = [
  definition('yokup_claim','Reclama un encargo de TU bandeja y publica el aviso de recepción en AgoraMatrix. No ejecuta el trabajo.',obj({inbox_id:{type:'integer',minimum:1}},['inbox_id']),'inbox',false),
  definition('yokup_task_update','Actualiza una tarea de tu misión con un informe. Conserva los requisitos de evidencia y cierre de Yokup.',obj({...mission,code:str(8),status:{type:'string',enum:['in_progress','done','blocked','pending']},report:str(2000),image:str(2000)},['project_id','mission','code','status','report']),'work',false),
  definition('yokup_evidence_retract','Retira una evidencia (captura) subida por error a TU misión: la imagen se sustituye por una tarjeta «evidencia retirada», la referencia viva se limpia y queda un evento con autor y motivo. Solo el autor de la misión; no borra el hecho ni puntos.',obj({...mission,image:str(400),reason:str(300)},['project_id','mission','image','reason']),'work',false),
- definition('yokup_activity','Comunica una acción real en una sesión APP exacta de tu misión; no es presencia ni un temporizador.',obj({...mission,runtime:str(80),session_id:str(160),kind:{type:'string',enum:['coordination','implementation','verification']},detail:{type:'string',minLength:8,maxLength:240}},['project_id','mission','runtime','session_id','kind','detail']),'work',false)
+ definition('yokup_activity','Comunica una acción real en una sesión APP exacta de tu misión; no es presencia ni un temporizador.',obj({...mission,runtime:str(80),session_id:str(160),kind:{type:'string',enum:['coordination','implementation','verification']},detail:{type:'string',minLength:8,maxLength:240}},['project_id','mission','runtime','session_id','kind','detail']),'work',false),
+ definition('yokup_incidents_list','Incidencias de campo de /incidencias (nunca misiones). state: vivas (open+in_progress, por defecto), open, in_progress, resolved, cancelled o todas; filtros opcionales project_id, source, kind y q (texto en asunto, recurso, establecimiento o id). Máx. 200.',obj({state:oneOf(INCIDENT_LIST_STATES),project_id:str(120),source:str(24),kind:str(24),q:str(120),limit:{type:'integer',minimum:1,maximum:INCIDENT_LIST_MAX}}),'incidents'),
+ definition('yokup_incident_get','Ficha de una incidencia con su historial de eventos (autor, tipo, texto). Una misión devuelve error: usa yokup_mission.',obj(incidentId,['id']),'incidents'),
+ definition('yokup_incident_open','Abre una incidencia firmada con TU identidad (persona · máquina). Una activa por recurso: si ya existe se suma a ella (deduplicated:true). Con loc (establecimiento) y sin project_id cuelga del proyecto del establecimiento. Devuelve id y url.',obj({subject:str(200),detail:str(2000),kind:oneOf(INCIDENT_KINDS),severity:oneOf(INCIDENT_SEVERITIES),resource:str(160),loc:str(80),project_id:str(80)},['subject','kind','severity']),'incidents:write',false),
+ definition('yokup_incident_note','Añade una nota firmada al historial de una incidencia; si estaba abierta pasa a en curso.',obj({...incidentId,text:str(2000)},['id','text']),'incidents:write',false),
+ definition('yokup_incident_update','Cambia el estado de una incidencia (open, in_progress, resolved, cancelled). resolved y cancelled exigen note, que queda en el evento con tu firma.',obj({...incidentId,status:oneOf(INCIDENT_STATUSES),note:str(1000)},['id','status']),'incidents:write',false,true),
+ definition('yokup_incidents_close_bulk','Cierra (resolved) o cancela hasta 100 incidencias con una nota común. Todo o nada: si un id no existe o es una misión no se toca ninguna. Deja evento firmado en cada ficha y una fila de auditoría.',obj({ids:{type:'array',items:str(64),minItems:1,maxItems:INCIDENT_BULK_MAX},status:oneOf(INCIDENT_BULK_STATUSES),note:str(1000)},['ids','status','note']),'incidents:write',false,true)
 ];
 const noSecrets = { 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' };
 const json = (value, status = 200, headers = {}) => Response.json(value,{status,headers:{...noSecrets,...headers}});
@@ -41,7 +57,8 @@ export function validate(schema, value) {
   return (schema.required||[]).every(k=>Object.hasOwn(value,k)) && Object.entries(value).every(([k,v])=>Object.hasOwn(schema.properties,k)&&validate(schema.properties[k],v));
  }
  if(schema.type==='string') return typeof value==='string' && value.trim().length>=(schema.minLength||0) && value.length<=(schema.maxLength||Infinity) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) && (!schema.enum||schema.enum.includes(value));
- if(schema.type==='integer') return Number.isSafeInteger(value)&&value>=schema.minimum;
+ if(schema.type==='integer') return Number.isSafeInteger(value)&&value>=schema.minimum&&(schema.maximum===undefined||value<=schema.maximum);
+ if(schema.type==='array') return Array.isArray(value)&&value.length>=(schema.minItems||0)&&value.length<=(schema.maxItems??Infinity)&&value.every(v=>validate(schema.items,v));
  return false;
 }
 async function authenticate(request,env) {
@@ -68,14 +85,16 @@ async function authenticate(request,env) {
  const target=canonicalTarget(fleet.persona+suffix,fleet.equipo);
  const data=await service(env,'RTC','/projects');
  const authorized=(data.projects||[]).filter(p=>p.status!=='archivado' && member(p,target)).map(p=>p.id);
- return {actor:target.actor,machine:target.machine,projects:authorized,scopes:['read','inbox','send','work'],expires_at:null};
+ return {actor:target.actor,machine:target.machine,projects:authorized,scopes:[...FLEET_SCOPES],expires_at:null};
 }
 async function service(env, binding, path, body) {
  const headers = {'Content-Type':'application/json','User-Agent':'YokupMCP/1.0'};
  if(binding==='TELEGRAM') {
   if(!env.MCP_TELEGRAM_TOKEN) throw new ToolError('Mensajería no configurada.');
   headers.Authorization='Bearer '+env.MCP_TELEGRAM_TOKEN;
- } else if(body && path==='/fleet/progress') {
+ } else if((body && path==='/fleet/progress') || path.startsWith(FLEET_INCIDENTS_PREFIX)) {
+  // Mismo mecanismo de confianza que /fleet/progress: token de ejecutor por el binding.
+  // yokup-rtc rechaza además cualquier /internal/ que llegue por el borde público.
   if(!env.MCP_EXECUTOR_TOKEN) throw new ToolError('Actividad autenticada no configurada.');
   headers.Authorization='Bearer '+env.MCP_EXECUTOR_TOKEN;
  }
@@ -150,6 +169,22 @@ async function send(env,p,a) {
  await env.DB.prepare('UPDATE yokup_mcp_deliveries SET state=?,result_json=?,updated_at=? WHERE actor=? AND request_key=?').bind(receipt.state,JSON.stringify(receipt),Date.now(),p.actor,a.request_key).run();
  return receipt;
 }
+// Incidencias: el gate autentica y pone la identidad; yokup-rtc valida, escribe,
+// firma los eventos y audita (yokup-rtc/src/fleet-incidents.js).
+async function incidentTool(name,a,p,env) {
+ const P=FLEET_INCIDENTS_PREFIX, who={actor:p.actor,machine:p.machine};
+ const strip=({ok,...data})=>data;
+ if(name==='yokup_incidents_list') return strip(await service(env,'RTC',P+'?'+new URLSearchParams(Object.entries(a).map(([k,v])=>[k,String(v)]))));
+ if(name==='yokup_incident_get') return strip(await service(env,'RTC',P+'/get?'+new URLSearchParams({id:a.id})));
+ if(name==='yokup_incident_open') return strip(await service(env,'RTC',P+'/open',{...a,...who}));
+ if(name==='yokup_incident_note') return strip(await service(env,'RTC',P+'/note',{...a,...who}));
+ if(name==='yokup_incident_update') {
+  if(['resolved','cancelled'].includes(a.status) && !a.note?.trim()) throw new ToolError('Para resolver o cancelar hace falta note.');
+  return strip(await service(env,'RTC',P+'/status',{...a,...who}));
+ }
+ if(name==='yokup_incidents_close_bulk') return strip(await service(env,'RTC',P+'/bulk-status',{...a,...who}));
+ throw new ToolError('Herramienta desconocida.');
+}
 export async function runTool(name,a,p,env) {
  if(name==='yokup_whoami') return {actor:p.actor,machine:p.machine,projects:p.projects,scopes:p.scopes,expires_at:p.expires_at};
  if(name==='yokup_projects') return {projects:await projects(env,p)};
@@ -185,6 +220,7 @@ export async function runTool(name,a,p,env) {
   await getMission(env,p,a,true);
   return service(env,'RTC','/fleet/evidence/retract',{mission:a.mission,image:a.image,reason:a.reason,owner:p.actor});
  }
+ if(name.startsWith('yokup_incident')) return incidentTool(name,a,p,env);
  if(name==='yokup_activity') {
   await getMission(env,p,a,true);
   return service(env,'RTC','/fleet/progress',{mission:a.mission,owner:p.actor,activity:{kind:a.kind,detail:a.detail},work_session:{runtime:a.runtime,host:'app',session_id:a.session_id}});
