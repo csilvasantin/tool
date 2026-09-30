@@ -53,7 +53,10 @@ test("alta, búsqueda, clasificación, severidad, estados y deep-links sobrevive
   assert.match(html, /<details class="inc-detail"/);
 });
 
-test("1440 px mantiene cuatro columnas; 720 px refluye a dos", () => {
+// FLT-101292 · piel «Portal del comercio»: esta rejilla base sigue en el <style>
+// de la página (fallback sin incidencias-portal.css); la tarjeta clara la
+// reordena con grid-template-areas — ver incidencias-portal.test.mjs.
+test("rejilla base: 1440 px mantiene cuatro columnas; 720 px refluye a dos", () => {
   assert.match(html, /\.inc-head,\.inc-main\{display:grid;grid-template-columns:[^}]+\}/);
   assert.match(html, /@media\(max-width:820px\)\{[\s\S]*?\.inc-main\{grid-template-columns:minmax\(0,1\.3fr\) minmax\(0,1fr\)\}/);
   assert.match(html, /@media\(max-width:820px\)\{[\s\S]*?\.inc-head\{display:none\}/);

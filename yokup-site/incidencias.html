@@ -15,7 +15,7 @@ window.__ykIncPrefetch=(function(){try{var p=fetch("https://api.yokup.com/ticket
 </script>
 <title>Soporte de incidencias · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
@@ -94,26 +94,40 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 @media(max-width:520px){.wrap{padding-left:14px;padding-right:14px}.hrow #busca{max-width:none}.incident-create{grid-template-columns:1fr}.incident-create :is(input,select,button){grid-column:1}.kb{flex-direction:column}.kb button{min-height:44px}.inc-main{grid-template-columns:1fr;padding:8px 10px}.inc-cell,.inc-cell:nth-child(-n+2){border-top:1px solid rgba(120,243,255,.08);padding:10px 4px}.inc-cell:first-child{border-top:0}.inc-detail{margin:0 10px}.inc-detail-body{grid-template-columns:1fr}.inc-detail-body .inc-triage{grid-column:1}.tabs{display:grid;grid-template-columns:1fr 1fr;width:100%}.tab{min-height:44px}.tools{flex-wrap:wrap}.simBtn,.bellBtn{min-height:44px}.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.kpi{min-width:0;padding:9px 7px;justify-content:center;flex-direction:column;gap:2px;text-align:center}}
 @media(prefers-reduced-motion:reduce){.page-intro .pi-body{animation:none}.incident-row,.inc-action{transition:none}.inc-skel i{animation:none}}
 </style>
+<!-- FLT-101292 · Piel clara «Portal del comercio» sólo para esta página (body.inc-portal):
+     va DESPUÉS del <style> base para vencerlo; no toca yk-frame/yk-misiones compartidos. -->
+<link rel="stylesheet" href="/incidencias-portal.css?v=1">
 </head>
-<body data-yk-title="INCIDENCIAS" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
+<body class="inc-portal" data-yk-title="INCIDENCIAS" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
   <!-- La barra Yokup (yk-frame) aporta logo, rótulo, selector de PROYECTO y reloj. -->
 
-  <div class="hrow">
-    <details class="page-intro">
-      <summary>
-        <h1>Incidencias</h1>
-        <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
-      </summary>
-      <div class="pi-body">
-        <p class="sub">Punto único de <b>todas</b> las incidencias de AdmiraNeXT: <b style="color:var(--brand)">🖥 pantallas DOOH</b>, <b style="color:var(--brand)">🌐 servicios/webs caídos</b>, <b style="color:var(--brand)">🖥 máquinas de la flota</b> y <b style="color:var(--brand)">🤖 agentes bloqueados</b>. La <b style="color:var(--violet)">IA</b> las diagnostica y asigna; lanzas la asistencia en vivo.</p>
+  <section class="inc-heading">
+    <div class="inc-heading-copy">
+      <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span>SOPORTE · INCIDENCIAS</p>
+      <h1>Incidencias.<br><em>Todo lo que falla, en un solo sitio.</em></h1>
+      <p class="lede">Pantallas DOOH, servicios y webs, máquinas de la flota y agentes de AdmiraNeXT. La IA las diagnostica y asigna; tú lanzas la asistencia en vivo.</p>
+    </div>
+    <aside class="inc-kb-card" aria-label="Base de conocimiento IA">
+      <p class="inc-card-eyebrow">BASE DE CONOCIMIENTO · IA</p>
+      <strong>Pregunta a la base de conocimiento IA</strong>
+      <p>¿Ya ha pasado antes? La IA responde con lo aprendido de las incidencias resueltas.</p>
+      <div class="kb">
+        <input id="kbq" aria-label="Pregunta a la base de conocimiento IA" placeholder="p. ej. «pantalla sin red»" onkeydown="if(event.key==='Enter')askKb()">
+        <button type="button" onclick="askKb()">Preguntar</button>
       </div>
-    </details>
-    <label class="sr-only" for="busca">Buscar incidencias</label>
-    <input id="busca" type="search" autocomplete="off" placeholder="🔎 Buscar incidencia…">
+      <div class="kbans" id="kbans"><h4>Respuesta · IA</h4><p id="kbtext"></p><div class="srcs" id="kbsrcs"></div></div>
+    </aside>
+  </section>
+
+  <div class="kpis" role="group" aria-label="Resumen por estado · filtra la lista">
+    <button class="kpi a" type="button" data-f="open"><span>Abiertas</span><b id="kOpen">—</b></button>
+    <button class="kpi b" type="button" data-f="in_progress"><span>En curso</span><b id="kProg">—</b></button>
+    <button class="kpi c" type="button" data-f="resolved"><span>Resueltas</span><b id="kRes">—</b></button>
   </div>
 
   <form class="incident-create" id="incidentCreate" aria-label="Crear incidencia">
+    <h2 class="inc-form-title">Comunicar una incidencia</h2>
     <input id="newSubject" required maxlength="200" placeholder="Nueva incidencia…" aria-label="Descripción de la incidencia">
     <select id="newKind" aria-label="Clasificación de la incidencia">
       <option value="screen">Pantalla</option><option value="service">Servicio/web</option><option value="machine">Máquina</option><option value="agent">Agente</option><option value="external">Otra</option>
@@ -125,18 +139,14 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div class="incident-create-msg" id="incidentCreateMsg" role="status" aria-live="polite"></div>
   </form>
 
-  <div class="kb">
-    <input id="kbq" placeholder="🤖 Pregunta a la base de conocimiento IA (p.ej. «pantalla sin red»)…" onkeydown="if(event.key==='Enter')askKb()">
-    <button onclick="askKb()">Preguntar</button>
-  </div>
-  <div class="kbans" id="kbans"><h4>🤖 Base de conocimiento · IA</h4><p id="kbtext"></p><div class="srcs" id="kbsrcs"></div></div>
-
-  <div class="kpis">
-    <button class="kpi a" data-f="open"><b id="kOpen">—</b> abiertas</button>
-    <button class="kpi b" data-f="in_progress"><b id="kProg">—</b> en curso</button>
-    <button class="kpi c" data-f="resolved"><b id="kRes">—</b> resueltas</button>
-    <!-- Sólo superusuario (capabilities.supervisor_project_switch de /auth/session). -->
-    <button class="closeAllBtn" id="closeAllBtn" type="button" hidden>Cerrar todas las abiertas</button>
+  <div class="inc-listbar">
+    <h2>Bandeja de incidencias</h2>
+    <div class="inc-listbar-tools">
+      <label class="sr-only" for="busca">Buscar incidencias</label>
+      <input id="busca" type="search" autocomplete="off" placeholder="Buscar por título, equipo, proyecto…">
+      <!-- Sólo superusuario (capabilities.supervisor_project_switch de /auth/session). -->
+      <button class="closeAllBtn" id="closeAllBtn" type="button" hidden>Cerrar todas las abiertas</button>
+    </div>
     <span class="closeAllMsg" id="closeAllMsg" role="status" aria-live="polite"></span>
   </div>
 
@@ -209,6 +219,7 @@ function classificationOf(t){
   return "external";
 }
 const KIND_LABEL={screen:"Pantalla",service:"Servicio/web",machine:"Máquina",agent:"Agente",external:"Otra"};
+const SEVERITY_LABEL={urgente:"Urgente",alta:"Alta",normal:"Normal",baja:"Baja"};
 function incidentState(t){
   if(t.status==="resolved"||t.status==="done")return{label:"Resuelta",cls:"b-res",next:"open",action:"Reabrir"};
   if(t.status==="in_progress")return{label:"En curso",cls:"b-prog",next:"resolved",action:"Resolver"};
@@ -220,12 +231,15 @@ function incidenceRowHtml(t){
   const state=incidentState(t), kind=classificationOf(t), machine=YkMisiones.machineOf(t)||t.loc||"";
   const project=t.project_name||t.project||"Sin proyecto", source=t.source||"origen no indicado";
   const detail=[t.loc&&("Ubicación: "+t.loc),t.role&&("Tipo declarado: "+t.role),t.priority&&("Severidad: "+t.priority)].filter(Boolean);
-  return '<article class="tk incident-row '+(t.status==="open"?'open ':'')+(t.id===FOCUS?'inc-focus ':'')+'" data-id="'+esc(t.id)+'" data-kind="'+esc(kind)+'" tabindex="0" role="group" aria-label="Incidencia '+esc(t.id)+' · '+esc(t.subject||'sin título')+'">'+
+  // Piel «Portal del comercio» (FLT-101292): estado y gravedad como píldoras
+  // sobre el título; data-state/data-sev sólo alimentan el CSS de la tarjeta.
+  const sev=String(t.priority||"normal").toLowerCase(), sevLabel=SEVERITY_LABEL[sev]||t.priority||"Normal";
+  return '<article class="tk incident-row '+(t.status==="open"?'open ':'')+(t.id===FOCUS?'inc-focus ':'')+'" data-id="'+esc(t.id)+'" data-kind="'+esc(kind)+'" data-state="'+esc(t.status||"open")+'" data-sev="'+esc(sev)+'" tabindex="0" role="group" aria-label="Incidencia '+esc(t.id)+' · '+esc(t.subject||'sin título')+'">'+
     '<div class="inc-main">'+
       '<div class="inc-cell inc-origin-cell"><span class="inc-project">'+esc(project)+'</span><span class="inc-origin">'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+' · '+esc(source)+'</span></div>'+
-      '<div class="inc-cell inc-copy"><a class="inc-ref tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'" title="Abrir ficha '+esc(t.id)+'">'+esc(YkMisiones.visibleId(t))+'</a><span class="inc-subject">'+esc(t.subject||"Incidencia sin título")+'</span><span class="inc-resource">'+esc(t.screen||"recurso no indicado")+'</span></div>'+
+      '<div class="inc-cell inc-copy"><div class="inc-pills"><a class="inc-ref tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'" title="Abrir ficha '+esc(t.id)+'">'+esc(YkMisiones.visibleId(t))+'</a><span class="badge '+state.cls+'"><i></i>'+state.label+'</span><span class="inc-sev" data-sev="'+esc(sev)+'">'+esc(sevLabel)+'</span></div><span class="inc-subject">'+esc(t.subject||"Incidencia sin título")+'</span><span class="inc-resource">'+esc(t.screen||"recurso no indicado")+'</span></div>'+
       '<div class="inc-cell inc-owner">'+YkMisiones.whoHtml(t.assignee||"",machine,"",t._agents,null)+'<span class="inc-machine">'+(machine?'🖥 '+esc(machine):'sin equipo indicado')+'</span></div>'+
-      '<div class="inc-cell inc-state"><span class="badge '+state.cls+'"><i></i>'+state.label+'</span><div class="inc-actions"><button class="inc-action advance" type="button" data-status-id="'+esc(t.id)+'" data-next="'+state.next+'" aria-label="'+state.action+' incidencia '+esc(t.id)+'">'+state.action+'</button><a class="inc-action tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'">Abrir →</a></div></div>'+
+      '<div class="inc-cell inc-state"><div class="inc-actions"><button class="inc-action advance" type="button" data-status-id="'+esc(t.id)+'" data-next="'+state.next+'" aria-label="'+state.action+' incidencia '+esc(t.id)+'">'+state.action+'</button><a class="inc-action tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'">Abrir →</a></div></div>'+
     '</div>'+
     '<details class="inc-detail"'+(t.id===FOCUS?' open':'')+'><summary>Detalle de la incidencia</summary><div class="inc-detail-body">'+
       '<p><b>Proyecto/origen</b><br>'+esc(project)+' · '+esc(source)+'</p><p><b>Clasificación</b><br>'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+'</p><p><b>Creada</b><br>'+esc(YkMisiones.ago(t.created_at))+'</p>'+
