@@ -13,6 +13,7 @@
  *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")   → SubOraculoMacMini
  *   ykAgentIdentity.display("Neo", "")                      → NeoSINMAQ
  * `scoped` conserva el nombre operativo sin SINMAQ para datos/rutas heredadas.
+ * `label` es el rótulo de pantalla: sin máquina → sólo la persona; vacío → «Sin asignar».
  */
 (function (root) {
   "use strict";
@@ -141,6 +142,27 @@
     var main=nameWithSuffix(p.persona, sf);
     return (r==="sub"?"Sub":r==="infra"?"Infra":"")+main;
   }
+  /* Rótulo VISIBLE para tarjetas y celdas de responsable (whoHtml, decisiones,
+     equipo). A diferencia de display(), nunca pinta el marcador técnico SINMAQ:
+     «Javier M.SINMAQ» o «Construcciones OriaSINMAQ» no son nombres de nadie.
+       · hay máquina (del campo o del apellido) → identidad con apellido: NeoMacMini;
+       · no hay máquina → sólo la persona: «Javier M.», «Neo»;
+       · no hay responsable → «Sin asignar».
+     display() sigue devolviendo …SINMAQ para censos y agrupaciones que lo usan
+     como clave honesta del hueco (highscore, dashboard). FLT-101292. */
+  var UNASSIGNED="Sin asignar";
+  function label(persona,machine,role){
+    var original=String(persona||"").trim();
+    if(!original||key(original)==="sinmaq")return UNASSIGNED;
+    var p=parse(original), sf=suffix(machine)||p.suffix;
+    if(sf && sf!=="SINMAQ")return display(original,machine,role);
+    var r=role||p.role||"main", prefix=r==="sub"?"Sub":r==="infra"?"Infra":"";
+    var known=PERSONAS.some(function(row){return row[0]===p.persona;});
+    // Persona del catálogo → su nombre canónico; cualquier otro (clientes,
+    // técnicos) se respeta tal cual, sólo sin el marcador «SINMAQ» heredado.
+    if(known)return prefix+p.persona;
+    return original.replace(/\s*sinmaq$/i,"").trim()||UNASSIGNED;
+  }
   /* Los informes usan el MISMO nombre que el resto de pantallas: una identidad, una
      forma de escribirla. Si el registro histórico no permite recomponerla, se devuelve
      tal cual en vez de inventar apellido. */
@@ -166,7 +188,7 @@
     return {agent:scoped(p.persona,resolved,p.role),machine:resolved};
   }
   function same(a,b){return key(base(a))===key(base(b));}
-  var api={key:key,suffix:suffix,parse:parse,scoped:scoped,display:display,reportDisplay:reportDisplay,base:base,same:same,
+  var api={key:key,suffix:suffix,parse:parse,scoped:scoped,display:display,label:label,reportDisplay:reportDisplay,base:base,same:same,
     canonicalMachine:canonicalMachine,missionPair:missionPair,
     spec:{unknownSuffix:"SINMAQ",machines:MACHINES.map(function(m){return {suffix:m[0],aliases:m[1].slice()};})}};
   root.ykAgentIdentity=api;

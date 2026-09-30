@@ -127,8 +127,14 @@
     var s=agentSlugs(name), full=CUSTOM.agents[s.full]||{}, base=CUSTOM.agents[s.base]||{};
     return {icon:full.icon||base.icon||"", img:full.img||base.img||""};
   }
+  // Rótulo del responsable en tarjetas: identidad con apellido si hay máquina,
+  // sólo la persona si no la hay y «Sin asignar» si no hay nadie — nunca el
+  // marcador técnico «SINMAQ» («Javier M.SINMAQ»). FLT-101292.
   function visibleAgent(name, machine) {
-    return window.ykAgentIdentity ? window.ykAgentIdentity.display(name, machine) : name;
+    var id = (typeof window !== "undefined") && window.ykAgentIdentity;
+    if (id && id.label) return id.label(name, machine);
+    var n = String(name || "").trim().replace(/\s*sinmaq$/i, "");
+    return n || "Sin asignar";
   }
   // Roles ESTRUCTURALES del ticket: no son nombres de nadie, no se pintan como origen.
   var ROLES_ESTRUCTURALES = ["mission", "standalone-task", ""];

@@ -123,7 +123,9 @@
   // Retrato del agente: 16px, del módulo compartido. Sin módulo cargado o sin
   // foto, iniciales — nunca un icono genérico.
   function agenteVisible(n, machine) {
-    return window.ykAgentIdentity ? ykAgentIdentity.display(n, machine) : String(n || "");
+    // label(): sin máquina → sólo la persona, nunca «…SINMAQ» (FLT-101292).
+    if (!window.ykAgentIdentity) return String(n || "");
+    return ykAgentIdentity.label ? ykAgentIdentity.label(n, machine) : ykAgentIdentity.display(n, machine);
   }
   function agentePinta(n, machine) {
     var nom = String(n || "").trim();
@@ -444,7 +446,9 @@
     return {id:id,agent:String(params.get("agent")||"").trim(),projectId:String(params.get("project_id")||"").trim()};
   }
   function identityKey(value,machine) {
-    return String(agenteVisible(value,machine)||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    // Clave de comparación: sigue en display() (con su marcador SINMAQ), no en el rótulo.
+    var name = window.ykAgentIdentity ? ykAgentIdentity.display(value, machine) : String(value || "");
+    return String(name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
   }
   function targetDecisionError(item,target) {
     if (!item||String(item.id||"")!==String(target&&target.id||"")) return "La decisión devuelta no coincide con la solicitada.";
