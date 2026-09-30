@@ -1,5 +1,6 @@
 # MCP canónico de Yokup
 
+Versión 1.4.0 · 2026-09-30 · ITIL, inventario tecnológico de los Xpacios (FLT-101300, MorfeoMacMini · MacMini).
 Versión 1.3.0 · 2026-09-30 · incidencias (FLT-101298, MorfeoMacMini · MacMini).
 Versión 1.1.0 · 2026-09-06 · InfraOraculoMacMini · Codex APP. Misión: FLT-2143.
 
@@ -95,8 +96,8 @@ node tools/mcp-credential.mjs issue <PersonaMáquina> <Máquina> <proyecto> /rut
   --scopes read,inbox,send,work,incidents,incidents:write
 ```
 
-`--scopes` acepta cualquier subconjunto de `read,inbox,send,work,incidents,incidents:write`;
-`incidents:write` exige también `incidents`. Solo lectura del tablero: `--scopes read,incidents`.
+`--scopes` acepta cualquier subconjunto de `read,inbox,send,work,incidents,incidents:write,itil,itil:write`;
+`incidents:write` exige también `incidents` e `itil:write` exige `itil`. Solo lectura del tablero: `--scopes read,incidents`.
 Las credenciales ya emitidas NO ganan incidencias: hay que emitir otra (o, con autorización,
 actualizar su columna `scopes`).
 
@@ -167,6 +168,33 @@ yokup-rtc llegan como `isError:true` con su código (`not_found`, `not_an_incide
 (`yokup-site/deploy.mjs` o `yokup-site-gate/deploy.sh`). Al revés, las herramientas
 aparecerían en `tools/list` y fallarían con 404 hasta publicar yokup-rtc. No hace falta
 migración D1 ni secreto nuevo: `MCP_EXECUTOR_TOKEN` ya está instalado en el gate.
+
+## ITIL · inventario tecnológico (1.4.0 · FLT-101300)
+
+Yokup es el MAESTRO de los equipos de cada Xpacio; XpaceOS, Pixeria, admira.app y
+clearchannel.tv consumen. Diseño completo, reglas con la sync del catálogo, lectura para la
+Galaxia y mapeo a `admira.cmdb/2` / `admira.xpacio.ci/1`: `docs/itil-yokup.md`.
+
+| Herramienta | Scope | Qué hace |
+|---|---|---|
+| `itil_xpacios_list` | `itil` | `{brand?, q?, limit? ≤200}` → Xpacios con `managed_by` (itil/catalogo), `itil_cis`, `catalog_cis`. |
+| `itil_inventory_get` | `itil` | `{admira_store_id}` → Xpacio + CIs + ciclo de vida completo + equipos sin ficha. Datos internos: no publicarlos. |
+| `itil_ci_upsert` | `itil:write` | `{admira_store_id, itil_code, name, category, role?, group_name?, position?, orientation?, parent_itil_code?, adopt_device_id?, lifecycle?{…}}`. Idempotente por `itil_code` (único global, `^[A-Z0-9]{2,12}(-[A-Z0-9]{2,12}){1,3}$`). Al primer CI ITIL del Xpacio retira los equipos provisionales del catálogo salvo con incidencias abiertas. |
+| `itil_ci_retire` | `itil:write` | `{itil_code, note}`: retirada con motivo (nada se borra). |
+
+Autor = `Persona · Máquina` de la credencial; cada escritura deja fila en `itil_audit`
+(yokup-api) con canal `mcp-flota`. La clave de flota trae `itil` e `itil:write`; una `ykm_`
+solo si se emite con ellos (`--scopes read,itil` o `read,itil,itil:write`; `itil:write` exige `itil`).
+
+**Confianza gate → yokup-api.** Service binding nuevo `DESK` → `yokup-api` en `wrangler.toml`.
+El gate llama a `https://yokup-api.internal/internal/itil/{xpacios,xpacios/:id,ci/upsert,ci/retire}`
+sin token: yokup-api solo atiende `/internal/*` con ese host y sin `CF-Connecting-IP`/`CF-Ray`
+(desde Internet, 404), el mismo patrón que `/internal/incident-links/*`. Misma cuenta de
+Cloudflare obligatoria (los bindings no cruzan cuentas). Sin secreto nuevo.
+
+**Orden de despliegue.** 1) yokup-api: migración `0020_itil.sql` y `wrangler deploy`;
+2) yokup-site (Pages); 3) el gate (`yokup-site/deploy.mjs` o `deploy.sh`). Al revés, las
+herramientas `itil_*` aparecerían en `tools/list` y fallarían con 404 hasta publicar yokup-api.
 
 ## Conectar y comprobar
 
