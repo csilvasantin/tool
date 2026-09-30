@@ -7,6 +7,8 @@ import { handleRetailer, handleCircuit } from './retailer-portal.js';
 import { handleInstaller, sweepInstallers, dispatchNotifications } from './installer-portal.js';
 import { handleDesk } from './incident-desk.js';
 import { syncRetailerCircuits } from './admira-circuit-sync.js';
+import { scheduledXpacioSync } from './admira-xpacio-sync.js';
+import { sweepLifecycleAlerts } from './device-lifecycle.js';
 /**
  * yokup-api — Cloudflare Worker
  * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
@@ -55,7 +57,7 @@ const JSON_ARRAY_COLS = {
 const BOOL_COLS = { stores: ["from_admira"] };
 
 export default {
-  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); },
+  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); ctx.waitUntil(scheduledXpacioSync(env)); ctx.waitUntil(sweepLifecycleAlerts(env).catch(e => console.error('lifecycle_sweep_failed', e && e.message))); },
   async fetch(request, env, ctx) {
     if(new URL(request.url).pathname==='/mcp/calls')return handleCallsMcp(request,env);
     if(new URL(request.url).pathname.startsWith('/api/calls/'))return handleCalls(request,env);

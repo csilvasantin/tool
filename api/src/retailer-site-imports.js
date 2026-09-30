@@ -12,14 +12,14 @@ async function body(request){
  return b;
 }
 async function review(env,owner,input){
- const existing=await rows(env,'SELECT s.*,i.external_ref FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id WHERE s.retailer_id=?',owner);
+ const existing=await rows(env,'SELECT s.*,i.external_ref,x.admira_store_id AS xpacio_id FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=?',owner);
  const byPlace=new Map(existing.map(s=>[naturalKey(s),s])),byCode=new Map(existing.filter(s=>s.external_ref).map(s=>[s.external_ref,s]));
  const result=[],fresh=[],existingSites=[];let duplicates=0;
  for(let n=0;n<input.length;n++){
   try{
    const s=normalizeSite(input[n]),key=naturalKey(s),coded=s.external_ref&&byCode.get(s.external_ref),located=byPlace.get(key),previous=coded||located;
    if(coded&&naturalKey(coded)!==key)throw Error('Este código ya identifica otra ubicación. Corrígelo; no se sobrescriben datos.');
-   if(previous){if(siteContent(previous)!==siteContent(s))throw Error('Esta ubicación ya existe con datos diferentes. Revisa la fila; no se sobrescribe.');if(previous.id)existingSites.push(previous);duplicates++;result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'duplicate',site:s,message:'Ya registrada o repetida en esta hoja.'});continue;}
+   if(previous){if(siteContent(previous)!==siteContent(s))throw Error('Esta ubicación ya existe con datos diferentes. Revisa la fila; no se sobrescribe.');if(previous.id&&!previous.xpacio_id)existingSites.push(previous);duplicates++;result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'duplicate',site:s,message:'Ya registrada o repetida en esta hoja.'});continue;}
    byPlace.set(key,s);if(s.external_ref)byCode.set(s.external_ref,s);fresh.push(s);result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'new',site:s,message:'Lista para importar.'});
   }catch(e){result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'error',message:e.message});}
  }
