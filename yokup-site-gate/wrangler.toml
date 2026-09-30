@@ -29,3 +29,10 @@ service = "yokup-rtc"
 [[services]]
 binding = "TELEGRAM"
 service = "admira-telegram"
+
+# ITIL (FLT-101300 · MorfeoMacMini): el MCP de flota (itil_*) llama a yokup-api por este binding,
+# a /internal/itil/* con host yokup-api.internal (solo por binding; sin secreto nuevo). Misma cuenta
+# de Cloudflare. ORDEN: desplegar antes yokup-api (migración 0020 + rutas). Ver docs/itil-yokup.md.
+[[services]]
+binding = "DESK"
+service = "yokup-api"
