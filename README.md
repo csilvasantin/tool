@@ -113,3 +113,12 @@ En F0 las intervenciones se guardan en `localStorage` (mock) hasta conectar la A
 - **F4** Back-office Yokup (operador, métricas).
 - **F5** i18n / multipaís.
 ```
+
+## Windows: PowerShell 7 + Grok CLI
+
+`scripts/setup-powershell-grok.ps1` actualiza PowerShell 7 (winget) e instala Grok CLI de xAI
+(instalador oficial, fallback npm). Ejecutar en PowerShell como usuario:
+
+```powershell
+irm https://raw.githubusercontent.com/csilvasantin/tool/main/scripts/setup-powershell-grok.ps1 | iex
+```
