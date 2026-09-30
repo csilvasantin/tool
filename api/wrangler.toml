@@ -57,3 +57,12 @@ DEEPAGENT_MACHINE = "macmini"
 DEEPAGENT_PROJECT = "yokup"
 DESK_ACCEPT_MIN = "15"
 DESK_PROGRESS_MIN = "240"
+
+# ── Incidencias unificadas (FLT-101298 · MorfeoMacMini · 30-sep-2026) ───────────────
+# Service binding a yokup-rtc (bandeja Yokup): este worker le empuja el estado de las incidencias
+# del portal/Desk (POST https://yokup-rtc.internal/internal/portal/sync) y yokup-rtc le devuelve los
+# cierres por su binding INCIDENT_DESK. Sin secretos nuevos. Requisito: MISMA cuenta de Cloudflare
+# que yokup-rtc (account_id 5b14…); los bindings no cruzan cuentas. Ver docs/incidencias-unificadas.md.
+[[services]]
+binding = "RTC"
+service = "yokup-rtc"

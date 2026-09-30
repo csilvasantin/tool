@@ -11,6 +11,7 @@
 //
 // El canal lo fija el clasificador de Oráculo al dar de alta (campo `channel`); sin él es 'campo'.
 // Módulo autónomo a propósito: installer-portal.js lo importa y no al revés.
+import {linkRtcTicket, retailerDeviceFor} from './incident-links.js';
 
 export const CHANNELS = ['campo', 'digital'];
 export const ROUND_FACTORS = [1, 1.5, 2];
@@ -232,7 +233,9 @@ export async function sendPushAlerts(env) {
 // Los sensores (players DOOH sin latido, agentes de flota sin señal) y el clasificador campo/digital viven
 // en yokup-rtc; el despacho vive aquí. POST /api/desk/incidents es la frontera entre ambos:
 //   {external_id, channel:'campo'|'digital', title, description?, evidence_url?, triage?, deepagent?,
-//    device:{id, name, skill, latitude?, longitude?, address?}}
+//    device:{id, name, skill, latitude?, longitude?, address?}, admira?:{store_id, device_id}}
+// Con admira (pantalla del censo) el alta cae en el equipo del comercio si existe (src/incident-links.js) y
+// external_id 'rtc:<ticket>' deja el enlace con la bandeja Yokup (docs/incidencias-unificadas.md).
 // Idempotente por external_id. El equipo se registra sin vigilancia de latido (monitoring=0): el sensor
 // que lo vigila es el de yokup-rtc, y dos vigilantes abrirían dos incidencias por la misma caída.
 const INTAKE_SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
@@ -247,17 +250,22 @@ export async function intakeIncident(env, b, now = Date.now()) {
  const skill = INTAKE_SKILLS.has(d.skill) ? d.skill : (channel === 'digital' ? 'network' : bad('device.skill no válido.'));
  const num = (v, max) => (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max ? v : null);
  const lat = num(d.latitude, 90), lng = num(d.longitude, 180);
- if (channel === 'campo' && (lat === null || lng === null)) bad('Una incidencia de campo necesita device.latitude y device.longitude.');
  const id = 'desk:' + [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(external)))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
  const known = await first(env, 'SELECT id,status,channel FROM installer_incidents WHERE id=?', id);
  if (known) return {ok: true, id, channel: known.channel, status: known.status, duplicate: true};
- await run(env, `INSERT INTO installer_devices(id,name,latitude,longitude,address,skill,last_seen,timeout_seconds,monitoring) VALUES(?,?,?,?,?,?,?,900,0)
+ // Incidencias unificadas (FLT-101298): una pantalla del censo {admira:{store_id,device_id}} que es de un
+ // comercio cae en SU equipo (lo ve en su portal y se despacha igual); si no, equipo sintético como antes.
+ const retail = channel === 'campo' && b.admira && typeof b.admira === 'object' ? await retailerDeviceFor(env, b.admira, {id: deviceId, name: str(d.name, 1, 160), skill}, now) : null;
+ if (channel === 'campo' && !retail && (lat === null || lng === null)) bad('Una incidencia de campo necesita device.latitude y device.longitude.');
+ const target = retail ? retail.id : deviceId;
+ if (!retail) await run(env, `INSERT INTO installer_devices(id,name,latitude,longitude,address,skill,last_seen,timeout_seconds,monitoring) VALUES(?,?,?,?,?,?,?,900,0)
   ON CONFLICT(id) DO UPDATE SET name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude,address=excluded.address,skill=excluded.skill`,
   deviceId, str(d.name, 1, 160) || deviceId, lat ?? 0, lng ?? 0, str(d.address, 1, 300) || '—', skill, now);
- const active = await first(env, "SELECT id,channel,status FROM installer_incidents WHERE device_id=? AND status!='resolved'", deviceId);
- if (active) return {ok: true, id: active.id, channel: active.channel, status: active.status, duplicate: true, message: 'Ya hay una incidencia activa para este equipo.'};
+ const active = await first(env, "SELECT id,channel,status FROM installer_incidents WHERE device_id=? AND status!='resolved'", target);
+ if (active) { await linkRtcTicket(env, active.id, external, now); return {ok: true, id: active.id, channel: active.channel, status: active.status, duplicate: true, message: 'Ya hay una incidencia activa para este equipo.'}; }
  await run(env, "INSERT INTO installer_incidents(id,device_id,title,reason,status,created_at,channel,round_started_at,deepagent) VALUES(?,?,?,'fault','open',?,?,?,?)",
-  id, deviceId, title, now, channel, now, channel === 'digital' ? (str(b.deepagent, 1, 40) || null) : null);
+  id, target, title, now, channel, now, channel === 'digital' ? (str(b.deepagent, 1, 40) || null) : null);
+ await linkRtcTicket(env, id, external, now);
  const ev = str(b.evidence_url, 12, 800), triage = str(b.triage, 1, 400), desc = str(b.description, 1, 2000);
  await logTimeline(env, id, 'alta', [`automática · ${external}`, desc, triage ? `triaje: ${triage}` : '', ev ? `evidencia: ${ev}` : ''].filter(Boolean).join(' · '), now);
  if (channel === 'digital') await sweepDesk(env, now);
