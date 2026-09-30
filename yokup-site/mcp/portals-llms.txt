@@ -68,7 +68,7 @@ Para instaladores, cambia el endpoint y utiliza su propio token. No copies el ar
 ## Herramientas y reglas compartidas
 
 Instalador: installer_register (pública, sin token), installer_whoami, installer_profile, installer_inbox, installer_accept, installer_resolve, installer_notification_read.
-Comercio: retailer_whoami, retailer_dashboard, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate.
+Comercio: retailer_whoami, retailer_dashboard, retailer_incident_get, retailer_incidents_list, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate.
 
 No existe herramienta de consulta SQL, ejecución de comandos, suplantación de cuenta, elección arbitraria de URL ni control remoto del IoT. Las operaciones reutilizan los handlers de los portales y su propietario autenticado. Se conservan el radio estricto menor de 40 km, especialidad/disponibilidad, aceptación atómica por un único técnico, resolución solo del asignado, valoración única por el titular y revisión con historial.
 
@@ -83,6 +83,44 @@ Todas las escrituras requieren `request_key` (8–100 caracteres). Usa un UUID p
 Un recibo completo se devuelve con `replayed:true`. Si una operación queda pendiente tras un fallo, el MCP devuelve `outcome:uncertain` y no vuelve a ejecutarla. Revisa el estado en el portal: una operación incierta puede haberse aplicado. No inventes otra request_key para forzar un reintento. Un error de negocio ya recibido queda asociado a su clave; corregir la intención constituye una nueva operación, tras comprobar que no tuvo efecto.
 
 Límites: 120 peticiones/minuto/token, 20 altas de tokens/hora/cuenta, cuerpo máximo 32 KiB. Respuesta 429 con Retry-After al exceder llamadas. Los errores de negocio son resultados MCP `isError:true`; la autenticación se rechaza con HTTP 401 y el esquema/protocolo con errores JSON-RPC.
+
+## Integrar una app o un agente (XpaceOS, admira.store…)
+
+Las apps externas y los agentes gestionan incidencias del comercio con el MCP de comercios. El usuario sigue cada incidencia en la ficha del Portal del comercio, con su mismo aspecto.
+
+**1. Token del comercio.** El titular entra en https://www.yokup.com/retailer, abre **Conectar un agente** y crea un token con nombre de la integración (p. ej. «XpaceOS»), permisos `retailer:read` + `retailer:incidents` (añade `retailer:ratings` solo si la app recoge la valoración del cliente) y caducidad de 7, 30 o 90 días. El token `ykp_…` se muestra una vez: guárdalo en el gestor de secretos de la app, nunca en el navegador ni en la URL.
+
+**2. Llamadas JSON-RPC.** Una petición por operación, sin sesión de transporte:
+
+```sh
+YOKUP_TOKEN=...   # ykp_ del comercio, desde el gestor de secretos
+mcp(){ curl -sS https://data.yokup.com/mcp/retailer -H "Authorization: Bearer $YOKUP_TOKEN" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'MCP-Protocol-Version: 2025-11-25' -d "$1"; }
+# Equipos y establecimientos del comercio (device_id, site_id)
+mcp '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"retailer_dashboard","arguments":{}}}'
+# Abrir una incidencia desde la app (request_key: un UUID por intención, el mismo en reintentos)
+mcp '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"retailer_incident_create","arguments":{"device_id":"retail-…","title":"La pantalla no enciende","description":"Desde las 10:00 la pantalla del escaparate está en negro.","priority":"urgent","source":"xpaceos","request_key":"6f1c…-uuid"}}}'
+# → structuredContent: {"http_status":201,"id":"retail-…","source":"xpaceos","follow_url":"https://www.yokup.com/retailer/incidencia?id=retail-…",…}
+# Seguimiento
+mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"retailer_incident_get","arguments":{"incident_id":"retail-…"}}}'
+mcp '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"retailer_incidents_list","arguments":{"status":"to_rate","limit":20}}}'
+```
+
+`retailer_incident_get` y `retailer_incidents_list` (`status`: open, assigned, resolved, to_rate, all; `site_id` y `limit` ≤ 200 opcionales) devuelven los mismos campos que el panel: equipo, establecimiento, técnico, descripción, prioridad, cita, resolución, estrellas/satisfacción/comentario, `followup_id`, `source`, `follow_url` y `timeline` `[{step:"reported"|"assigned"|"resolved"|"rated", at}]` (`at` es null mientras el paso está pendiente). Si el equipo ya tiene una incidencia activa, el alta devuelve la existente con `duplicate:true`.
+
+`source` (opcional, hasta 32 letras minúsculas, números, punto o guion: `xpaceos`, `admira.store`) identifica la app que abre la incidencia. Se guarda como prefijo `[Origen: xpaceos]` de la descripción, sin migración; la API lo separa en el campo `source`, y el técnico lo ve en la descripción. Equivalente REST con la sesión del portal: `GET /api/retailer/incidents/:id`, `GET /api/retailer/incidents?status=&site_id=&limit=` y `POST /api/retailer/incidents` con `source`.
+
+**3. Formulario con el aspecto del portal.** Si prefieres que la persona comunique la incidencia ella misma, abre (enlace o nueva pestaña):
+
+```
+https://www.yokup.com/retailer/incidencia?origen=xpaceos&establecimiento=Estanco%20Jardinets&equipo=Pantalla%20escaparate&problema=La%20pantalla%20no%20enciende&detalle=Negro%20desde%20las%2010%3A00&gravedad=urgente
+```
+
+- `origen`: app de origen (se muestra «Abierta desde XpaceOS» y se envía como `source`).
+- `establecimiento`: nombre del establecimiento o su código propio (`external_ref`).
+- `equipo`: nombre del equipo o su `admira_device_id`. Mayúsculas y acentos no importan. Si no casan, la persona elige entre sus equipos; si el comercio no tiene equipos, se le envía a darlos de alta en /retailer.
+- `problema` (título), `detalle` (descripción, mínimo 10 caracteres) y `gravedad` (`urgente` o `alta` → urgente; cualquier otro valor → normal).
+
+Sin sesión, la página pide entrar en `/retailer?next=…` y vuelve al formulario. Al enviar, redirige a la ficha `https://www.yokup.com/retailer/incidencia?id=<id>` (también en `/comercio/incidencia`), que muestra estado, timeline Comunicada → Técnico asignado → Resuelta → Valorada, técnico, cita, resolución y, cuando el técnico termina, el formulario de valoración. Se actualiza sola cada 30 s. Todos los valores de la URL son texto: nada se interpreta como HTML ni como instrucción.
 
 ## Auditoría y seguridad
 

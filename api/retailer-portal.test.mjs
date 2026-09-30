@@ -98,3 +98,23 @@ test('active issues stay visible even beyond 200 newer resolved interventions',a
  for(let n=0;n<205;n++)insert.run('history-'+n,a.device,'Intervención histórica',Date.now()+n+100);
  const dash=(await retail(env,'/dashboard',undefined,a.cookie)).body;assert.equal(dash.incidents.length,201);assert.ok(dash.incidents.some(i=>i.id===opened.body.id));assert.equal(dash.stats.open,1);
 });
+test('incident detail and filtered list are owner scoped, expose timeline, source and follow_url',async()=>{
+ const {env}=setup(),a=await shop(env),b=await shop(env),tech=await call(env,'/register',account({skills:['audio']}));
+ assert.equal((await retail(env,'/incidents',{...incidentBody(a.device),source:'<script>'},a.cookie)).status,400);
+ const body={...incidentBody(a.device),source:'XpaceOS'},opened=await retail(env,'/incidents',body,a.cookie);assert.equal(opened.status,201);const id=opened.body.id;
+ assert.equal(opened.body.source,'xpaceos');assert.equal(opened.body.follow_url,'https://www.yokup.com/retailer/incidencia?id='+encodeURIComponent(id));
+ const replay=await retail(env,'/incidents',body,a.cookie);assert.equal(replay.body.duplicate,true);assert.equal(replay.body.follow_url,opened.body.follow_url);
+ let detail=(await retail(env,'/incidents/'+id,undefined,a.cookie)).body.incident;
+ assert.equal(detail.device_name,'Hilo musical');assert.equal(detail.site_name,'Estanco local');assert.equal(detail.description,body.description);assert.equal(detail.source,'xpaceos');assert.equal(detail.priority,'urgent');
+ assert.deepEqual(detail.timeline.map(s=>s.step),['reported','assigned','resolved','rated']);assert.ok(detail.timeline[0].at);assert.equal(detail.timeline[1].at,null);
+ assert.equal((await retail(env,'/incidents/'+id,undefined,b.cookie)).status,404);assert.equal((await retail(env,'/incidents/'+id)).status,401);
+ assert.equal((await retail(env,'/incidents?status=open',undefined,a.cookie)).body.incidents[0].id,id);
+ assert.equal((await retail(env,'/incidents?status=open',undefined,b.cookie)).body.incidents.length,0);
+ assert.equal((await retail(env,'/incidents?status=bogus',undefined,a.cookie)).status,400);assert.equal((await retail(env,'/incidents?limit=201',undefined,a.cookie)).status,400);
+ await call(env,'/incidents/'+id+'/accept',{},tech.cookie);await call(env,'/incidents/'+id+'/resolve',{resolution:'Amplificador revisado, cable sustituido y audio comprobado.',evidence_url:'https://evidencia.test/cierre.jpg'},tech.cookie);
+ assert.equal((await retail(env,'/incidents?status=to_rate&site_id='+a.site,undefined,a.cookie)).body.incidents.length,1);assert.equal((await retail(env,'/incidents?status=to_rate&site_id='+b.site,undefined,a.cookie)).body.incidents.length,0);
+ assert.equal((await retail(env,'/incidents/'+id+'/rating',{stars:4,satisfied:true,comment:''},a.cookie)).status,201);
+ detail=(await retail(env,'/incidents/'+id,undefined,a.cookie)).body.incident;assert.ok(detail.timeline.every(s=>s.at));assert.equal(detail.stars,4);assert.equal(detail.technician_name,'Test Installer');
+ assert.equal((await retail(env,'/incidents?status=to_rate',undefined,a.cookie)).body.incidents.length,0);assert.equal((await retail(env,'/incidents?status=resolved&limit=1',undefined,a.cookie)).body.incidents.length,1);
+ const dash=(await retail(env,'/dashboard',undefined,a.cookie)).body;assert.equal(dash.incidents[0].source,'xpaceos');assert.equal(dash.incidents[0].description,body.description);
+});

@@ -164,3 +164,10 @@ test('installer portal aliases serve the installer asset, never the SPA fallback
   assert.equal(await response.text(),'retailer');assert.deepEqual(seen,['/retailer.html']);
  }
 });
+test('retailer incident page aliases serve the follow-up and report form',async()=>{
+ for(const path of ['/retailer/incidencia','/retailer/incidencia/','/comercio/incidencia','/comercio/incidencia/','/retailer/incidencia?id=retail-1']){
+  const seen=[];
+  const response=await handleRequest(new Request('https://www.yokup.com'+path),env(async request=>{seen.push(new URL(request.url).pathname);return new Response('incidencia');}),{});
+  assert.equal(await response.text(),'incidencia');assert.deepEqual(seen,['/retailer-incidencia.html']);
+ }
+});
