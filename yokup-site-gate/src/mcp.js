@@ -1,8 +1,9 @@
 import { parseAgentIdentity, machineSuffix, canonicalMachineSuffix, groupingIdentityKey, isKnownPersona, identityKey } from '../../yokup-rtc/src/agent-identity.js';
 import { identidadPorClave } from './identidad-flota.mjs';
+import { ITIL_CI_PROPERTIES, ITIL_CI_REQUIRED, ITIL_CODE_SCHEMA, ITIL_NOTE_SCHEMA, ciArgs } from '../../api/src/itil-model.js';
 import { FLEET_INCIDENTS_PREFIX, INCIDENT_LIST_STATES, INCIDENT_STATUSES, INCIDENT_BULK_STATUSES, INCIDENT_KINDS, INCIDENT_SEVERITIES, INCIDENT_LIST_MAX, INCIDENT_BULK_MAX } from '../../yokup-rtc/src/fleet-incidents.js';
 
-export const MCP_VERSION = '1.3.0';
+export const MCP_VERSION = '1.4.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const ORIGINS = new Set(['https://yokup.com', 'https://www.yokup.com']);
 const obj = (properties = {}, required = []) => ({type:'object', properties, required, additionalProperties:false});
@@ -17,7 +18,11 @@ const incidentId = {id:str(64)};
 // entero de /incidencias (las incidencias cuelgan del proyecto del establecimiento,
 // donde no hay agentes censados). La clave de flota los trae; una ykm_ solo si se
 // emite con ellos (tools/mcp-credential.mjs --scopes).
-export const FLEET_SCOPES = Object.freeze(['read','inbox','send','work','incidents','incidents:write']);
+// ITIL (FLT-101300): `itil` lee el inventario tecnológico de los Xpacios (Yokup es el maestro de sus equipos)
+// e `itil:write` da de alta, actualiza y retira CIs. Mismo criterio que incidencias: alcance global (los Xpacios
+// cuelgan de cuentas de marca, no de proyectos del censo). Van por el binding DESK a yokup-api /internal/itil/*.
+export const FLEET_SCOPES = Object.freeze(['read','inbox','send','work','incidents','incidents:write','itil','itil:write']);
+export const ITIL_PREFIX = '/internal/itil';
 const definition = (name, description, inputSchema, scope, readOnly = true, idempotent = readOnly) => ({name, description, inputSchema, scope,
  annotations:{readOnlyHint:readOnly, destructiveHint:false, idempotentHint:idempotent, openWorldHint:!readOnly}});
 export const TOOLS = [
@@ -38,7 +43,11 @@ export const TOOLS = [
  definition('yokup_incident_open','Abre una incidencia firmada con TU identidad (persona · máquina). Una activa por recurso: si ya existe se suma a ella (deduplicated:true). Con loc (establecimiento) y sin project_id cuelga del proyecto del establecimiento. Devuelve id y url.',obj({subject:str(200),detail:str(2000),kind:oneOf(INCIDENT_KINDS),severity:oneOf(INCIDENT_SEVERITIES),resource:str(160),loc:str(80),project_id:str(80)},['subject','kind','severity']),'incidents:write',false),
  definition('yokup_incident_note','Añade una nota firmada al historial de una incidencia; si estaba abierta pasa a en curso.',obj({...incidentId,text:str(2000)},['id','text']),'incidents:write',false),
  definition('yokup_incident_update','Cambia el estado de una incidencia (open, in_progress, resolved, cancelled). resolved y cancelled exigen note, que queda en el evento con tu firma.',obj({...incidentId,status:oneOf(INCIDENT_STATUSES),note:str(1000)},['id','status']),'incidents:write',false,true),
- definition('yokup_incidents_close_bulk','Cierra (resolved) o cancela hasta 100 incidencias con una nota común. Todo o nada: si un id no existe o es una misión no se toca ninguna. Deja evento firmado en cada ficha y una fila de auditoría.',obj({ids:{type:'array',items:str(64),minItems:1,maxItems:INCIDENT_BULK_MAX},status:oneOf(INCIDENT_BULK_STATUSES),note:str(1000)},['ids','status','note']),'incidents:write',false,true)
+ definition('yokup_incidents_close_bulk','Cierra (resolved) o cancela hasta 100 incidencias con una nota común. Todo o nada: si un id no existe o es una misión no se toca ninguna. Deja evento firmado en cada ficha y una fila de auditoría.',obj({ids:{type:'array',items:str(64),minItems:1,maxItems:INCIDENT_BULK_MAX},status:oneOf(INCIDENT_BULK_STATUSES),note:str(1000)},['ids','status','note']),'incidents:write',false,true),
+ definition('itil_xpacios_list','Xpacios de Yokup con su estado ITIL (managed_by itil o catalogo, nº de CIs ITIL y de equipos provisionales del catálogo). Filtros opcionales brand (brand_key: alsea, jti, caixabank…) y q (nombre, ciudad o admira_store_id). limit ≤ 200 (50).',obj({brand:str(40),q:str(120),limit:{type:'integer',minimum:1,maximum:200}}),'itil'),
+ definition('itil_inventory_get','Inventario ITIL de un Xpacio: establecimiento, CIs (código, nombre, categoría, rol, grupo, posición, orientación, padre, managed_by, incidencias abiertas) con su ficha de ciclo de vida completa (fabricante, modelo, serie, compra, garantía, instalación, mantenimiento) y equipos aún sin ficha. Datos internos de Admira: no los publiques.',obj({admira_store_id:str(160)},['admira_store_id']),'itil'),
+ definition('itil_ci_upsert','Alta o actualización de un CI (equipo) ITIL de un Xpacio, idempotente por itil_code (único global, p. ej. PDG103-PAN-01). Lo omitido se conserva; cadena vacía borra. adopt_device_id convierte un equipo existente en CI ITIL. Al primer CI ITIL del Xpacio, los equipos provisionales del catálogo se retiran («Sustituido por ITIL») salvo los que tienen incidencias abiertas. lifecycle solo con datos reales. Firmado con TU identidad.',obj({admira_store_id:str(160),...ITIL_CI_PROPERTIES},['admira_store_id',...ITIL_CI_REQUIRED]),'itil:write',false,true),
+ definition('itil_ci_retire','Retira un CI ITIL (no se borra: queda retirado con el motivo en su ficha y en la auditoría). note obligatoria. Firmado con TU identidad.',obj({itil_code:ITIL_CODE_SCHEMA,note:ITIL_NOTE_SCHEMA},['itil_code','note']),'itil:write',false,true)
 ];
 const noSecrets = { 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' };
 const json = (value, status = 200, headers = {}) => Response.json(value,{status,headers:{...noSecrets,...headers}});
@@ -56,7 +65,7 @@ export function validate(schema, value) {
   if(!value || typeof value!=='object' || Array.isArray(value)) return false;
   return (schema.required||[]).every(k=>Object.hasOwn(value,k)) && Object.entries(value).every(([k,v])=>Object.hasOwn(schema.properties,k)&&validate(schema.properties[k],v));
  }
- if(schema.type==='string') return typeof value==='string' && value.trim().length>=(schema.minLength||0) && value.length<=(schema.maxLength||Infinity) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) && (!schema.enum||schema.enum.includes(value));
+ if(schema.type==='string') return typeof value==='string' && value.trim().length>=(schema.minLength||0) && value.length<=(schema.maxLength||Infinity) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) && (!schema.enum||schema.enum.includes(value)) && (!schema.pattern||new RegExp(schema.pattern).test(value));
  if(schema.type==='integer') return Number.isSafeInteger(value)&&value>=schema.minimum&&(schema.maximum===undefined||value<=schema.maximum);
  if(schema.type==='array') return Array.isArray(value)&&value.length>=(schema.minItems||0)&&value.length<=(schema.maxItems??Infinity)&&value.every(v=>validate(schema.items,v));
  return false;
@@ -98,10 +107,12 @@ async function service(env, binding, path, body) {
   if(!env.MCP_EXECUTOR_TOKEN) throw new ToolError('Actividad autenticada no configurada.');
   headers.Authorization='Bearer '+env.MCP_EXECUTOR_TOKEN;
  }
- const origin=binding==='TELEGRAM'?'https://bot.yokup.com':'https://api.yokup.com';
+ if(binding==='DESK' && !env.DESK) throw new ToolError('ITIL no configurado en este servidor (binding DESK).');
+ // DESK = yokup-api por service binding: /internal/itil/* solo acepta ese host y sin cabeceras del borde.
+ const origin=binding==='TELEGRAM'?'https://bot.yokup.com':binding==='DESK'?'https://yokup-api.internal':'https://api.yokup.com';
  const response=await env[binding].fetch(new Request(origin+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(25000)}));
  const data=await response.json();
- if(!response.ok || data.ok===false) throw new ToolError('Yokup rechazó la operación: '+(data.code||'HTTP '+response.status));
+ if(!response.ok || data.ok===false) throw new ToolError('Yokup rechazó la operación: '+(data.code||'HTTP '+response.status)+(binding==='DESK'&&data.error?' · '+String(data.error).slice(0,200):''));
  return data;
 }
 async function projects(env,p) {
@@ -185,6 +196,15 @@ async function incidentTool(name,a,p,env) {
  if(name==='yokup_incidents_close_bulk') return strip(await service(env,'RTC',P+'/bulk-status',{...a,...who}));
  throw new ToolError('Herramienta desconocida.');
 }
+// ITIL: el gate autentica y pone la identidad; yokup-api valida, escribe y audita (api/src/itil.js).
+async function itilTool(name,a,p,env) {
+ const strip=({ok,...data})=>data, who={actor:p.actor,machine:p.machine};
+ if(name==='itil_xpacios_list') return strip(await service(env,'DESK',ITIL_PREFIX+'/xpacios?'+new URLSearchParams(Object.entries(a).map(([k,v])=>[k,String(v)]))));
+ if(name==='itil_inventory_get') return strip(await service(env,'DESK',ITIL_PREFIX+'/xpacios/'+encodeURIComponent(a.admira_store_id)));
+ if(name==='itil_ci_upsert') return strip(await service(env,'DESK',ITIL_PREFIX+'/ci/upsert',{...ciArgs(a),...who}));
+ if(name==='itil_ci_retire') return strip(await service(env,'DESK',ITIL_PREFIX+'/ci/retire',{...a,...who}));
+ throw new ToolError('Herramienta desconocida.');
+}
 export async function runTool(name,a,p,env) {
  if(name==='yokup_whoami') return {actor:p.actor,machine:p.machine,projects:p.projects,scopes:p.scopes,expires_at:p.expires_at};
  if(name==='yokup_projects') return {projects:await projects(env,p)};
@@ -221,6 +241,7 @@ export async function runTool(name,a,p,env) {
   return service(env,'RTC','/fleet/evidence/retract',{mission:a.mission,image:a.image,reason:a.reason,owner:p.actor});
  }
  if(name.startsWith('yokup_incident')) return incidentTool(name,a,p,env);
+ if(name.startsWith('itil_')) return itilTool(name,a,p,env);
  if(name==='yokup_activity') {
   await getMission(env,p,a,true);
   return service(env,'RTC','/fleet/progress',{mission:a.mission,owner:p.actor,activity:{kind:a.kind,detail:a.detail},work_session:{runtime:a.runtime,host:'app',session_id:a.session_id}});

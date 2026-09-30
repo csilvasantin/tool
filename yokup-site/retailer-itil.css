@@ -1,0 +1,18 @@
+/* Inventario ITIL del portal del comercio (FLT-101300 · MorfeoMacMini). Mismo look que Mis equipos. */
+.itil{margin-top:36px}
+.itil .section-bar{flex-wrap:wrap}
+.itil-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:6px 0 10px}
+.itil-controls label{flex:1 1 260px;margin:0}
+.itil-summary{margin:4px 0 16px}
+.itil-group{margin:0 0 22px}
+.itil-group>h3{font-size:15px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.itil-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.itil-cards .device-card{margin:0}
+.itil-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:.3px}
+.itil-card.retired{opacity:.62}
+.itil-actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:6px}
+.itil #itil-unmanaged .device-card{border-style:dashed}
+.retailer #itil-dialog{width:min(720px,94vw)}
+.retailer #itil-dialog fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0}
+.retailer #itil-dialog legend{font-size:13px;font-weight:700;padding:0 6px}
+@media(max-width:650px){.itil-cards{grid-template-columns:1fr}}

@@ -10,6 +10,7 @@ import { syncRetailerCircuits } from './admira-circuit-sync.js';
 import { scheduledXpacioSync } from './admira-xpacio-sync.js';
 import { sweepLifecycleAlerts } from './device-lifecycle.js';
 import { syncIncidentLinks, handleIncidentLinksInternal } from './incident-links.js';
+import { handleItilInternal, handleItilPublic } from './itil.js';
 /**
  * yokup-api — Cloudflare Worker
  * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
@@ -36,6 +37,7 @@ import { syncIncidentLinks, handleIncidentLinksInternal } from './incident-links
  *   GET    /api/ratings?intervention_id=...
  *   POST   /api/ratings                        {intervention_id,technician_id,stars,...}
  *   POST   /api/ingest/admira                  webhook firmado de Admira (idempotente)
+ *   GET    /api/itil/xpacios/:admira_store_id  inventario ITIL para la Galaxia (docs/itil-yokup.md)
  */
 
 const ALLOWED_ORIGINS = new Set([
@@ -62,6 +64,8 @@ export default {
   async fetch(request, env, ctx) {
     // Incidencias unificadas (FLT-101298): /internal/* solo por el service binding de yokup-rtc; y tras cualquier
     // escritura con éxito del portal, el Desk o los MCP, el diff con la bandeja Yokup (docs/incidencias-unificadas.md).
+    // ITIL (FLT-101300): /internal/itil/* también solo por binding (MCP de flota desde el gate · binding DESK).
+    if(new URL(request.url).pathname.startsWith('/internal/itil/'))return handleItilInternal(request,env);
     if(new URL(request.url).pathname.startsWith('/internal/'))return handleIncidentLinksInternal(request,env);
     const res=await routeRequest(request,env,ctx);
     if(ctx&&env.RTC&&!['GET','HEAD','OPTIONS'].includes(request.method)&&res.status<400&&/^\/(api\/(retailer|installer|desk)\/|mcp\/)/.test(new URL(request.url).pathname))ctx.waitUntil(syncIncidentLinks(env).catch(e=>console.error('incident_links_sync_failed',e&&e.message)));
@@ -72,6 +76,8 @@ export default {
 async function routeRequest(request, env, ctx) {
   {
     if(new URL(request.url).pathname==='/mcp/calls')return handleCallsMcp(request,env);
+    // Lectura ITIL para las soluciones de la Galaxia (CORS propio, sin datos privados; ver docs/itil-yokup.md).
+    if(new URL(request.url).pathname.startsWith('/api/itil/'))return handleItilPublic(request,env);
     if(new URL(request.url).pathname.startsWith('/api/calls/'))return handleCalls(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-access/'))return handleAccess(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-admin/'))return handleAdmin(request,env);

@@ -68,7 +68,7 @@ Para instaladores, cambia el endpoint y utiliza su propio token. No copies el ar
 ## Herramientas y reglas compartidas
 
 Instalador: installer_register (pública, sin token), installer_whoami, installer_profile, installer_inbox, installer_accept, installer_resolve, installer_notification_read.
-Comercio: retailer_whoami, retailer_dashboard, retailer_incident_get, retailer_incidents_list, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate, retailer_inventory_list, retailer_device_lifecycle_get, retailer_device_lifecycle_update, retailer_alerts_list.
+Comercio: retailer_whoami, retailer_dashboard, retailer_incident_get, retailer_incidents_list, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate, retailer_inventory_list, retailer_device_lifecycle_get, retailer_device_lifecycle_update, retailer_alerts_list, itil_inventory_get, itil_ci_upsert, itil_ci_retire.
 
 `installer_register` crea la cuenta (mapa + localidad + `radius_km`, 40 km por defecto). Acepta `lat`/`long` como alias de `latitude`/`longitude`. Con `demo:true` o `available:false` el perfil queda no disponible. El alta REST `POST /api/installer/register` sigue válida. El radio queda persistido en el perfil y se usa al avisar y al aceptar.
 
@@ -97,6 +97,26 @@ Herramientas del comercio para la ficha de cada equipo: categoría, fabricante, 
 - `retailer_alerts_list` (`retailer:read`): avisos del barrido diario (`warranty_30`, `warranty_7`, `warranty_expired`, `maintenance_due`).
 
 Sin fecha de garantía el estado es `none`: nunca se da por vigente. REST equivalente con la sesión del portal: `GET/PUT /api/retailer/devices/:id/lifecycle`, `GET /api/retailer/inventory` y `GET /api/retailer/alerts`. Los Xpacios de Admira y las cuentas de marca se describen en `docs/xpacios-yokup.md`.
+
+## Inventario ITIL (FLT-101300)
+
+Yokup es el inventario maestro de los equipos de cada Xpacio (`docs/itil-yokup.md`). Un CI es un
+equipo con código ITIL único global (`^[A-Z0-9]{2,12}(-[A-Z0-9]{2,12}){1,3}$`, p. ej. `PDG103-PAN-01`),
+categoría, uso, grupo, posición, orientación y relación «depende de».
+
+- `itil_inventory_get` (`retailer:read`): `{site_id}` o `{admira_store_id}` de un establecimiento
+  propio → CIs con `managed_by` (`itil` o `catalogo`), incidencias abiertas, ficha de ciclo de vida
+  completa y equipos aún sin ficha (`unmanaged`, adoptables).
+- `itil_ci_upsert` (`retailer:inventory`): alta o actualización idempotente por `itil_code`
+  (`{site_id|admira_store_id, itil_code, name, category, role?, group_name?, position?, orientation?,
+  parent_itil_code?, adopt_device_id?, lifecycle?{…}, request_key}`). Lo omitido se conserva; `''`
+  borra. Al primer CI ITIL de un Xpacio, los equipos provisionales del catálogo se retiran
+  («Sustituido por ITIL») salvo los que tienen incidencias abiertas.
+- `itil_ci_retire` (`retailer:inventory`): `{itil_code, note, request_key}`; nada se borra.
+
+REST equivalente con la sesión del portal: `GET /api/retailer/itil`, `GET /api/retailer/itil/inventory`,
+`POST /api/retailer/itil/cis`, `POST /api/retailer/itil/cis/:itil_code/retire`. El portal lo muestra en
+«Inventario ITIL» (también en «Ver como» marca; el rol `viewer` solo lee).
 
 ## Integrar una app o un agente (XpaceOS, admira.store…)
 

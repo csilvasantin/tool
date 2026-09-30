@@ -7,6 +7,7 @@ import {channelOf,afterRating,sweepDesk} from './incident-desk.js';
 import {retailerAccess} from './retailer-accounts.js';
 import {isBrandEmail} from './admira-xpacio-sync.js';
 import {isoDay,LIFECYCLE_COLUMNS,withLifecycle,lifecycleStats,readLifecycle,updateLifecycle,inventory,alerts} from './device-lifecycle.js';
+import {ownerSite,inventory as itilInventory,upsertCi,retireCi} from './itil.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
 const publicAccount=({id,name,email})=>({id,name,email});
@@ -43,6 +44,15 @@ async function dashboard(env,owner){
  const incidents=(await rows(env,INCIDENT_SELECT+` WHERE s.retailer_id=? AND (i.status!='resolved' OR i.id IN (SELECT ri.id FROM installer_incidents ri JOIN retailer_device_links rl ON rl.device_id=ri.device_id JOIN retailer_sites rs ON rs.id=rl.site_id WHERE rs.retailer_id=? AND ri.status='resolved' ORDER BY ri.created_at DESC LIMIT 200)) ORDER BY i.created_at DESC`,owner,owner)).map(present);
  const stats=await statement(env,`SELECT COUNT(CASE WHEN i.status='open' THEN 1 END) AS open,COUNT(CASE WHEN i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.status='resolved' AND r.incident_id IS NULL THEN 1 END) AS awaiting_rating FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_ratings r ON r.incident_id=i.id WHERE s.retailer_id=?`,owner).first();
  return {sites,devices,incidents,stats:{...stats,...lifecycleStats(devices)}};
+}
+async function retailerItil(request,env,owner,path,actor,channel){
+ const q=new URL(request.url).searchParams,method=request.method;
+ if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.name`,owner)}];
+ if(path==='/itil/inventory'&&method==='GET')return [await itilInventory(env,await ownerSite(env,owner,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')}))];
+ if(path==='/itil/cis'&&method==='POST'){const {site_id,admira_store_id,request_key,...ci}=await jsonBody(request);const r=await upsertCi(env,await ownerSite(env,owner,{site_id,admira_store_id}),ci,actor,channel);return [r,r.created?201:200];}
+ const retire=/^\/itil\/cis\/([A-Z0-9-]{5,51})\/retire$/.exec(path);
+ if(retire&&method==='POST'){const b=await jsonBody(request);return [await retireCi(env,ci=>ci.retailer_id===owner,retire[1],b.note,actor,channel)];}
+ fail(404,'Ruta no encontrada.');
 }
 export async function handleRetailer(request,env,principal){
  try{
@@ -94,6 +104,8 @@ export async function handleRetailer(request,env,principal){
   const lifecycle=/^\/devices\/([\w:-]+)\/lifecycle$/.exec(path);
   if(lifecycle&&method==='GET')return response(request,await readLifecycle(env,await ownDevice(env,lifecycle[1],owner)));
   if(lifecycle&&method==='PUT'){const device=await ownDevice(env,lifecycle[1],owner);return response(request,await updateLifecycle(env,device,await jsonBody(request),access.actor_email||account.email));}
+  // ITIL (FLT-101300): inventario tecnológico del establecimiento, en el perímetro del titular (docs/itil-yokup.md).
+  if(path.startsWith('/itil'))return response(request,...await retailerItil(request,env,owner,path,access.actor_email||account.email,principal?'mcp-comercio':'portal'));
   if(path==='/inventory'&&method==='GET')return response(request,await inventory(env,owner,new URL(request.url).searchParams));
   if(path==='/alerts'&&method==='GET')return response(request,await alerts(env,owner,new URL(request.url).searchParams));
   if(path==='/incidents'&&method==='GET'){
@@ -133,7 +145,7 @@ export async function handleRetailer(request,env,principal){
    if(followupId)await dispatchNotifications(env);return response(request,{ok:true,followup_id:followupId},201);
   }
   return response(request,{error:'Ruta no encontrada.'},404);
- }catch(e){if(!e.status)console.error('Retailer request failed',e.message);return response(request,{error:e.status?e.message:'No se pudo completar la operación. Conserva tus datos y vuelve a intentarlo.'},e.status||500);}
+ }catch(e){if(!e.status)console.error('Retailer request failed',e.message);return response(request,{error:e.status?e.message:'No se pudo completar la operación. Conserva tus datos y vuelve a intentarlo.',...(e.status&&e.code?{code:e.code}:{})},e.status||500);}
 }
 
 // Only the trusted central Admira service may establish circuit ownership. No browser can claim an Admira ID.

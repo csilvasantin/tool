@@ -1,5 +1,7 @@
 # Xpacios de Admira en Yokup: inventario y ciclo de vida
 
+> **ITIL (FLT-101300).** Desde la migración `0020`, Yokup es el MAESTRO de los equipos de cada Xpacio: la sync del catálogo solo siembra equipos (como CI `catalogo`) en Xpacios sin ningún CI ITIL, y nunca retira ni renombra los que manda ITIL. El Xpacio sigue naciendo aquí. Ver `docs/itil-yokup.md`.
+
 Misión Yokup FLT-101292 · MorfeoMacMini · 30-sep-2026.
 
 Cuando se da de alta un Xpacio en admira.app / clearchannel.tv (la misma app; catálogo en omnipublicity-api), Yokup lo da de alta solo. Así se lleva el inventario y el ciclo de vida de sus equipos: garantías, mantenimientos y retiradas. También se pueden comunicar incidencias con el mismo portal y los mismos técnicos.

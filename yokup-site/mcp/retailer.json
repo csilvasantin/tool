@@ -15,7 +15,7 @@
     "oauth_supported": false,
     "scopes": {
       "retailer:read": "Consultar establecimientos, equipos e incidencias",
-      "retailer:inventory": "Dar de alta establecimientos y equipos",
+      "retailer:inventory": "Dar de alta establecimientos y equipos, y mantener su inventario ITIL",
       "retailer:incidents": "Comunicar incidencias",
       "retailer:ratings": "Valorar intervenciones en nombre del comercio"
     }
@@ -569,6 +569,233 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      }
+    },
+    {
+      "name": "itil_inventory_get",
+      "description": "Inventario ITIL de un establecimiento propio (site_id) o de un Xpacio propio (admira_store_id): CIs con código, nombre, categoría, rol, grupo, posición, orientación, relación padre, managed_by (itil o catalogo), incidencias abiertas y ficha de ciclo de vida completa; también los equipos aún sin ficha (unmanaged, adoptables). Indica site_id o admira_store_id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "admira_store_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "scope": "retailer:read",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "itil_ci_upsert",
+      "description": "Alta o actualización de un CI (equipo) ITIL en un establecimiento propio, idempotente por itil_code (único global, p. ej. PDG103-PAN-01). Lo omitido se conserva; cadena vacía borra. adopt_device_id convierte un equipo existente (del catálogo o dado de alta a mano) en CI ITIL conservando su historial. Al primer CI ITIL de un Xpacio, los equipos provisionales del catálogo se retiran («Sustituido por ITIL») salvo los que tienen incidencias abiertas. lifecycle solo con datos reales de factura o albarán. Reutiliza request_key al reintentar.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "admira_store_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "itil_code": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 51,
+            "pattern": "^[A-Z0-9]{2,12}(-[A-Z0-9]{2,12}){1,3}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "pantalla",
+              "player",
+              "tpv",
+              "audio",
+              "iot",
+              "red",
+              "kiosk",
+              "mobiliario",
+              "iluminacion",
+              "otro"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 120
+          },
+          "group_name": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 80
+          },
+          "position": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 160
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical",
+              ""
+            ]
+          },
+          "parent_itil_code": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 51,
+            "pattern": "^([A-Z0-9]{2,12}(-[A-Z0-9]{2,12}){1,3})?$"
+          },
+          "lifecycle": {
+            "type": "object",
+            "properties": {
+              "manufacturer": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 120
+              },
+              "model": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 120
+              },
+              "serial": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 120
+              },
+              "supplier": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 160
+              },
+              "invoice_ref": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 120
+              },
+              "installed_by": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 160
+              },
+              "purchase_date": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
+              },
+              "warranty_start": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
+              },
+              "warranty_end": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
+              },
+              "installed_at": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
+              },
+              "maintenance_interval_days": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3650
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "adopt_device_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180,
+            "pattern": "^[\\w:-]+$"
+          },
+          "request_key": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "itil_code",
+          "name",
+          "category",
+          "request_key"
+        ],
+        "additionalProperties": false
+      },
+      "scope": "retailer:inventory",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "itil_ci_retire",
+      "description": "Retira un CI ITIL propio (no se borra: queda como retirado con el motivo en la ficha). note obligatoria. Reutiliza request_key al reintentar.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "itil_code": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 51,
+            "pattern": "^[A-Z0-9]{2,12}(-[A-Z0-9]{2,12}){1,3}$"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300
+          },
+          "request_key": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "itil_code",
+          "note",
+          "request_key"
+        ],
+        "additionalProperties": false
+      },
+      "scope": "retailer:inventory",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
       }
     }
   ]

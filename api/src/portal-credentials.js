@@ -1,7 +1,7 @@
 import {hash,random,statement,rows,text,jsonBody,rateLimit,response,fail} from './installer-portal.js';
 export const PORTAL_SCOPES={
  installer:{'installer:read':'Consultar perfil, bandeja y trabajos','installer:accept':'Aceptar intervenciones cercanas','installer:resolve':'Registrar reparación y cerrar intervención','installer:notifications':'Marcar avisos como leídos'},
- retailer:{'retailer:read':'Consultar establecimientos, equipos e incidencias','retailer:inventory':'Dar de alta establecimientos y equipos','retailer:incidents':'Comunicar incidencias','retailer:ratings':'Valorar intervenciones en nombre del comercio'}
+ retailer:{'retailer:read':'Consultar establecimientos, equipos e incidencias','retailer:inventory':'Dar de alta establecimientos y equipos, y mantener su inventario ITIL','retailer:incidents':'Comunicar incidencias','retailer:ratings':'Valorar intervenciones en nombre del comercio'}
 };
 export const audience=kind=>'https://data.yokup.com/mcp/'+kind;
 export async function portalCredentials(request,env,kind,account,path){

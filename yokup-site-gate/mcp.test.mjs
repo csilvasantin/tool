@@ -65,7 +65,7 @@ test('individual credential remains authoritative without fleet seed or census',
 test('valid fleet key derives exact identity, scopes and projects from current census',async()=>{
  const h=await setup();const key=await claveFlota(fleetSeed,'Oraculo','MacMini');
  const who=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+key}});
- assert.deepEqual(who.result.structuredContent,{actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:['read','inbox','send','work','incidents','incidents:write'],expires_at:null});
+ assert.deepEqual(who.result.structuredContent,{actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:['read','inbox','send','work','incidents','incidents:write','itil','itil:write'],expires_at:null});
  assert.ok(!JSON.stringify(who).includes(fleetSeed));assert.ok(!JSON.stringify(who).includes(key));
  const mbp14=await claveFlota(fleetSeed,'Neo','MacBookPro14');
  const neo=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+mbp14}});

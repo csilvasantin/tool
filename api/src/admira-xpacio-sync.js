@@ -10,6 +10,8 @@
 // pequeños (BATCH) y, si queda trabajo, la siguiente pasada del cron (2 min) continúa sin
 // esperar los 15 min. Nunca borra: una superficie que desaparece se marca retirada y un Xpacio
 // que desaparece, removed_at. Los equipos añadidos a mano no se tocan.
+// ITIL (FLT-101300): los equipos de un Xpacio con CIs ITIL los manda Yokup; la sync solo siembra (como CI
+// 'catalogo') en Xpacios sin ningún CI ITIL. Ver docs/itil-yokup.md.
 import {statement,rows,hash} from './installer-portal.js';
 import {isoDay} from './device-lifecycle.js';
 export const XPACIO_CATALOG_URL='https://brain.digitalavatar.ai/locations';
@@ -98,7 +100,11 @@ async function apply(env,p,known,retailerId,now){
   ops.push(statement(env,'UPDATE retailer_sites SET retailer_id=?,name=?,kind=?,country=?,city=?,address=?,latitude=?,longitude=? WHERE id=?',retailerId,p.name,p.kind,p.country,p.city,p.address,p.latitude,p.longitude,siteId));
   ops.push(statement(env,'UPDATE admira_xpacio_sites SET circuit_id=?,brand_key=?,twin_url=?,catalog_hash=?,last_synced_at=?,removed_at=NULL WHERE site_id=?',p.circuit,p.brand.key,p.twin,p.hash,now,siteId));
  }
- const existing=known?await rows(env,'SELECT device_id,surface_key,removed_at FROM admira_xpacio_devices WHERE admira_store_id=?',p.id):[];
+ // ITIL (FLT-101300): si el Xpacio ya tiene algún CI 'itil', los EQUIPOS los manda Yokup. La sync solo refresca
+ // el establecimiento: no siembra, no renombra, no retira ni reactiva ningún equipo (ni los 'catalogo' que retiró ITIL).
+ if(known&&await statement(env,"SELECT 1 AS x FROM itil_items WHERE site_id=? AND managed_by='itil' LIMIT 1",siteId).first()){await env.DB.batch(ops);return 'itil';}
+ // Un equipo que ITIL ya adoptó nunca lo toca el catálogo (defensivo: con uno solo, la línea anterior ya corta).
+ const existing=known?await rows(env,"SELECT x.device_id,x.surface_key,x.removed_at FROM admira_xpacio_devices x LEFT JOIN itil_items i ON i.device_id=x.device_id WHERE x.admira_store_id=? AND COALESCE(i.managed_by,'catalogo')='catalogo'",p.id):[];
  const byKey=new Map(existing.map(e=>[e.surface_key,e]));
  for(const s of p.surfaces){
   const e=byKey.get(s.key);
@@ -109,10 +115,13 @@ async function apply(env,p,known,retailerId,now){
    ops.push(statement(env,'INSERT INTO admira_xpacio_devices(device_id,admira_store_id,surface_key,surface_name) VALUES(?,?,?,?)',id,p.id,s.key,s.name));
    // Ficha vacía: solo la categoría que se deduce de la superficie. Sin fechas ni fabricante inventados.
    ops.push(statement(env,"INSERT OR IGNORE INTO device_lifecycle(device_id,category,status,updated_at,updated_by) VALUES(?,?,'operational',?,'xpacio-sync')",id,s.category,now));
+   // CI provisional 'catalogo' (sin código): lo sustituye el primer CI ITIL del Xpacio (src/itil.js).
+   ops.push(statement(env,"INSERT OR IGNORE INTO itil_items(device_id,site_id,itil_code,category,managed_by,created_by,updated_by,created_at,updated_at) VALUES(?,?,NULL,?,'catalogo','xpacio-sync','xpacio-sync',?,?)",id,siteId,s.category,now,now));
   }else{
    ops.push(statement(env,'UPDATE installer_devices SET name=?,latitude=?,longitude=?,address=? WHERE id=?',s.name,p.latitude,p.longitude,p.address,e.device_id));
    ops.push(statement(env,'UPDATE retailer_device_links SET site_id=?,circuit_id=?,admira_store_id=? WHERE device_id=?',siteId,p.circuit,p.id,e.device_id));
    ops.push(statement(env,'UPDATE admira_xpacio_devices SET surface_name=?,removed_at=NULL WHERE device_id=?',s.name,e.device_id));
+   ops.push(statement(env,"INSERT OR IGNORE INTO itil_items(device_id,site_id,itil_code,category,managed_by,created_by,updated_by,created_at,updated_at) VALUES(?,?,NULL,?,'catalogo','xpacio-sync','xpacio-sync',?,?)",e.device_id,siteId,s.category,now,now));
    // Vuelve al catálogo: solo se reactiva si la retirada la hizo la sincronización, no una persona.
    if(e.removed_at)ops.push(statement(env,"UPDATE device_lifecycle SET status='operational',retired_at=NULL,updated_at=?,updated_by='xpacio-sync' WHERE device_id=? AND status='retired' AND updated_by='xpacio-sync'",now,e.device_id));
   }
@@ -129,7 +138,7 @@ export async function syncXpacios(env,{fetcher=env.XPACIO_FETCH||fetch,force=fal
  const last=await statement(env,'SELECT * FROM xpacio_sync_runs ORDER BY started_at DESC LIMIT 1').first();
  if(last&&!last.finished_at&&now-last.started_at<LOCK_MS)return {skipped:'running'};
  if(!force&&last&&!(last.pending>0)&&now-last.started_at<MIN_INTERVAL)return {skipped:'recent'};
- const run=crypto.randomUUID(),stats={seen:0,created:0,updated:0,removed:0,pending:0,invalid:0,skipped_brands:0};let error=null;
+ const run=crypto.randomUUID(),stats={seen:0,created:0,updated:0,removed:0,pending:0,invalid:0,skipped_brands:0,itil_managed:0};let error=null;
  await statement(env,'INSERT INTO xpacio_sync_runs(id,trigger,started_at) VALUES(?,?,?)',run,trigger,now).run();
  try{
   const r=await fetcher(env.XPACIO_CATALOG_URL||XPACIO_CATALOG_URL,{headers:{accept:'application/json','user-agent':'yokup-api/xpacio-sync'},signal:AbortSignal.timeout(25000)});
@@ -145,7 +154,7 @@ export async function syncXpacios(env,{fetcher=env.XPACIO_FETCH||fetch,force=fal
   const brands=await ensureBrands(env,new Map(slice.map(({p})=>[p.brand.key,p.brand.name])),now);
   for(const {p,k} of slice){
    const owner=brands.get(p.brand.key);if(!owner){stats.skipped_brands++;continue;}
-   await apply(env,p,k,owner,now);if(!k)stats.created++;else stats.updated++;
+   const applied=await apply(env,p,k,owner,now);if(!k)stats.created++;else stats.updated++;if(applied==='itil')stats.itil_managed++;
   }
   // Desaparecidos: solo con un catálogo completo y sano (un catálogo recortado no «borra» nada).
   const active=[...known.values()].filter(k=>!k.removed_at),present=new Set(xpacios.map(l=>l.id.trim()));

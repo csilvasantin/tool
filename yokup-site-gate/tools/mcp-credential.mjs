@@ -10,6 +10,7 @@ import {parseAgentIdentity,machineSuffix,canonicalMachineSuffix,isKnownPersona} 
 import {FLEET_SCOPES} from '../src/mcp.js';
 // Permisos: por defecto los de siempre (read,inbox,send,work). Las incidencias
 // (FLT-101298) se piden EXPLÍCITAMENTE: --scopes read,inbox,send,work,incidents,incidents:write
+// Y el inventario ITIL (FLT-101300) igual: --scopes read,itil (lectura) o read,itil,itil:write.
 export const DEFAULT_SCOPES=['read','inbox','send','work'];
 export function parseScopes(value) {
  if(value==null) return [...DEFAULT_SCOPES];
@@ -17,6 +18,7 @@ export function parseScopes(value) {
  const unknown=scopes.filter(x=>!FLEET_SCOPES.includes(x));
  if(!scopes.length || unknown.length) throw new Error('Scopes válidos: '+FLEET_SCOPES.join(',')+(unknown.length?' · desconocidos: '+unknown.join(','):''));
  if(scopes.includes('incidents:write') && !scopes.includes('incidents')) throw new Error('incidents:write requiere también incidents');
+ if(scopes.includes('itil:write') && !scopes.includes('itil')) throw new Error('itil:write requiere también itil');
  return FLEET_SCOPES.filter(x=>scopes.includes(x));
 }
 const argv=process.argv.slice(2), flag=argv.findIndex(x=>x==='--scopes'||x.startsWith('--scopes='));
@@ -25,7 +27,7 @@ if(flag>=0) {scopeArg=argv[flag].includes('=')?argv[flag].slice(9):argv[flag+1];
 const [action,actor,machine,projectList,outputFile]=argv;
 // Importado (pruebas) solo expone los helpers; ejecutado, emite la credencial.
 if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).href) {
-if(action!=='issue' || !outputFile) throw new Error('Uso: node tools/mcp-credential.mjs issue OraculoMacMini MacMini yokup /ruta/privada/yokup.json [--scopes read,inbox,send,work,incidents,incidents:write]');
+if(action!=='issue' || !outputFile) throw new Error('Uso: node tools/mcp-credential.mjs issue OraculoMacMini MacMini yokup /ruta/privada/yokup.json [--scopes read,inbox,send,work,incidents,incidents:write,itil,itil:write]');
 const scopes=parseScopes(scopeArg);
 const parsed=parseAgentIdentity(actor), suffix=canonicalMachineSuffix(machineSuffix(machine));
 if(!isKnownPersona(parsed.persona)||parsed.role!=='main'||!suffix||canonicalMachineSuffix(parsed.suffix)!==suffix) throw new Error('Identidad exacta y máquina requeridas');
