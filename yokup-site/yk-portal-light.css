@@ -1,0 +1,452 @@
+/* ============================================================================
+ * yk-portal-light.css — piel clara «Portal del comercio» COMPARTIDA para las
+ * vistas de trabajo de Yokup: /ticket (ficha), /misiones y /tareas.
+ * FLT-101298 · Carlos: «ficha y vistas claras», misma familia que /incidencias
+ * (incidencias-portal.css) y la verja de acceso (acceso.js).
+ *
+ * ALCANCE: todo cuelga de body.yk-light. Sólo lo llevan las páginas que la
+ * enlazan; se carga DESPUÉS del <style> base de cada una, así que vence a sus
+ * reglas sin tocar yk-frame.css / yk-misiones.css / yk-cabezal.css, que siguen
+ * sirviendo al resto de Yokup en oscuro. La barra yk-frame se re-pinta en claro
+ * SÓLO aquí, reasignando sus tokens (--yk-*) en body y ajustando lo que
+ * yk-frame.css fija con cian literal. Lo exclusivo de la ficha vive aparte en
+ * ticket-portal.css (body.yk-ticket).
+ *
+ * Bloques: tokens · barra yk-frame · cabecera · métricas · píldoras · botones ·
+ * formularios · tarjetas del tablero · árbol de tareas · raíles · esqueleto ·
+ * popovers · responsive.
+ * ==========================================================================*/
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+
+/* --------------------------------- Tokens ---------------------------------- */
+body.yk-light{
+  color-scheme:light;
+  /* Tokens del portal (los mismos de incidencias-portal.css) */
+  --p-ink:#173632;--p-muted:#667a75;--p-paper:#f6f8f3;--p-line:#dbe3d9;--p-line2:#c9d5c4;
+  --p-lime:#d8f36a;--p-dark:#133d32;--p-dark2:#285444;--p-red:#ac3838;
+  --p-accent:#67935c;--p-green:#4f6e4c;--p-live:#7aab49;--p-soft:#eaf0df;--p-soft-line:#d7e2c8;
+  --p-amber:#d9a21b;--p-hover:#adc87d;--p-sel:#9cbf6c;
+  --p-sans:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --p-head:Manrope,'DM Sans',sans-serif;
+  /* Tokens que leen el <style> base, yk-misiones.css y yk-cabezal.css */
+  --bg:var(--p-paper);--card:#fff;--card2:#fbfcf8;--ink:var(--p-ink);--mut:var(--p-muted);--dim:#86958f;
+  --brand:var(--p-green);--accent:#9a6a00;--good:#3f6b2f;--warn:var(--p-red);--violet:var(--p-green);
+  --line:var(--p-line);--line2:var(--p-line2);--sans:var(--p-sans);--mono:var(--p-sans);
+  /* Tokens del marco yk-frame (barra y raíles) */
+  --yk-bg:#fff;--yk-bg2:var(--p-paper);--yk-card:#fff;--yk-ink:var(--p-ink);--yk-mut:var(--p-muted);--yk-dim:#86958f;
+  --yk-brand:var(--p-green);--yk-hi:var(--p-ink);--yk-line:var(--p-line);--yk-line2:var(--p-line2);
+  background:var(--p-paper);color:var(--p-ink);font:15px/1.5 var(--p-sans);
+}
+html:has(body.yk-light){background:#f6f8f3}
+body.yk-light .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+body.yk-light :is(button,input,select,textarea){font-family:var(--p-sans)}
+body.yk-light :is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #6c985c;outline-offset:3px}
+body.yk-light .wrap{max-width:1240px;padding:0 28px 56px}
+body.yk-light a{color:var(--p-green)}
+
+/* ---------------- Barra yk-frame en claro (sólo estas páginas) -------------- */
+body.yk-light .yk-bar{background:#fff;border-bottom:1px solid var(--p-line);box-shadow:none;font-family:var(--p-sans)}
+body.yk-light .yk-page{color:var(--p-green);border-left-color:var(--p-line)}
+body.yk-light .yk-nav{align-self:stretch;padding:0 2px;gap:20px}
+body.yk-light .yk-nav a{align-self:stretch;min-height:0;font:700 11px/1 var(--p-sans);letter-spacing:.12em;color:var(--p-muted);text-shadow:none}
+body.yk-light .yk-nav a:hover,body.yk-light .yk-nav a:focus-visible{color:var(--p-ink);text-shadow:none}
+body.yk-light .yk-nav a.on{color:var(--p-ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--p-live)}
+body.yk-light .yk-nav a.on .yk-nav-c,body.yk-light .yk-nav-c{color:var(--p-green)}
+body.yk-light :is(.yk-ico,.yk-proj-btn){background:#fff;border:1px solid var(--p-line);color:var(--p-ink);box-shadow:none;font-family:var(--p-sans)}
+body.yk-light :is(.yk-ico,.yk-proj-btn):hover{background:#f1f5ea;border-color:var(--p-hover);box-shadow:none}
+body.yk-light .yk-ico[aria-pressed="true"]{background:var(--p-dark);border-color:var(--p-dark);color:#fff;box-shadow:none}
+body.yk-light .yk-proj-btn{font-weight:600;letter-spacing:.04em}
+body.yk-light .yk-proj-btn b{color:var(--p-green)}
+body.yk-light .yk-proj-dot{background:var(--p-live);box-shadow:none}
+body.yk-light .yk-proj-menu{background:#fff;border-color:var(--p-line);box-shadow:0 14px 36px #153b3022}
+body.yk-light .yk-proj-opt:hover{background:#f1f5ea;border-color:var(--p-line)}
+body.yk-light .yk-proj-opt.on{background:var(--p-soft);border-color:var(--p-soft-line)}
+body.yk-light .yk-proj-opt .yk-proj-txt b,body.yk-light .yk-proj-opt.on .yk-proj-txt b{color:var(--p-ink)}
+body.yk-light :is(.yk-navpop,.yk-submenu){background:#fff;border-color:var(--p-line);color:var(--p-ink);box-shadow:0 14px 36px #153b3022}
+/* sin sombra: los raíles cerrados viven fuera de pantalla y su sombra teñía los bordes */
+body.yk-light .yk-rail{background:#fff;border-color:var(--p-line);box-shadow:none;font-family:var(--p-sans)}
+body.yk-light .yk-hd{color:var(--p-green)}
+body.yk-light .yk-hd::before{background:var(--p-live);box-shadow:none}
+body.yk-light .yk-expert-out{background:var(--p-paper);color:var(--p-ink);border-color:var(--p-line)}
+body.yk-light .yk-expert-btns button{background:#fff;border:1px solid var(--p-line);border-radius:8px;color:var(--p-ink);font:600 12px var(--p-sans)}
+
+/* ------------------------------- Cabecera ---------------------------------- */
+/* .ykl-heading: eyebrow con punto verde · título con segunda línea verde · lede */
+body.yk-light .ykl-heading{padding:44px 0 30px;max-width:860px}
+body.yk-light .eyebrow{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:0;font:700 10px/1.4 var(--p-sans);letter-spacing:1.8px;text-transform:uppercase;color:var(--p-ink)}
+body.yk-light .live-dot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%;background:var(--p-live)}
+body.yk-light .ykl-heading h1,body.yk-light h1.ykl-title{display:block;font:600 clamp(40px,4.4vw,56px)/1.06 var(--p-head);letter-spacing:-2px;margin:16px 0;color:var(--p-ink);overflow-wrap:anywhere}
+body.yk-light .ykl-heading h1 em{font-style:normal;color:var(--p-accent)}
+body.yk-light .lede{margin:0;max-width:640px;font-size:16px;line-height:1.7;color:var(--p-muted)}
+body.yk-light .lede b{color:var(--p-ink)}
+body.yk-light h2{font:700 22px/1.2 var(--p-head);letter-spacing:-.6px;margin:0;color:var(--p-ink)}
+/* Explicación larga del cabezal («Cómo funciona»): plegada, en tarjeta suave */
+body.yk-light .ykl-heading #introTgl{display:inline-flex;align-items:center;gap:6px;margin-left:6px;min-height:32px;padding:4px 11px;vertical-align:middle;border:1px solid var(--p-line);border-radius:999px;background:#fff;color:var(--p-green);font:600 12px/1 var(--p-sans);letter-spacing:0;cursor:pointer}
+body.yk-light .ykl-heading #introTgl::before{content:"Cómo funciona"}
+body.yk-light .ykl-heading #introTgl:hover{border-color:var(--p-hover);background:#f1f5ea;color:var(--p-ink)}
+body.yk-light #intro{margin:16px 0 0;max-width:820px;padding:16px 18px;border:1px solid var(--p-soft-line);border-radius:12px;background:var(--p-soft);color:var(--p-ink);font-size:14px;line-height:1.65}
+body.yk-light #intro b{color:var(--p-green)}
+body.yk-light #intro a{color:var(--p-green)!important}
+
+/* --------------- Métricas (KPIs del cabezal como tarjetas-filtro) ------------ */
+/* El cabezal pinta <button class="kpi"><b>n</b> etiqueta</button>: la rejilla
+   sube la etiqueta (texto anónimo) arriba con su punto y deja la cifra debajo. */
+body.yk-light #cabezal{display:flex;flex-direction:column}
+body.yk-light .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) minmax(150px,auto) auto;gap:14px;margin:0 0 22px}
+body.yk-light .kpis:not(:has(.kdate)){grid-template-columns:repeat(5,minmax(0,1fr)) auto}
+body.yk-light .kpi{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"dot label" "num num";align-items:center;justify-items:start;column-gap:8px;row-gap:4px;min-width:0;padding:18px 20px;text-align:left;background:#fff;border:1px solid var(--p-line);border-radius:12px;color:var(--p-muted);font:13px/1.3 var(--p-sans);letter-spacing:0;text-transform:none;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+body.yk-light .kpi::before{content:"";grid-area:dot;width:8px;height:8px;border-radius:50%;background:#9aa9a2}
+body.yk-light .kpi b,body.yk-light .kpi.a b,body.yk-light .kpi.b b,body.yk-light .kpi.c b,body.yk-light .kpi.d b,body.yk-light .kpi.v b{grid-area:num;font:600 34px/1.1 var(--p-head);color:var(--p-ink);letter-spacing:-1px}
+body.yk-light .kpi.b::before{background:var(--p-amber)}
+body.yk-light .kpi.c::before{background:var(--p-live)}
+body.yk-light .kpi.d::before{background:#c7d0cb}
+body.yk-light .kpi:has(#kNoCon)::before{background:var(--p-red)}
+body.yk-light .kpi[data-f]:hover{border-color:var(--p-hover);color:var(--p-muted)}
+body.yk-light .kpi.on{border-color:var(--p-dark);box-shadow:inset 0 0 0 1px var(--p-dark);background:#fbfdf6;color:var(--p-muted)}
+/* Día del tablero y conmutador de vista: controles, no métricas */
+body.yk-light .kpi.kdate,body.yk-light .kpi.kview{display:flex;align-items:center;justify-content:center;align-self:stretch;padding:0 14px;color:var(--p-ink);color-scheme:light;font:600 14px var(--p-sans);cursor:pointer}
+body.yk-light .kpi.kdate::before,body.yk-light .kpi.kview::before{content:none}
+body.yk-light .kpi.kdate::-webkit-calendar-picker-indicator{filter:none;opacity:.6}
+body.yk-light .kpi.kview{font-size:16px}
+body.yk-light .kpi.kview:hover,body.yk-light .kpi.kdate:hover{border-color:var(--p-hover);color:var(--p-ink)}
+
+/* Barra de la bandeja: buscador (y título de sección si lo hay) */
+body.yk-light .hrow{order:5;display:flex;align-items:center;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;margin:26px 0 16px;padding-top:24px;border-top:1px solid var(--p-line)}
+body.yk-light .ykl-listtitle{margin:0;font:700 25px/1.2 var(--p-head);letter-spacing:-.7px;color:var(--p-ink)}
+body.yk-light #busca,body.yk-light .hrow #busca{flex:0 1 420px;max-width:none;min-width:0;min-height:44px;padding:11px 14px;text-transform:none;letter-spacing:0;border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:15px var(--p-sans);outline:none}
+body.yk-light #busca:focus{border-color:var(--p-hover)}
+body.yk-light #busca::placeholder{color:#9ba8a0;text-transform:none;letter-spacing:0}
+
+/* ------------------------------- Píldoras ---------------------------------- */
+/* Estado canónico (Abierta · Pendiente · En curso · Finalizada · Sin asignar ·
+   Eliminada) y gravedad, con la misma paleta que /incidencias. */
+body.yk-light .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:0;border-radius:5px;font:700 12px/1.3 var(--p-sans);letter-spacing:.2px;text-transform:none;white-space:nowrap}
+body.yk-light .badge i{width:6px;height:6px;border-radius:50%}
+body.yk-light .b-open{background:#fbe3dc;color:var(--p-red);border:0}
+body.yk-light .b-open i{background:var(--p-red)}
+body.yk-light .b-pend{background:#eef2e8;color:#4a5e57;border:0}
+body.yk-light .b-pend i{background:#8da197}
+body.yk-light .b-prog{background:#fff3cf;color:#865c00;border:0}
+body.yk-light .b-prog i{background:var(--p-amber)}
+body.yk-light .b-res{background:#e3efd2;color:#3f6b2f;border:0}
+body.yk-light .b-res i{background:var(--p-live)}
+body.yk-light .b-sina{background:#e2eefb;color:#2c5a86;border:0}
+body.yk-light .b-sina i{background:#5b8fc4}
+body.yk-light .b-cancel{background:#eef1ec;color:var(--p-muted);border:0}
+body.yk-light .b-cancel i{background:#9aa9a2}
+body.yk-light .ykl-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:5px;background:#edf3df;color:var(--p-ink);font:700 12px/1.3 var(--p-sans);letter-spacing:.2px;white-space:nowrap}
+body.yk-light .ykl-sev{display:inline-block;padding:4px 9px;border-radius:5px;background:#f1f4ee;color:var(--p-muted);font:700 12px/1.3 var(--p-sans);letter-spacing:.2px}
+body.yk-light .ykl-sev[data-sev="urgente"]{background:var(--p-red);color:#fff}
+body.yk-light .ykl-sev[data-sev="alta"]{background:#fdecd9;color:#8f4712}
+body.yk-light .ykl-sev[data-sev="normal"]{background:#edf3df;color:var(--p-green)}
+
+/* -------------------------------- Botones ---------------------------------- */
+/* .primary = oscuro del portal; secundario = blanco con borde fino */
+body.yk-light :is(.ykl-btn,.primary){display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:10px 16px;border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:600 13px/1.2 var(--p-sans);letter-spacing:0;text-transform:none;text-decoration:none;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+body.yk-light .ykl-btn:hover{background:var(--p-paper);border-color:var(--p-hover);color:var(--p-ink)}
+body.yk-light .primary{background:var(--p-dark);border-color:var(--p-dark);color:#fff}
+body.yk-light .primary:hover{background:var(--p-dark2);border-color:var(--p-dark2);color:#fff}
+body.yk-light :is(.ykl-btn,.primary):disabled{opacity:.55;cursor:wait}
+/* Enlaces de acción de cada tarjeta del tablero (detalle · abrir · operar) */
+body.yk-light .tkopen{display:inline-flex;align-items:center;min-height:32px;padding:5px 10px;border:1px solid var(--p-line);border-radius:7px;background:#fff;color:var(--p-ink);font:600 12px/1.2 var(--p-sans);letter-spacing:0;text-transform:none;text-decoration:none;white-space:nowrap}
+body.yk-light .tkopen:hover{background:var(--p-paper);border-color:var(--p-hover)}
+body.yk-light .tkopen[href^="/ticket"]{background:var(--p-dark);border-color:var(--p-dark);color:#fff}
+body.yk-light .tkopen[href^="/ticket"]:hover{background:var(--p-dark2)}
+
+/* ------------------------------ Formularios -------------------------------- */
+body.yk-light .ykl-field,body.yk-light .wrap :is(select,textarea,input[type="text"],input[type="search"]){border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:14px var(--p-sans);letter-spacing:0;text-transform:none;color-scheme:light}
+body.yk-light .wrap :is(select,textarea,input[type="text"],input[type="search"]):focus{border-color:var(--p-hover);outline:none}
+body.yk-light .wrap :is(textarea,input)::placeholder{color:#9ba8a0;text-transform:none;letter-spacing:0}
+/* ALTA del cabezal → form-card del portal */
+body.yk-light form.alta{order:4;display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 6px;padding:22px 24px 14px;background:#fff;border:1px solid var(--p-line);border-radius:16px;box-shadow:0 12px 40px #153b3010}
+body.yk-light .ykl-formtitle{flex-basis:100%;margin:0 0 4px;font:700 19px/1.2 var(--p-head);letter-spacing:-.4px;color:var(--p-ink)}
+body.yk-light .alta-field{flex:1 1 320px;min-width:0;background:#fff;border:1px solid var(--p-line);border-radius:8px}
+body.yk-light .alta-field:focus-within{border-color:var(--p-hover)}
+body.yk-light .alta-txt{min-height:44px;font:15px var(--p-sans);color:var(--p-ink);border-radius:8px}
+body.yk-light .alta-txt::placeholder{color:#9ba8a0}
+body.yk-light .alta-adj{color:var(--p-muted)}
+body.yk-light .alta-adj:hover{color:var(--p-ink);background:#f1f5ea}
+body.yk-light :is(.alta-agente,.alta-pa){min-height:44px;max-width:100%;padding:10px 12px;border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:600 13px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light :is(.alta-agente,.alta-pa):hover{border-color:var(--p-hover);background:#f1f5ea}
+body.yk-light .alta-agente .cv{color:var(--p-muted)}
+body.yk-light .alta-pa input{accent-color:var(--p-red)}
+body.yk-light .alta-pa.on{color:var(--p-red);border-color:#e3b9b4;background:#fdf3f0}
+body.yk-light .alta-go{min-height:44px;padding:10px 20px;border:1px solid var(--p-dark);border-radius:8px;background:var(--p-dark);color:#fff;font:600 14px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light .alta-go:hover{background:var(--p-dark2)}
+body.yk-light :is(.alta-msg,.alta-hint,.alta-det){font:13px/1.5 var(--p-sans);letter-spacing:0}
+body.yk-light .alta-msg{color:var(--p-muted)}
+body.yk-light .alta-msg:empty{min-height:0}
+body.yk-light .alta-msg.ok{color:var(--good)}
+body.yk-light .alta-msg.err,body.yk-light .alta-hint{color:var(--p-red)}
+body.yk-light .alta-det{color:var(--p-green)}
+body.yk-light .alta-det b{color:var(--p-ink)}
+body.yk-light form.alta.yk-drag{outline:2px dashed var(--p-live)}
+body.yk-light :is(.yk-adj,.ev-imgs a){border-color:var(--p-line);background:var(--p-paper)}
+body.yk-light .yk-adj.err{border-color:var(--p-red)}
+body.yk-light .yk-adj-x{background:#ffffffe6;color:var(--p-ink);border:1px solid var(--p-line)}
+body.yk-light .yk-adj-x:hover{background:var(--p-red);color:#fff}
+
+/* ------------------------- Pestañas / píldoras-filtro ----------------------- */
+body.yk-light .tabs{display:flex;flex-wrap:wrap;gap:8px}
+body.yk-light .tab{min-height:40px;padding:9px 14px;border:1px solid var(--p-line);border-radius:999px;background:#fff;color:var(--p-ink);font:600 13px var(--p-sans);letter-spacing:0;text-transform:none;cursor:pointer}
+body.yk-light .tab:hover{background:#f1f5ea;border-color:var(--p-hover);color:var(--p-ink)}
+body.yk-light .tab.on{background:var(--p-dark);border-color:var(--p-dark);color:#fff}
+body.yk-light .mission-policy{border-top-color:var(--p-line);color:var(--p-muted);font:13px/1.55 var(--p-sans)}
+body.yk-light .mission-policy summary{color:var(--p-green);font:600 13px var(--p-sans);letter-spacing:0}
+body.yk-light .mission-policy b{color:var(--p-ink)}
+body.yk-light .segm-h{font:700 10px var(--p-sans);letter-spacing:1.4px;color:var(--p-green)}
+body.yk-light :is(.segm,#scopeTabs) select{min-height:40px;padding:8px 10px;border:1px solid var(--p-line);border-radius:8px;background:#fff;color:var(--p-ink);font:600 13px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light #scopeTabs select.on{background:var(--p-soft);border-color:var(--p-hover);color:var(--p-ink)}
+
+/* ------------------- Tablero: cada misión es una tarjeta -------------------- */
+body.yk-light .list{display:flex;flex-direction:column;gap:12px;border:0;border-radius:0;overflow:visible;background:transparent}
+body.yk-light .list>.lhead{padding:0 19px 2px;border:0;background:transparent}
+body.yk-light .lhead :is(.lh,.lh-static,.task-sort-cell){font:700 10px var(--p-sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--p-green)}
+body.yk-light .lhead .lh:hover,body.yk-light .lhead .lh.on{color:var(--p-ink)}
+body.yk-light .task-sort-head:hover{color:var(--p-ink);background:#eef3e6}
+body.yk-light .task-sort-cell[aria-sort]:not([aria-sort="none"]) .task-sort-arrow{color:var(--p-green)}
+body.yk-light .task-col-resize::before{background:var(--p-line2)}
+body.yk-light :is(.task-col-resize:hover,.task-col-resize:focus-visible,.task-col-resize.dragging)::before{background:var(--p-live);box-shadow:none}
+/* tarjeta: la misión suelta, la madre con sus hijas, el grupo de duplicados y
+   la misión con su árbol en /tareas */
+body.yk-light :is(.list>.tk,.list>.yk-grp,.list>.yk-dup,.taskmission){overflow:hidden;background:#fff;border:1px solid var(--p-line);border-radius:14px;transition:border-color .15s,box-shadow .15s}
+body.yk-light .list>.tk:last-child{border-bottom:1px solid var(--p-line)}
+body.yk-light :is(.list>.tk,.list>.yk-grp,.taskmission):hover{background:#fff;border-color:#c5d3bf;box-shadow:0 10px 30px #153b3012}
+body.yk-light :is(.yk-grp,.taskmission)>.tk,body.yk-light .tk:hover{background:transparent;border-bottom:0}
+body.yk-light .tk.open{border-left:4px solid #d48a80}
+body.yk-light .tk.sel,body.yk-light .list>.tk.sel{background:#fbfdf6;border-color:var(--p-sel);box-shadow:0 0 0 3px #d8f36a99}
+body.yk-light .list>.tk.sel.open{border-left:4px solid #d48a80}
+body.yk-light .hd,body.yk-light .hd.project-id-layout{padding:16px 18px}
+/* divisores de columna: líneas finas del portal */
+body.yk-light .rz::before{background:#e7ede5}
+body.yk-light .rz:hover::before{background:var(--p-live);box-shadow:none}
+/* celdas */
+body.yk-light .pri.urgente{background:var(--p-red);box-shadow:none}
+body.yk-light .pri.alta{background:var(--p-amber)}
+body.yk-light :is(.pri.media,.pri.baja){background:var(--p-live);opacity:.6}
+body.yk-light .tkid{font-family:var(--p-sans);color:var(--p-ink)}
+body.yk-light .tkid .mision-dia{font:700 14px/1.2 var(--p-head);color:var(--p-ink);letter-spacing:-.2px}
+body.yk-light .tkid .flt-id{color:var(--p-muted);font-size:11.5px}
+body.yk-light .tkid .prioflag{border-color:var(--p-line);color:var(--p-muted);font-family:var(--p-sans)}
+body.yk-light .tkid .prioflag.abs{background:#fbe3dc;border-color:#e3b9b4;color:var(--p-red)}
+body.yk-light .subj-project{color:var(--p-green);opacity:1;font:700 10px/1.4 var(--p-sans);letter-spacing:1.4px;text-transform:uppercase}
+body.yk-light .subj .t,body.yk-light .mission-col .subj .t{font:700 16px/1.32 var(--p-head);letter-spacing:-.2px;color:var(--p-ink)}
+body.yk-light .subj .m{font-family:var(--p-sans);color:var(--p-muted)}
+body.yk-light .subj .m .scr{color:var(--p-green)}
+body.yk-light .subj .m .adjn{border-color:#ecd9a3;color:#865c00}
+body.yk-light .subj .m .deleg{color:#2c5a86}
+body.yk-light .mission-col .mission-source{color:var(--p-green)}
+body.yk-light .project-id-time,body.yk-light .mission-time{border-top-color:var(--p-line)}
+body.yk-light :is(.fch2,.dur){font-family:var(--p-sans);color:var(--p-muted)}
+body.yk-light .fch2.fin,body.yk-light .dur{color:var(--good)}
+body.yk-light :is(.fch2.run,.dur.run){color:#865c00}
+body.yk-light :is(.fch2.overdue,.dur.overdue){color:var(--p-red)}
+body.yk-light .shot-img{border-color:var(--p-line);background:var(--p-paper)}
+body.yk-light .shot-img:hover,body.yk-light .shot-link:hover .shot-img{border-color:var(--p-hover);box-shadow:none}
+body.yk-light .shot-img.proof{border-color:#b5d193;box-shadow:none}
+body.yk-light .shot-logo{background:#fff}
+body.yk-light .shot-img.working{border-color:var(--p-live);animation:none;box-shadow:0 0 0 3px #d8f36a99}
+body.yk-light .project-id-select-slot{background:#ffffffe6;box-shadow:0 0 0 1px var(--p-line)}
+body.yk-light :is(.selall,.selrow){accent-color:var(--p-dark)}
+body.yk-light .who{font-family:var(--p-sans);color:var(--p-ink);font-weight:600}
+body.yk-light .who .agent-surface{font-family:var(--p-sans);font-weight:600;color:var(--good)}
+body.yk-light .who .agent-surface.pend{color:var(--p-muted);font-weight:400}
+body.yk-light .who .agent-surface.off{color:var(--p-red)}
+body.yk-light .agava{border-color:var(--p-line);border-radius:8px;filter:none}
+body.yk-light .tk:hover .agava{border-color:var(--p-hover)}
+body.yk-light .agstack .agava{box-shadow:0 -2px 6px #153b3022}
+body.yk-light .machava{border-color:var(--p-line)}
+body.yk-light .mach2{font-family:var(--p-sans);color:var(--p-muted)}
+body.yk-light .cel.est .cancel-note{color:var(--p-muted)}
+/* Progreso a·b·c: chips claros y semáforo del portal */
+body.yk-light .abc-task{border-color:var(--p-line);background:#fbfcf8;color:var(--p-muted);font:11px/1.3 var(--p-sans)}
+body.yk-light .abc-task:hover,body.yk-light .abc-task:focus-visible{border-color:var(--p-hover)}
+body.yk-light .abc-task b{color:var(--p-ink);font-size:11px}
+body.yk-light .abc-label{color:var(--p-muted)}
+body.yk-light .abc-dot{background:#c7d0cb;box-shadow:none}
+body.yk-light .abc-task.done{border-color:#c7dcae;background:#f1f7e8}
+body.yk-light .abc-task.done .abc-dot{background:var(--p-live);box-shadow:none}
+body.yk-light .abc-task.in_progress{border-color:#ecd9a3;background:#fffaeb;box-shadow:inset 2px 0 0 var(--p-amber)}
+body.yk-light .abc-task.in_progress .abc-dot{background:var(--p-amber);box-shadow:none}
+body.yk-light .abc-state{color:#865c00;font-size:8.5px}
+body.yk-light .abc-mission-progress{background:#fff;border-color:var(--p-line)}
+body.yk-light .abc-mission-progress>i b{font:700 8px var(--p-sans);color:#fff}
+body.yk-light .abc-mission-progress>i.pending{background:#c7d0cb;box-shadow:none}
+body.yk-light .abc-mission-progress>i.pending b{color:var(--p-ink)}
+body.yk-light .abc-mission-progress>i.in_progress{background:var(--p-amber);box-shadow:none}
+body.yk-light .abc-mission-progress>i.done{background:var(--p-live);box-shadow:none}
+body.yk-light .traffic-red{border-color:var(--p-line)}
+body.yk-light .traffic-yellow{border-color:#ecd9a3}
+body.yk-light .traffic-green{border-color:#c7dcae}
+body.yk-light .prog{border-color:var(--p-line);background:#fbfcf8;font-family:var(--p-sans);color:var(--p-muted)}
+body.yk-light .prog .prog-fill{background:#e3efd2}
+body.yk-light .prog b{color:var(--p-ink)}
+body.yk-light .prog.full{border-color:#b5d193}
+body.yk-light .prog.full .prog-fill{background:#d4e8bd}
+body.yk-light .prog.full b,body.yk-light .prog.hechoinc b{color:var(--good)}
+body.yk-light .prog .prog-mas{color:var(--p-red)}
+/* Madres → hijas y alarma de duplicados */
+body.yk-light .yk-grp{border-bottom:1px solid var(--p-line)}
+body.yk-light .yk-grp.abierta{box-shadow:inset 3px 0 0 var(--p-live)}
+body.yk-light .yk-grp-bar{min-height:40px;border-top:1px solid var(--p-line);color:var(--p-muted);font:600 12px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light .yk-grp-bar:hover{background:var(--p-paper);color:var(--p-ink)}
+body.yk-light .yk-grp-bar b{color:var(--p-green)}
+body.yk-light .yk-grp.abierta .yk-grp-caret{color:var(--p-green)}
+body.yk-light .yk-kids{background:var(--p-paper)}
+body.yk-light .yk-kids>.tk,body.yk-light .yk-kids>.yk-grp>.tk{border-left:3px solid var(--p-soft-line);border-bottom:1px solid var(--p-line)}
+body.yk-light .yk-kids .yk-kids>.tk{border-left-color:var(--p-line2)}
+body.yk-light .yk-dup{background:#fffdf5;border-color:#ecd9a3}
+body.yk-light .yk-dup-alert{border-left-color:var(--p-amber)}
+body.yk-light .yk-dup-tg{min-height:44px;color:var(--p-muted);font:13px/1.35 var(--p-sans);letter-spacing:0}
+body.yk-light .yk-dup-tg:hover{background:#fff7dd;color:var(--p-ink)}
+body.yk-light .yk-dup-tg strong{color:#865c00;font-size:12px}
+body.yk-light .yk-dup-ref{color:var(--p-ink)}
+body.yk-light .yk-dup-action{color:var(--p-green)}
+body.yk-light .yk-dup-select{min-height:36px;border-color:#ecd9a3;color:#865c00;font:600 12px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light .yk-dup-members{background:var(--p-paper)}
+/* Vacíos y error del tablero */
+body.yk-light :is(.empty,.bigempty){padding:38px;border:1px dashed #b8c8a5;border-radius:12px;background:#eaf0e1;color:var(--p-muted);font:15px/1.6 var(--p-sans);letter-spacing:0;text-transform:none;text-align:center}
+body.yk-light .bigempty b{color:var(--p-ink);font:700 17px/1.3 var(--p-head);letter-spacing:-.2px;text-transform:none}
+body.yk-light .bigempty a{color:var(--p-green)}
+body.yk-light .empty.board-err{color:var(--p-red)!important}
+body.yk-light .empty.board-err button{border-color:var(--p-line)!important;border-radius:8px!important;background:#fff!important;color:var(--p-ink)!important;font:600 13px var(--p-sans)!important;min-height:40px}
+body.yk-light .foot{margin-top:56px;padding-top:24px;border-top:1px solid var(--p-line);font:12px var(--p-sans);letter-spacing:0;text-transform:none;color:var(--p-muted)}
+body.yk-light .foot b{color:var(--p-green)}
+
+/* --------------------- /tareas: filtro de fecha y árbol --------------------- */
+body.yk-light .tfilter{gap:10px;margin:0 0 18px}
+body.yk-light .tfilter label{font:700 10px var(--p-sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--p-green)}
+body.yk-light .tf{min-height:44px;padding:9px 14px;border:1px solid var(--p-line);border-radius:999px;background:#fff;color:var(--p-ink);font:600 13px var(--p-sans);letter-spacing:0;color-scheme:light}
+body.yk-light .tf:hover,body.yk-light .tf:focus-visible{border-color:var(--p-hover);color:var(--p-ink)}
+body.yk-light .list.taskboard{overflow:auto;padding:0 0 4px}
+body.yk-light .taskmission{flex:none}
+body.yk-light .taskmission.open{border-color:#c5d3bf}
+body.yk-light .taskfold{min-height:36px;margin:0 18px 12px 34px;padding:6px 12px;border:1px solid var(--p-line);border-radius:999px;background:#fff;color:var(--p-green);font:600 12px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light .taskfold:hover,body.yk-light .taskfold:focus-visible{border-color:var(--p-hover);background:#f1f5ea;color:var(--p-ink)}
+body.yk-light .taskdetail{padding:14px 18px 16px 34px;border-top:1px solid var(--p-line);background:#fbfcf8}
+body.yk-light .archive-note{border-color:#ecd9a3;border-radius:8px;background:#fffaeb;color:#865c00;font:12px/1.5 var(--p-sans)}
+body.yk-light .focobar{border-bottom:0;padding:0 0 4px;font:13px var(--p-sans)}
+body.yk-light .focobar a{min-height:36px;display:inline-flex;align-items:center;border:1px solid var(--p-line);border-radius:999px;background:#fff;color:var(--p-ink);font-weight:600}
+body.yk-light .focobar a:hover{background:#f1f5ea;border-color:var(--p-hover)}
+body.yk-light .focobar .focoid{color:var(--p-muted);font-weight:600}
+body.yk-light .tgl{border-color:var(--p-line);background:#fff;color:var(--p-green);border-radius:8px;font-family:var(--p-sans)}
+/* Árbol a·b·c (en /tareas y en el raíl de /misiones) */
+body.yk-light .tree{font-family:var(--p-sans);color:var(--p-ink)}
+body.yk-light .tree .tmid{color:var(--p-green);font:700 10px var(--p-sans);letter-spacing:1.4px}
+body.yk-light .tree .tcount{border-color:var(--p-line);color:var(--p-muted)}
+body.yk-light .tree .empty2{color:var(--p-muted);font-size:14px}
+body.yk-light .tree .empty2 b{color:var(--p-ink)}
+body.yk-light .tree .propose{min-height:44px;border:1px solid var(--p-dark);border-radius:8px;background:var(--p-dark);color:#fff;font:600 13px var(--p-sans);letter-spacing:0}
+body.yk-light .tree .propose:hover{background:var(--p-dark2)}
+body.yk-light .node{border-radius:8px}
+body.yk-light .node .ttl{font-size:13.5px;color:var(--p-ink)}
+body.yk-light .node.sub .ttl{color:var(--p-muted);font-size:13px}
+body.yk-light .node .node-rep{color:var(--p-muted);font-size:12.5px}
+body.yk-light :is(.node .node-rep a,.node .ttl a){color:var(--p-green)}
+body.yk-light .chip.pending{color:#9aa9a2}
+body.yk-light .chip.in_progress{color:var(--p-amber)}
+body.yk-light .chip.done{color:var(--p-live)}
+body.yk-light .node .scode,body.yk-light .node a.scode{border-color:var(--p-line);color:var(--p-muted);font:600 10px var(--p-sans)}
+body.yk-light .node a.scode:hover{color:var(--p-green)}
+body.yk-light .node.done{background:#f1f7e8;box-shadow:inset 3px 0 var(--p-live)}
+body.yk-light .node.done .ttl,body.yk-light .node.done.sub .ttl,body.yk-light .node.done .scode{color:var(--good)}
+body.yk-light .node.foco-step{background:#fffaeb;outline-color:#ecd9a3}
+body.yk-light .node .archive-badge{color:#865c00;font:700 10px var(--p-sans)}
+body.yk-light .substog{border-color:var(--p-line);border-radius:999px;color:var(--p-green);font:600 11px var(--p-sans)}
+body.yk-light .substog:hover{border-color:var(--p-hover);color:var(--p-ink)}
+body.yk-light .node-owner-avatar{border-color:var(--p-line)}
+body.yk-light .node .node-shot{border-color:var(--p-line)}
+body.yk-light .tsep{background:var(--p-line)}
+body.yk-light .tsep-lbl{color:var(--p-green);font:700 10px var(--p-sans);letter-spacing:1.4px}
+/* Cajón de la misión seleccionada (raíl derecho de /misiones) */
+body.yk-light .mdet{border-bottom-color:var(--p-line)}
+body.yk-light .mdet-t{font:700 15px/1.3 var(--p-head);color:var(--p-ink)}
+body.yk-light .mdet-k{font-family:var(--p-sans);color:var(--p-muted)}
+body.yk-light .mdet-policy{border-color:var(--p-line);border-left-color:#9aa9a2;background:var(--p-paper);color:var(--p-muted)}
+body.yk-light .mdet-policy b{color:var(--p-ink);font-family:var(--p-sans)}
+body.yk-light .mdet-img{border-color:var(--p-line)}
+body.yk-light .mdet-inf{background:var(--p-soft);border-left-color:var(--p-live);color:var(--p-ink);font-size:12.5px}
+body.yk-light :is(.mdet-open,.mdet-addchild){font:600 12px var(--p-sans);letter-spacing:0;text-transform:none;color:var(--p-green)}
+body.yk-light .mdet-addchild{border-color:var(--p-line2)}
+/* Resumen de flota (raíl derecho de /misiones) */
+body.yk-light .flota-hd{color:var(--p-green);font:700 10px var(--p-sans);letter-spacing:1.4px}
+body.yk-light .fl-card{border-color:var(--p-line);background:#fff;border-radius:10px}
+body.yk-light .fl-card.on{border-left-color:var(--p-live)}
+body.yk-light .fl-card.off{border-left-color:#c7d0cb}
+body.yk-light :is(.fl-nm,.fl-ag,.fl-host,.fl-chip,.fl-none,.fl-cur,.fl-form){font-family:var(--p-sans)}
+body.yk-light .fl-nm{color:var(--p-ink)}
+body.yk-light .fl-card.on .fl-dot{background:var(--p-live);box-shadow:none}
+body.yk-light .fl-host.cli,body.yk-light .fl-host.app.inj{color:var(--good);border-color:#c7dcae;background:#f1f7e8}
+body.yk-light .fl-host.app{color:#865c00;border-color:#ecd9a3;background:#fffaeb}
+body.yk-light .fl-chip{border-color:var(--p-line);color:var(--p-muted)}
+body.yk-light .fl-chip:hover{color:var(--p-green);border-color:var(--p-hover)}
+body.yk-light .fl-cur{color:#865c00}
+body.yk-light .fl-form{color:var(--p-green);border-color:var(--p-line2)}
+body.yk-light .fl-form:hover{background:#f1f5ea}
+
+/* ------------------------------- Esqueleto --------------------------------- */
+body.yk-light .ykl-skel{display:flex;flex-direction:column;gap:10px;padding:22px 24px;background:#fff;border:1px solid var(--p-line);border-radius:14px}
+body.yk-light .ykl-skel i{display:block;height:11px;border-radius:5px;background:linear-gradient(90deg,#eef2ea,#dde6d4,#eef2ea);background-size:200% 100%;animation:ykl-shimmer 1.4s ease-in-out infinite}
+body.yk-light .ykl-skel i.l{height:18px;width:62%}
+body.yk-light .ykl-skel i.m{width:84%}
+body.yk-light .ykl-skel i.s{width:40%}
+@keyframes ykl-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* -------------------- Popovers, toast y acción en bloque -------------------- */
+body.yk-light .yk-picker{background:#fff;border-color:var(--p-line);box-shadow:0 14px 36px #153b3022;font-family:var(--p-sans)}
+body.yk-light :is(.yk-picker-hd,.yk-picker-grp){color:var(--p-green);font-family:var(--p-sans);font-weight:700}
+body.yk-light .yk-picker-grp{border-top-color:var(--p-line)}
+body.yk-light :is(.yk-pick-it,.yk-pick-agent){font-family:var(--p-sans);color:var(--p-ink)}
+body.yk-light :is(.yk-pick-it,.yk-pick-agent):is(:hover,:focus){background:#f1f5ea}
+body.yk-light .yk-pick-it.on,body.yk-light .yk-pick-it .ck{color:var(--p-green)}
+body.yk-light .yk-pick-it.online .agent-state{color:var(--good)}
+body.yk-light .yk-pick-machines{border-left-color:var(--p-line)}
+body.yk-light #ykToast{background:#fff;border-color:var(--p-line);color:var(--p-ink);box-shadow:0 10px 30px #153b3022;font-family:var(--p-sans)}
+body.yk-light #ykToast.ok{border-color:#b5d193;color:var(--good)}
+body.yk-light #ykToast.err{border-color:#e3b9b4;color:var(--p-red)}
+body.yk-light .bulkbar{background:#fff;border-color:var(--p-line);box-shadow:0 14px 36px #153b3026;font-family:var(--p-sans)}
+body.yk-light #bulkN{color:var(--p-ink);font-weight:700}
+body.yk-light .bulkbar select{min-height:40px;border-color:var(--p-line);background:#fff;color:var(--p-ink);font:14px var(--p-sans)}
+body.yk-light .bulkbar button{min-height:40px;border-radius:8px;font:600 13px var(--p-sans);letter-spacing:0;text-transform:none}
+body.yk-light #bulkApply{background:var(--p-dark);border-color:var(--p-dark);color:#fff}
+body.yk-light #bulkClear{background:#fff;border-color:var(--p-line);color:var(--p-ink)}
+body.yk-light #yk-lightbox{background:#173632e6}
+
+/* ------------------------------ Responsive --------------------------------- */
+@media(max-width:1100px){
+  body.yk-light #cabezal .kpis{grid-template-columns:repeat(5,minmax(0,1fr));}
+  body.yk-light .kpi.kdate{grid-column:span 4}
+}
+@media(max-width:850px){
+  body.yk-light .ykl-heading{padding:30px 0 24px}
+  body.yk-light #cabezal .kpis{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-flow:dense;gap:10px}
+  body.yk-light .kpi.kdate{grid-column:span 2}
+}
+@media(max-width:720px){
+  body.yk-light .hd,body.yk-light .hd.project-id-layout{padding:14px 16px;gap:8px}
+  body.yk-light .taskfold{margin-left:16px}
+  /* estado + acciones en una fila que envuelve, no en columna de botones */
+  body.yk-light .cel.est{flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px}
+  body.yk-light .kpi.kdate,body.yk-light .kpi.kview{min-height:48px}
+  body.yk-light .taskdetail{padding:12px 14px 14px 16px}
+}
+@media(max-width:520px){
+  body.yk-light .wrap{padding:0 16px 40px}
+  body.yk-light .ykl-heading h1,body.yk-light h1.ykl-title{font-size:38px;letter-spacing:-1.5px}
+  body.yk-light .lede{font-size:15px}
+  body.yk-light .kpi{padding:12px;column-gap:6px}
+  body.yk-light .kpi{font-size:11.5px}
+  body.yk-light .kpi b,body.yk-light .kpi.a b,body.yk-light .kpi.b b,body.yk-light .kpi.c b,body.yk-light .kpi.d b{font-size:26px}
+  body.yk-light form.alta{padding:18px 16px 12px}
+  body.yk-light form.alta>*{flex:1 1 100%}
+  body.yk-light .alta-agente{white-space:normal;text-align:left}
+  body.yk-light .hrow{margin-top:22px;padding-top:20px}
+  body.yk-light #busca,body.yk-light .hrow #busca{flex:1 1 100%}
+  body.yk-light .tfilter .tf{flex:1 1 100%}
+  body.yk-light .subj .t,body.yk-light .mission-col .subj .t{font-size:15.5px}
+  body.yk-light :is(.empty,.bigempty){padding:26px 18px}
+}
+@media(prefers-reduced-motion:reduce){
+  body.yk-light :is(.kpi,.list>.tk,.taskmission,.ykl-btn,.primary){transition:none}
+  body.yk-light .ykl-skel i,body.yk-light .b-open i{animation:none}
+}
