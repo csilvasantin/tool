@@ -4,16 +4,28 @@ import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
 import { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response, dispatchNotifications } from './installer-portal.js';
 import {channelOf,afterRating,sweepDesk} from './incident-desk.js';
+import {retailerAccess} from './retailer-accounts.js';
+import {isBrandEmail} from './admira-xpacio-sync.js';
+import {isoDay,LIFECYCLE_COLUMNS,withLifecycle,lifecycleStats,readLifecycle,updateLifecycle,inventory,alerts} from './device-lifecycle.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
 const publicAccount=({id,name,email})=>({id,name,email});
+// Sesión propia o delegada («Ver como»): la delegada se revalida en cada petición contra el miembro o superusuario vigente.
 async function authenticated(request,env){
  const token=cookieToken(request);
  if(!token||!/^[a-f0-9]{64}$/.test(token))fail(401,'Entra en tu cuenta de comercio.');
- const account=await statement(env,`SELECT a.* FROM retailer_sessions s JOIN retailer_accounts a ON a.id=s.retailer_id WHERE s.token_hash=? AND s.expires_at>?`,await hash(token),Date.now()).first();
- if(!account)fail(401,'Tu sesión ha caducado. Vuelve a entrar.');return account;
+ const found=await statement(env,`SELECT a.*,x.actor_email,x.actor_kind,x.origin_retailer_id,m.role AS member_role,su.email AS superuser_email FROM retailer_sessions s JOIN retailer_accounts a ON a.id=s.retailer_id LEFT JOIN retailer_session_actors x ON x.token_hash=s.token_hash
+  LEFT JOIN retailer_account_members m ON x.actor_kind='member' AND m.retailer_id=a.id AND m.email=x.actor_email AND m.revoked_at IS NULL
+  LEFT JOIN portal_superusers su ON x.actor_kind='superuser' AND su.email=x.actor_email AND su.revoked_at IS NULL AND EXISTS(SELECT 1 FROM brand_accounts b WHERE b.retailer_id=a.id)
+  WHERE s.token_hash=? AND s.expires_at>?`,await hash(token),Date.now()).first();
+ if(!found)fail(401,'Tu sesión ha caducado. Vuelve a entrar.');
+ const {actor_email,actor_kind,origin_retailer_id,member_role,superuser_email,...account}=found;
+ if(actor_email?!(member_role||superuser_email):account.password_hash.startsWith('!'))fail(401,'Tu acceso a esta cuenta ya no está vigente. Vuelve a entrar.');
+ account.access=actor_email?{delegated:true,actor_email,actor_kind,origin_retailer_id,role:member_role||'superuser'}:{delegated:false,role:'owner'};
+ return account;
 }
-async function createSession(env,id,expectedHash){const token=random();const created=await statement(env,'INSERT INTO retailer_sessions SELECT ?,?,? FROM retailer_accounts WHERE id=? AND password_hash=?',await hash(token),id,Date.now()+30*86400000,id,expectedHash).run();if(!created.meta.changes)fail(401,'La contraseña ha cambiado. Vuelve a entrar.');return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;}
+// Las cuentas de marca (hash bloqueado '!…') nunca abren sesión propia: solo «Ver como» (retailer-accounts.js).
+async function createSession(env,id,expectedHash){if(String(expectedHash).startsWith('!'))fail(403,'Esta cuenta de marca se abre desde «Ver como» con un usuario autorizado.');const token=random();const created=await statement(env,'INSERT INTO retailer_sessions SELECT ?,?,? FROM retailer_accounts WHERE id=? AND password_hash=?',await hash(token),id,Date.now()+30*86400000,id,expectedHash).run();if(!created.meta.changes)fail(401,'La contraseña ha cambiado. Vuelve a entrar.');return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;}
 async function ownDevice(env,id,owner){const d=await statement(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_device_id,s.retailer_id FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id WHERE d.id=? AND s.retailer_id=?`,id,owner).first();if(!d)fail(404,'Equipo no encontrado en tus establecimientos.');return d;}
 async function ownIncident(env,id,owner){const i=await statement(env,`SELECT i.* FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id WHERE i.id=? AND s.retailer_id=?`,id,owner).first();if(!i)fail(404,'Incidencia no encontrada en tus establecimientos.');return i;}
 // Integrations (XpaceOS, admira.store, agents) tag their origin as a description prefix: no migration, no deploy-order risk.
@@ -24,11 +36,13 @@ const LIST_FILTERS={all:'1=1',open:"i.status='open'",assigned:"i.status='assigne
 function sourceOf(value){if(value===undefined||value===null||value==='')return null;const v=typeof value==='string'?value.trim().toLowerCase():'';if(!/^[a-z0-9][a-z0-9.-]{0,31}$/.test(v))fail(400,'Origen no válido (hasta 32 letras, números, punto o guion).');return v;}
 function present(i){const m=SOURCE.exec(i.description||'');return {...i,description:m?i.description.slice(m[0].length):i.description,source:m?m[1]:null,follow_url:FOLLOW+encodeURIComponent(i.id),timeline:[['reported',i.created_at],['assigned',i.assigned_at],['resolved',i.resolved_at],['rated',i.rated_at]].map(([step,at])=>({step,at:at||null}))};}
 async function dashboard(env,owner){
- const sites=await rows(env,'SELECT s.*,i.external_ref,i.sync_status,i.admira_store_id AS imported_admira_store_id,c.id AS catalog_id,c.created_at AS published_at FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id LEFT JOIN admira_retailer_locations c ON c.site_id=s.id WHERE s.retailer_id=? ORDER BY s.created_at',owner);
- const devices=await rows(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_store_id,l.admira_device_id,l.linked_at FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id WHERE s.retailer_id=? ORDER BY d.name`,owner);
+ const today=isoDay(Date.now());
+ const sites=await rows(env,'SELECT s.*,i.external_ref,i.sync_status,i.admira_store_id AS imported_admira_store_id,c.id AS catalog_id,c.created_at AS published_at,x.admira_store_id AS xpacio_id,x.twin_url AS xpacio_twin_url,x.removed_at AS xpacio_removed_at FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id LEFT JOIN admira_retailer_locations c ON c.site_id=s.id LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.created_at',owner);
+ // Cada equipo lleva su ficha de ciclo de vida y el estado calculado de garantía y mantenimiento.
+ const devices=(await rows(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_store_id,l.admira_device_id,l.linked_at,xd.surface_key AS xpacio_surface,${LIFECYCLE_COLUMNS} FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN admira_xpacio_devices xd ON xd.device_id=d.id LEFT JOIN device_lifecycle lc ON lc.device_id=d.id WHERE s.retailer_id=? ORDER BY d.name`,owner)).map(d=>withLifecycle(d,today));
  const incidents=(await rows(env,INCIDENT_SELECT+` WHERE s.retailer_id=? AND (i.status!='resolved' OR i.id IN (SELECT ri.id FROM installer_incidents ri JOIN retailer_device_links rl ON rl.device_id=ri.device_id JOIN retailer_sites rs ON rs.id=rl.site_id WHERE rs.retailer_id=? AND ri.status='resolved' ORDER BY ri.created_at DESC LIMIT 200)) ORDER BY i.created_at DESC`,owner,owner)).map(present);
  const stats=await statement(env,`SELECT COUNT(CASE WHEN i.status='open' THEN 1 END) AS open,COUNT(CASE WHEN i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.status='resolved' AND r.incident_id IS NULL THEN 1 END) AS awaiting_rating FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_ratings r ON r.incident_id=i.id WHERE s.retailer_id=?`,owner).first();
- return {sites,devices,incidents,stats};
+ return {sites,devices,incidents,stats:{...stats,...lifecycleStats(devices)}};
 }
 export async function handleRetailer(request,env,principal){
  try{
@@ -42,6 +56,7 @@ export async function handleRetailer(request,env,principal){
    if(demo){const account=await statement(env,'SELECT * FROM retailer_accounts WHERE email=?',demo).first();if(!account)fail(401,'Correo o contraseña incorrectos.');return response(request,{profile:publicAccount(account)},200,await createSession(env,account.id,account.password_hash));}
    const email=text(b.email,3,254).toLowerCase(),password=text(b.password,12,128);
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail(400,'Correo no válido.');
+   if(path==='/register'&&isBrandEmail(email))fail(400,'Ese dominio está reservado a las cuentas de marca de Yokup.');
    await rateLimit(env,'retail-email:'+await hash(email),10,900000);
    let account=await statement(env,'SELECT * FROM retailer_accounts WHERE email=?',email).first();
    if(path==='/register'){
@@ -52,9 +67,14 @@ export async function handleRetailer(request,env,principal){
    }else{const digest=await passwordHash(password,account?.salt||'missing-account-constant');if(!account||digest!==account.password_hash)fail(401,'Correo o contraseña incorrectos.');}
    return response(request,{profile:publicAccount(account)},path==='/register'?201:200,await createSession(env,account.id,account.password_hash));
   }
-  const account=principal||await authenticated(request,env),owner=account.id;
+  if(path==='/accounts'||path==='/switch'){if(principal)fail(404,'Ruta no encontrada.');return await retailerAccess(request,env,path,{authenticated,createSession,cookieToken,cookieName:COOKIE});}
+  const account=principal||await authenticated(request,env),owner=account.id,access=account.access||{delegated:false,role:'owner'};
+  if(access.delegated){
+   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')fail(403,'Los tokens de agentes se gestionan desde la propia cuenta, no en modo «Ver como».');
+   if(access.role==='viewer'&&method!=='GET'&&path!=='/logout')fail(403,'Tienes acceso de solo lectura a esta cuenta.');
+  }
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'retailer',account,path);
-  if(path==='/me'&&method==='GET')return response(request,{profile:publicAccount(account)});
+  if(path==='/me'&&method==='GET')return response(request,{profile:publicAccount(account),access:{role:access.role,delegated:access.delegated,actor_email:access.actor_email||null,can_edit:access.role!=='viewer'}});
   if(path==='/logout'&&method==='POST'){await statement(env,'DELETE FROM retailer_sessions WHERE token_hash=?',await hash(cookieToken(request))).run();return response(request,{ok:true},200,`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);}
   if(path==='/dashboard'&&method==='GET')return response(request,await dashboard(env,owner));
   if(['/sites/import-preview','/sites/import','/site-imports'].includes(path)){const result=await siteImports(request,env,owner,path);if(result)return result;}
@@ -71,6 +91,11 @@ export async function handleRetailer(request,env,principal){
    const id='retail-'+crypto.randomUUID();
    await env.DB.batch([statement(env,'INSERT INTO installer_devices(id,name,latitude,longitude,address,skill,last_seen,monitoring) VALUES(?,?,?,?,?,?,?,0)',id,name,site.latitude,site.longitude,site.address,skill,Date.now()),statement(env,'INSERT INTO retailer_device_links(device_id,site_id,created_at) VALUES(?,?,?)',id,site.id,Date.now())]);return response(request,{id},201);
   }
+  const lifecycle=/^\/devices\/([\w:-]+)\/lifecycle$/.exec(path);
+  if(lifecycle&&method==='GET')return response(request,await readLifecycle(env,await ownDevice(env,lifecycle[1],owner)));
+  if(lifecycle&&method==='PUT'){const device=await ownDevice(env,lifecycle[1],owner);return response(request,await updateLifecycle(env,device,await jsonBody(request),access.actor_email||account.email));}
+  if(path==='/inventory'&&method==='GET')return response(request,await inventory(env,owner,new URL(request.url).searchParams));
+  if(path==='/alerts'&&method==='GET')return response(request,await alerts(env,owner,new URL(request.url).searchParams));
   if(path==='/incidents'&&method==='GET'){
    const q=new URL(request.url).searchParams,status=q.get('status')||'all',site=q.get('site_id'),limit=q.has('limit')?Number(q.get('limit')):50;
    if(!Object.hasOwn(LIST_FILTERS,status))fail(400,'Estado no válido: open, assigned, resolved, to_rate o all.');if(!Number.isInteger(limit)||limit<1||limit>200)fail(400,'limit debe ser de 1 a 200.');

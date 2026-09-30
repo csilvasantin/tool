@@ -1,5 +1,6 @@
 import {statement,random,hash,text,fail,response,installerProfile,publicInstaller,installerSession} from './installer-portal.js';
 import {publicRetailer,retailerSession} from './retailer-portal.js';
+import {isBrandEmail} from './admira-xpacio-sync.js';
 const table=kind=>kind==='installer'?'installer_accounts':'retailer_accounts';
 const SIGNUP='__Host-yk_portal_signup';
 const cookie=(r)=>r.headers.get('cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(SIGNUP+'='))?.slice(SIGNUP.length+1);
@@ -15,7 +16,7 @@ async function existing(request,env,kind,p){
  return done(request,env,kind,account);
 }
 export async function googlePortal(request,env,b,p){
- const kind=b.kind;
+ const kind=b.kind;if(isBrandEmail(p.email))fail(403,'Las cuentas de marca se abren desde «Ver como» con un usuario autorizado.');
  if(!['login','register'].includes(b.intent))fail(400,'Elige crear cuenta o entrar.');
  const result=await existing(request,env,kind,p);if(result)return result;
  if(b.intent==='login')fail(404,'Aún no tienes cuenta en este portal. Elige Crear cuenta y continúa con Google.');

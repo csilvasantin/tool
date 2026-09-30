@@ -11,6 +11,9 @@
 // (waitUntil) y en el cron, con reintentos acotados. Sin ADMIRA_CIRCUIT_SERVICE_KEY
 // no hace nada. Al registro solo viajan id, nombre del establecimiento y ciudad:
 // ni email, ni dirección, ni coordenadas.
+//
+// Los Xpacios que vienen de Admira (admira_xpacio_sites, src/admira-xpacio-sync.js) NO crean
+// circuito: ya pertenecen a su circuito compartido (alsea_starbucks, jti_xtanco…).
 
 export const ADMIRA_CIRCUITS_URL = 'https://api.admira.store/grid/circuits';
 const MAX_ATTEMPTS = 8;
@@ -37,14 +40,14 @@ export async function syncRetailerCircuits(env, fetcher = fetch) {
   const now = Date.now();
   // 1) Asignar id de circuito a los establecimientos que aún no lo tienen.
   const fresh = await env.DB.prepare(`SELECT s.id,s.name,s.city FROM retailer_sites s LEFT JOIN retailer_site_circuits c ON c.site_id=s.id
-    WHERE c.site_id IS NULL ORDER BY s.created_at LIMIT ?`).bind(BATCH).all();
+    WHERE c.site_id IS NULL AND NOT EXISTS(SELECT 1 FROM admira_xpacio_sites x WHERE x.site_id=s.id) ORDER BY s.created_at LIMIT ?`).bind(BATCH).all();
   for (const site of fresh.results || []) {
     await env.DB.prepare('INSERT OR IGNORE INTO retailer_site_circuits(site_id,circuit_id,status,attempts,created_at) VALUES(?,?,?,?,?)')
       .bind(site.id, circuitIdForSite(site), 'pending', 0, now).run();
   }
   // 2) Dar de alta en Admira lo pendiente (idempotente en el registro).
   const pending = await env.DB.prepare(`SELECT c.site_id,c.circuit_id,c.attempts,s.name,s.city,s.retailer_id FROM retailer_site_circuits c
-    JOIN retailer_sites s ON s.id=c.site_id WHERE c.status!='synced' AND c.attempts<? ORDER BY c.created_at LIMIT ?`).bind(MAX_ATTEMPTS, BATCH).all();
+    JOIN retailer_sites s ON s.id=c.site_id WHERE c.status!='synced' AND c.attempts<? AND NOT EXISTS(SELECT 1 FROM admira_xpacio_sites x WHERE x.site_id=s.id) ORDER BY c.created_at LIMIT ?`).bind(MAX_ATTEMPTS, BATCH).all();
   let synced = 0, failed = 0;
   for (const row of pending.results || []) {
     let error = '';

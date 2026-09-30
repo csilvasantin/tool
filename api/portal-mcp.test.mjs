@@ -49,7 +49,7 @@ test('revocation and expiration apply to the next MCP call, and another audience
 });
 test('read-only tools cannot mutate, impersonate an account or access token management through MCP',async()=>{
  const {env,db}=setup(),a=await actor(env,'retailer',['retailer:read']);const list=await rpc(env,a);
- assert.deepEqual(list.body.result.tools.map(t=>t.name),['retailer_whoami','retailer_dashboard','retailer_incident_get','retailer_incidents_list']);assert.ok(list.body.result.tools.filter(t=>t.name!=='retailer_whoami').every(t=>t.annotations.readOnlyHint));
+ assert.deepEqual(list.body.result.tools.map(t=>t.name),['retailer_whoami','retailer_dashboard','retailer_incident_get','retailer_incidents_list','retailer_inventory_list','retailer_device_lifecycle_get','retailer_alerts_list']);assert.ok(list.body.result.tools.filter(t=>t.name!=='retailer_whoami').every(t=>t.annotations.readOnlyHint));
  assert.equal((await invoke(env,a,'retailer_device_create',{})).body.error.code,-32602);
  assert.equal((await invoke(env,a,'retailer_dashboard',{account_id:'someone-else'})).body.error.code,-32602);
  assert.equal((await invoke(env,a,'mcp_token_create',{})).body.error.code,-32602);

@@ -68,7 +68,7 @@ Para instaladores, cambia el endpoint y utiliza su propio token. No copies el ar
 ## Herramientas y reglas compartidas
 
 Instalador: installer_register (pública, sin token), installer_whoami, installer_profile, installer_inbox, installer_accept, installer_resolve, installer_notification_read.
-Comercio: retailer_whoami, retailer_dashboard, retailer_incident_get, retailer_incidents_list, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate.
+Comercio: retailer_whoami, retailer_dashboard, retailer_incident_get, retailer_incidents_list, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate, retailer_inventory_list, retailer_device_lifecycle_get, retailer_device_lifecycle_update, retailer_alerts_list.
 
 No existe herramienta de consulta SQL, ejecución de comandos, suplantación de cuenta, elección arbitraria de URL ni control remoto del IoT. Las operaciones reutilizan los handlers de los portales y su propietario autenticado. Se conservan el radio estricto menor de 40 km, especialidad/disponibilidad, aceptación atómica por un único técnico, resolución solo del asignado, valoración única por el titular y revisión con historial.
 
@@ -83,6 +83,18 @@ Todas las escrituras requieren `request_key` (8–100 caracteres). Usa un UUID p
 Un recibo completo se devuelve con `replayed:true`. Si una operación queda pendiente tras un fallo, el MCP devuelve `outcome:uncertain` y no vuelve a ejecutarla. Revisa el estado en el portal: una operación incierta puede haberse aplicado. No inventes otra request_key para forzar un reintento. Un error de negocio ya recibido queda asociado a su clave; corregir la intención constituye una nueva operación, tras comprobar que no tuvo efecto.
 
 Límites: 120 peticiones/minuto/token, 20 altas de tokens/hora/cuenta, cuerpo máximo 32 KiB. Respuesta 429 con Retry-After al exceder llamadas. Los errores de negocio son resultados MCP `isError:true`; la autenticación se rechaza con HTTP 401 y el esquema/protocolo con errores JSON-RPC.
+
+
+## Inventario y ciclo de vida de los equipos
+
+Herramientas del comercio para la ficha de cada equipo: categoría, fabricante, modelo, serie, compra, garantía, instalación, mantenimiento y estado.
+
+- `retailer_inventory_list` (`retailer:read`): lista los equipos con su ficha y el estado calculado. `warranty` puede ser `none`, `valid`, `expiring` (≤30 días) o `expired`; también devuelve `warranty_days` y `maintenance_due`. Filtros opcionales: `site_id`, `status` (operational, degraded, maintenance, retired, planned), `warranty_within_days` (vence en 0..N días), `maintenance_due` y `limit` 1-500.
+- `retailer_device_lifecycle_get` (`retailer:read`): ficha, estado y avisos de un equipo propio.
+- `retailer_device_lifecycle_update` (`retailer:inventory`): actualización parcial con `request_key`. Fechas `AAAA-MM-DD`; una cadena vacía borra el dato y `maintenance_interval_days: 0` borra el intervalo. Solo admite datos reales del titular (factura, albarán, parte): el agente no inventa fabricantes, series ni fechas.
+- `retailer_alerts_list` (`retailer:read`): avisos del barrido diario (`warranty_30`, `warranty_7`, `warranty_expired`, `maintenance_due`).
+
+Sin fecha de garantía el estado es `none`: nunca se da por vigente. REST equivalente con la sesión del portal: `GET/PUT /api/retailer/devices/:id/lifecycle`, `GET /api/retailer/inventory` y `GET /api/retailer/alerts`. Los Xpacios de Admira y las cuentas de marca se describen en `docs/xpacios-yokup.md`.
 
 ## Integrar una app o un agente (XpaceOS, admira.store…)
 

@@ -40,6 +40,10 @@ Base `https://data.yokup.com/api/retailer`. JSON con cookies y Origin permitido.
 | GET | `/incidents/:id` | Ficha con `timeline`, `source` y `follow_url` (404 fuera de tus establecimientos) |
 | POST | `/incidents` | device_id, title, description, priority normal/urgent, request_key, source opcional (≤32: xpaceos, admira.store); responde `follow_url` |
 | POST | `/incidents/:id/rating` | stars 1..5, satisfied boolean, comment; obligatorio ≥10 caracteres si no funciona |
+| GET/PUT | `/devices/:id/lifecycle` | Ficha de ciclo de vida del equipo (PUT parcial, fechas AAAA-MM-DD) |
+| GET | `/inventory?site_id=&status=&warranty_within_days=&maintenance_due=` | Inventario con ficha y estado de garantía/mantenimiento |
+| GET | `/alerts` | Avisos de garantía y mantenimiento del barrido diario |
+| GET | `/accounts` · POST `/switch` | «Ver como»: cuentas de marca accesibles (ver `docs/xpacios-yokup.md`) |
 
 `kind`: kiosk, tobacco, supermarket, hospitality, other. `skill`: screen, audio, hvac, player, network, kiosk, sensor. Coordenadas del establecimiento determinan los técnicos cercanos; una alerta autenticada puede actualizar las coordenadas del equipo.
 

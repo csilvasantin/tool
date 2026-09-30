@@ -1,6 +1,16 @@
 import {ORIGINS,statement,rows,text,jsonBody,rateLimit,response,fail,distanceKm} from './installer-portal.js';
 import {manageSuperusers,ADMIN} from './portal-roles.js';
 import {adminIdentity,adminLogout} from './portal-access.js';
+import {syncXpacios,xpacioStatus} from './admira-xpacio-sync.js';
+// Miembros de una cuenta de marca: quién puede abrirla con «Ver como» (correo verificado con Google).
+async function brandMember(request,env,actor,b){
+ const retailer=text(b.retailer_id,1,80),email=text(b.email,3,254).toLowerCase();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!['grant','revoke'].includes(b.action)||(b.action==='grant'&&!['owner','manager','viewer'].includes(b.role)))fail(400,'Revisa la cuenta, el correo, el rol (owner, manager, viewer) y la acción.');
+ if(!await statement(env,'SELECT 1 AS ok FROM brand_accounts WHERE retailer_id=?',retailer).first())fail(404,'Cuenta de marca no encontrada.');
+ const now=Date.now(),op=b.action==='grant'?statement(env,'INSERT INTO retailer_account_members VALUES(?,?,?,?,?,NULL) ON CONFLICT(retailer_id,email) DO UPDATE SET role=excluded.role,granted_by=excluded.granted_by,created_at=excluded.created_at,revoked_at=NULL',retailer,email,b.role,actor.email,now):statement(env,'UPDATE retailer_account_members SET revoked_at=? WHERE retailer_id=? AND email=? AND revoked_at IS NULL',now,retailer,email);
+ await env.DB.batch([op,statement(env,"DELETE FROM retailer_sessions WHERE retailer_id=? AND token_hash IN (SELECT token_hash FROM retailer_session_actors WHERE actor_email=? AND actor_kind='member')",retailer,email),statement(env,'INSERT INTO retailer_access_audit VALUES(?,?,?,?,?,?,?,?)',crypto.randomUUID(),actor.email,'superuser','member:'+b.action+(b.action==='grant'?':'+b.role:'')+':'+email,null,retailer,'allowed',now)]);
+ return response(request,{ok:true,retailer_id:retailer,email,action:b.action,role:b.action==='grant'?b.role:null});
+}
 const incidentSql=`SELECT i.*,d.latitude,d.longitude,d.skill,d.name AS device_name,s.name AS site_name,s.id AS site_id,r.name AS retailer_name,t.name AS installer_name FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id LEFT JOIN retailer_device_links l ON l.device_id=d.id LEFT JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_accounts r ON r.id=s.retailer_id LEFT JOIN installer_accounts t ON t.id=i.installer_id`;
 async function assignment(request,env,actor,b){
  const key=text(b.request_key,8,100),id=text(b.incident_id,1,100),installerId=text(b.installer_id,1,100);
@@ -27,6 +37,9 @@ export async function handleAdmin(request,env){
   if(path==='/me'&&request.method==='GET')return response(request,{email:actor.email,role:'superuser',can_manage_superusers:actor.email===ADMIN});
   if(path==='/logout'&&request.method==='POST')return await adminLogout(request,env);
   if(path==='/superusers'&&['GET','POST'].includes(request.method))return await manageSuperusers(request,env,actor);
+  if(path==='/xpacios'&&request.method==='GET')return response(request,await xpacioStatus(env));
+  if(path==='/xpacios/sync'&&request.method==='POST'){await rateLimit(env,'xpacio-sync:'+actor.email,6,600000);return response(request,await syncXpacios(env,{force:true,trigger:'manual:'+actor.email}));}
+  if(path==='/xpacios/members'&&request.method==='POST')return await brandMember(request,env,actor,await jsonBody(request));
   if(path==='/assign'&&request.method==='POST')return await assignment(request,env,actor,await jsonBody(request));
   if(path==='/candidates'&&request.method==='GET'){
    const id=url.searchParams.get('incident_id'),siteId=url.searchParams.get('site_id');

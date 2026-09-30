@@ -12,7 +12,9 @@ export function publishStatements(env,sites,now=Date.now()){
  return ops;
 }
 export async function publishOwnedSite(request,env,owner,id){
- const site=await statement(env,'SELECT * FROM retailer_sites WHERE id=? AND retailer_id=?',id,owner).first();if(!site)fail(404,'Establecimiento no encontrado.');
+ const site=await statement(env,'SELECT s.*,x.admira_store_id AS xpacio_id FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.id=? AND s.retailer_id=?',id,owner).first();if(!site)fail(404,'Establecimiento no encontrado.');
+ // Un Xpacio ya está en los mapas de Admira con su id: republicarlo lo duplicaría (y haría bucle con la sincronización).
+ if(site.xpacio_id)fail(409,'Este Xpacio ya está publicado en los mapas de Admira.');
  await env.DB.batch(publishStatements(env,[site]));
  return response(request,{ok:true,id:site.id,catalog_id:catalogId(site.id),map_status:'published'});
 }

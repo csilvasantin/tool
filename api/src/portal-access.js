@@ -86,14 +86,15 @@ export async function handleAccess(request,env){
   if(path==='/google/register')return await finishGoogleSignup(request,env,b);
   if(path==='/password/complete')return response(request,await finishReset(env,kind,b.token,b.password));
   if(path==='/google/recover'){
-   const p=await googleIdentity(request,env,b),account=await statement(env,`SELECT id FROM ${table(kind)} WHERE email=?`,p.email).first();
+   const p=await googleIdentity(request,env,b),account=await statement(env,`SELECT id FROM ${table(kind)} WHERE email=? AND substr(password_hash,1,1)!='!'`,p.email).first();
    if(!account)fail(404,'No hay una cuenta en este portal para el correo verificado por Google.');
    const reset=await resetToken(env,kind,account);return response(request,{ok:true,token:reset.token,email:p.email});
   }
   if(path==='/password/request'){
    const email=text(b.email,3,254).toLowerCase();await rateLimit(env,'portal-reset-email:'+kind+':'+await hash(email),3,3600000);
    if(!env.RESEND_API_KEY||!env.PORTAL_MAIL_FROM)fail(503,'El envío de recuperación por correo aún no está disponible. Puedes verificar tu cuenta con Google.');
-   const account=await statement(env,`SELECT id FROM ${table(kind)} WHERE email=?`,email).first();
+   // Las cuentas de marca (hash '!…', sin login) no se recuperan por correo.
+   const account=await statement(env,`SELECT id FROM ${table(kind)} WHERE email=? AND substr(password_hash,1,1)!='!'`,email).first();
    if(account){
     const reset=await resetToken(env,kind,account),url='https://www.yokup.com/recuperar?portal='+kind+'#token='+reset.token;
     try{
