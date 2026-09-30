@@ -25,6 +25,10 @@ Hasta el 16-sep el `recover` quedaba «pendiente de verificación y cierre» y n
 - **Pantallas que desaparecen del censo.** El censo sólo lista pantallas recientes; una que lleva mucho fuera deja de aparecer y su incidencia se queda abierta hasta que un humano la cierre (alcampo-* del 15-sep, smoke-edad, xtore-f7q5un). Es lo correcto: siguen caídas.
 - **Runbook automático** (ping, reload, restart, reboot, rollback). El MCP ya permite confirmar qué players publican capacidad remota y el Supervisor enlaza a su mando oficial después de identificar la emisión. Yokup no ejecuta todavía comandos por sí solo: esa automatización necesita una política explícita de autorización, auditoría y recuperación. Mientras tanto, el runbook es manual (abajo).
 
+## Proyecto = establecimiento (FLT-101292)
+
+Toda incidencia de pantalla nace colgada del proyecto de su establecimiento (`src/incident-project.js`): id = slug del `loc` del censo (`alsea-sbux-021`), nombre = `locName` («Starbucks Paseo de Gracia»); sin `loc`, slug del nombre; sin nada (o pantalla `demo-*` del simulador), sin proyecto como antes. Lo aplican `reconcile`, el sensor (`runIncidentSensors` → `createPlayer`), `/ticket/simulate` y `POST /incident` cuando trae `loc`/`loc_name` y ningún `project_id` ni relación estructurada. La tabla `projects` no tiene tipo, así que la marca es convención: blurb `Establecimiento · <loc>` y `updated_by = yokup·establecimientos`. El alta es directa e idempotente (sin la novedad «proyecto nuevo» de la barra) y nunca renombra un proyecto normal con el mismo id. Las sesiones del gemelo (`role: xtore-game`) no abren incidencia ni en el reconcile ni en el sensor.
+
 ## Vigilante en el MacMini
 
 `~/Claude/admira-vault/vigila-players.sh`, launchd `com.admira.vigila-players` cada 120 s, log en `/tmp/vigila-players.log`. Pide `api.yokup.com/version.json` (público), lo que arrastra la rutina del worker aunque nadie tenga yokup abierto (el cron de Cloudflare no dispara en esta cuenta, FLT-1016), lee el censo público de api.admira.store y deja en el log qué players están fuera y desde cuándo. No abre ni cierra nada: el juicio es del worker.
@@ -44,4 +48,4 @@ cd yokup-rtc && npx wrangler d1 execute yokup-tickets --remote --json --command 
 "SELECT t.id,t.screen,t.status,t.resolved_at,(SELECT kind FROM events e WHERE e.ticket_id=t.id ORDER BY e.id DESC LIMIT 1) last_kind FROM tickets t WHERE t.source='agent-iot' ORDER BY t.created_at DESC LIMIT 10"
 ```
 
-Pruebas: `node --test reconcile-autoclose.test.mjs` (arnés SQLite en memoria con las funciones reales del worker).
+Pruebas: `node --test reconcile-autoclose.test.mjs incidencias-establecimiento.test.mjs incident-sensors.test.mjs` (arneses SQLite en memoria con las funciones reales del worker).

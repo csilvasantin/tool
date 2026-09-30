@@ -1,4 +1,5 @@
 import { runIncidentSensors } from './incident-sensors.js';
+import { ensureEstablishmentProject } from './incident-project.js';
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, zonasCalientes, paradas, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
@@ -6237,12 +6238,16 @@ async function createTicket(env, s) {
   const plantilla = await carbonRoster(env);
   const tech = plantilla[hash(s.screen) % plantilla.length];
   const loc = s.loc || "";
+  // Proyecto = establecimiento (FLT-101292): id del censo (loc crudo) y nombre legible
+  // (locName). Sin ninguno de los dos, sin proyecto como antes (src/incident-project.js).
+  const project = s.establishment === false ? null
+    : await ensureEstablishmentProject(env, s.loc_id || "", s.loc_name || loc, now);
   const triage = await aiRun(env, `Eres el copiloto de soporte de Yokup (mantenimiento de pantallas DOOH). Incidencia: la pantalla "${s.screen}"${loc ? " en " + loc : ""} lleva ${s.age || 300} segundos sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo). Responde SOLO en espa\xF1ol, \xFAtil y concreto (m\xE1x 55 palabras), EXACTAMENTE en 3 l\xEDneas:
 \u{1F50D} Causa probable: ...
 \u{1F6E0}\uFE0F Acci\xF3n inmediata: ...
 \u{1F477} T\xE9cnico: s\xED/no \u2014 motivo`, 170);
   await backfillTodayDisplayRefs(env, now);
-  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, s.screen, "Pantalla sin se\xF1al de emisi\xF3n", loc, s.role || "", "open", "urgente", tech.name, s.source || "agent-iot", triage, now, now).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, s.screen, "Pantalla sin se\xF1al de emisi\xF3n", loc, s.role || "", "open", "urgente", tech.name, s.source || "agent-iot", triage, project ? project.id : null, project ? project.id : null, now, now).run();
   await ensureEntityDisplayRef(env, "mission", id, now);
   await addEvent(env, id, "log", "Agente IoT", "Incidencia detectada autom\xE1ticamente: pantalla sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo).");
   await addEvent(env, id, "assign", "IA", `Auto-asignado a ${tech.name} (${tech.zone} \xB7 ${tech.skills}) por skills y zona.`);
@@ -6261,11 +6266,21 @@ async function createIncident(env, inc) {
   if (!resource) return null;
   const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(resource).first();
   if (existing) return existing.id;   // ya hay una abierta para este recurso
-  const projectContext = await resolveCreationProject(env, {
-    project_id:inc && inc.project_id, decision_id:inc && inc.decision_id,
-    batch_id:inc && inc.batch_id, parent_id:inc && inc.parent_id,
-    agent:inc && (inc.agent || inc.assignee), machine:inc && inc.machine
-  });
+  // Proyecto = establecimiento (FLT-101292): sin project_id explícito, una incidencia
+  // que trae establecimiento (loc / loc_name) cuelga del proyecto de ese establecimiento
+  // en vez de caer al default de la flota. Con project_id explícito (o una relación
+  // estructurada: decisión, tanda o misión madre) manda esa relación.
+  const explicitProject = inc && ["project_id", "decision_id", "batch_id", "parent_id"]
+    .some((k) => String(inc[k] || "").trim());
+  const establishment = !explicitProject && inc && (inc.loc || inc.loc_name || inc.locName)
+    ? await ensureEstablishmentProject(env, inc.loc || "", inc.loc_name || inc.locName || "") : null;
+  const projectContext = establishment
+    ? { ok:true, project_id:establishment.id, project:establishment.name }
+    : await resolveCreationProject(env, {
+      project_id:inc && inc.project_id, decision_id:inc && inc.decision_id,
+      batch_id:inc && inc.batch_id, parent_id:inc && inc.parent_id,
+      agent:inc && (inc.agent || inc.assignee), machine:inc && inc.machine
+    });
   if (!projectContext.ok) {
     const error = new Error(projectContext.error);
     error.status = projectContext.status; error.code = projectContext.code;
@@ -6431,7 +6446,7 @@ async function reconcile(env) {
     if (!isMonitoredScreen(s)) continue;   // sesiones del gemelo, no pantallas
     const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(s.screen).first();
     if (!s.online) {
-      if (!open) await createTicket(env, { screen: s.screen, loc: s.locName || s.loc || "", role: s.role, age: s.age_seconds });
+      if (!open) await createTicket(env, { screen: s.screen, loc: s.locName || s.loc || "", loc_id: s.loc || "", loc_name: s.locName || "", role: s.role, age: s.age_seconds });
       else if (await lastEventKind(env, open.id) === "recover") {
         // Recaída dentro de la ventana de cierre: se anota y el contador vuelve a cero.
         await env.DB.prepare("UPDATE tickets SET updated_at=? WHERE id=?").bind(now, open.id).run();
@@ -6462,6 +6477,7 @@ __name(reconcile, "reconcile");
 // caben, van ordenadas primero) y se acepta ?limit (cap 1000) y ?offset para paginar.
 function pageLimit(v) { const n = parseInt(v, 10); return n > 0 ? Math.min(1000, n) : 300; }
 function pageOffset(v) { const n = parseInt(v, 10); return n > 0 ? n : 0; }
+var TICKET_STATUSES = ["open", "in_progress", "resolved", "cancelled"];
 function ticketUniverseWhere(scope, filters = {}) {
   const clauses = [], binds = [];
   if (scope === "fleet") clauses.push(MISSION_SCOPE_SQL_T);
@@ -6494,8 +6510,13 @@ function ticketUniverseWhere(scope, filters = {}) {
     "(CASE WHEN COALESCE(t.resolved_at,t.updated_at)<4102444800 THEN COALESCE(t.resolved_at,t.updated_at)*1000 " +
     "ELSE COALESCE(t.resolved_at,t.updated_at) END) >= ?))");
   if (soloVivas) binds.push(Date.now() - 3 * 3600 * 1000);
+  // FLT-101292 · estados explícitos (?status=resolved,cancelled): /incidencias pide
+  // las cerradas SÓLO bajo demanda («Ver resueltas») sin bajarse el historial entero.
+  const statusList = [...new Set(String(filters.status || "").split(",").map((x) => x.trim()).filter(Boolean))];
+  if (statusList.some((x) => !TICKET_STATUSES.includes(x))) return { ok:false, error:"status debe ser una lista de " + TICKET_STATUSES.join("|") };
+  if (statusList.length) { clauses.push("t.status IN (" + statusList.map(() => "?").join(",") + ")"); binds.push(...statusList); }
   return { ok:true, sql:clauses.length ? "WHERE " + clauses.join(" AND ") : "", binds,
-    day:filters.day || null, project_id:projectId || null, soloVivas,
+    day:filters.day || null, project_id:projectId || null, soloVivas, status:statusList.join(",") || null,
     // El mismo universo SIN el recorte de estado, para poder contar lo cerrado
     // sin traérselo. Sin esto, pedir solo lo vivo dejaría los KPIs de
     // «Finalizada» y «Eliminada» a cero, que es peor que tardar.
@@ -6562,7 +6583,7 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
   return { ok:true, rows, visible_counts, universe:{
     scope, day:universe.day, project_id:universe.project_id, limit:take, offset:skip,
     returned:rows.length, total, has_more:skip + rows.length < total,
-    state:universe.soloVivas ? "vivas" : "todas",
+    state:universe.soloVivas ? "vivas" : "todas", status:universe.status || null,
     state_semantics:"visible-v1", source_semantics:"mission-role-or-agent-source-v1",
     duplicate_semantics:"mission-duplicates-v1", duplicate_scope:"response-page"
   }};
@@ -12513,10 +12534,17 @@ var worker_app = {
         const scope = url.searchParams.get("scope") || "campo";
         // La bandeja de campo reconcilia pantallas; la de flota se nutre del sync
         // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
-        if (scope !== "fleet") await reconcile(env);
+        // FLT-101292 · en 2º plano: el reconcile (fetch del censo + IA por cada caída
+        // nueva) bloqueaba la respuesta y /incidencias tardaba segundos en pintar.
+        // La lista sale con lo que ya hay en D1; lo que abra este reconcile llega en
+        // el siguiente refresco (12 s). Sin ctx (pruebas, llamadas internas), síncrono.
+        if (scope !== "fleet") {
+          if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(reconcile(env).catch(() => {}));
+          else await reconcile(env);
+        }
         const limit = url.searchParams.get("limit"), offset = url.searchParams.get("offset");
         const filters = { day:url.searchParams.get("day") || "", project_id:url.searchParams.get("project_id") || "",
-          state:url.searchParams.get("state") || "" };
+          state:url.searchParams.get("state") || "", status:url.searchParams.get("status") || "" };
         const page = await listTickets(env, scope, limit, offset, filters);
         if (!page.ok) return json({ error:page.error }, 400);
         const legacyStats = await stats(env, scope, filters);
@@ -12605,12 +12633,14 @@ var worker_app = {
         const now = Date.now();
         const resolvedAt = status === "resolved" ? now : null;
         const author = String(b.author || "Misiones (bloque)").slice(0, 40);
+        // Nota opcional (FLT-101292): el motivo del cierre en bloque queda en CADA ficha.
+        const note = String(b.note || "").trim().slice(0, 300);
         const fleetInboxIds = [];
         const targetBatches = [];
         let updated = 0;
         for (const id of ids) {
           await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(status, now, resolvedAt, id).run();
-          await addEvent(env, id, "status", author, `Estado → ${status} (cambio en bloque)`);
+          await addEvent(env, id, "status", author, `Estado → ${status} (cambio en bloque)` + (note ? " · " + note : ""));
           // La vía WEB sigue el MISMO criterio que la de agente (FLT-989 b2): al finalizar,
           // la prueba de respaldo asciende por el punto único (arriba ya se exigió, con
           // hasMissionProof, que la haya). Si no, la ficha saldría con el logotipo.
@@ -14434,14 +14464,16 @@ Todo en español.`;
     if (url.pathname === "/ticket/simulate" && req.method === "POST") {
       try {
         await ensureSchema(env);
-        let screen, loc = "", role = "", age = 300;
+        let screen, loc = "", locId = "", locName = "", role = "", age = 300;
         try {
           const r = await fetch("https://api.admira.store/signage/screens");
           const d = await r.json();
-          const s = (d.screens || []).find((x) => x.online);
+          const s = (d.screens || []).find((x) => x.online && isMonitoredScreen(x));
           if (s) {
             screen = s.screen;
             loc = s.locName || s.loc || "";
+            locId = s.loc || "";
+            locName = s.locName || "";
             role = s.role || "";
           }
         } catch (e) {
@@ -14452,7 +14484,9 @@ Todo en español.`;
           loc = c[Math.floor(Math.random() * c.length)];
           role = "DOOH";
         }
-        const id = await createTicket(env, { screen, loc, role, age, source: "agent-iot" });
+        // La pantalla demo inventada no tiene establecimiento real: sin proyecto.
+        const id = await createTicket(env, { screen, loc, loc_id: locId, loc_name: locName, role, age, source: "agent-iot",
+          establishment: !screen.startsWith("demo-") });
         return json({ ok: true, id });
       } catch (e) {
         return json({ error: String(e) }, 500);

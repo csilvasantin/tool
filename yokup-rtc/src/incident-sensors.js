@@ -1,4 +1,5 @@
 import { machineIdentityKey, sameAgentFamily, scopedAgentIdentity } from './agent-identity.js';
+import { isMonitoredScreen } from './incident-status.js';
 // FLT-100941 (#4210): detección y clasificación; el despacho/cierre pertenece al Desk.
 export const SENSOR_VERSION = 'incident-sensors-v1';
 export const AGENT_OFFLINE_MS = 20 * 60000;
@@ -17,9 +18,11 @@ export function playerSignals(data,now=Date.now()) {
   if (!data || !Array.isArray(data.screens)) throw new Error('players_telemetry_invalid');
   const fetched=ms(data.fetched_at);
   if (!fetched || now-fetched>5*60000 || fetched>now+60000) throw new Error('players_telemetry_stale');
-  return data.screens.filter(s=>s.screen && s.online===false && Number(s.age_seconds)>=300).map(s=>({
+  // Misma regla que el reconcile: las sesiones del gemelo (role xtore-game) no son
+  // pantallas; sin este filtro el sensor reabría las xtore-* recién cerradas.
+  return data.screens.filter(s=>isMonitoredScreen(s) && s.online===false && Number(s.age_seconds)>=300).map(s=>({
     sensor:'player',resource:String(s.screen),subject:'Pantalla sin señal de emisión',
-    loc:s.locName || s.loc || '',age:s.age_seconds,
+    loc:s.locName || s.loc || '',locId:s.loc || '',locName:s.locName || '',role:s.role || '',age:s.age_seconds,
     latitude:s.latitude ?? s.lat ?? s.location?.latitude,
     longitude:s.longitude ?? s.lng ?? s.location?.longitude,
     detail:`Player ${s.screen}: ${s.age_seconds} segundos sin señal de emisión.`
@@ -98,7 +101,7 @@ export async function runIncidentSensors(env,adapters,now=Date.now()) {
     const response=await (adapters.fetch||fetch)('https://api.admira.store/signage/screens',{signal:AbortSignal.timeout(10000),cf:{cacheTtl:0}});
     if (!response.ok) throw new Error('players_telemetry_unavailable');
     for (const signal of playerSignals(await response.json(),now)) {
-      const id=await adapters.createPlayer({screen:signal.resource,loc:signal.loc,age:signal.age});
+      const id=await adapters.createPlayer({screen:signal.resource,loc:signal.loc,loc_id:signal.locId,loc_name:signal.locName,role:signal.role,age:signal.age});
       await queueSignal(env,id,signal,now); result.players++;
     }
   } catch(error) { result.errors.push(String(error.message)); }

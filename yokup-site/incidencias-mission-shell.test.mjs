@@ -25,7 +25,10 @@ test("el renderer reutiliza infraestructura compartida sin adoptar rowHtml de mi
 });
 
 test("scope global es campo y el proyecto se aplica por id exacto", () => {
-  assert.match(html, /\/tickets\?scope=campo&limit=500/);
+  // FLT-101292 · sólo vivas en la carga y el refresco; las cerradas bajo demanda.
+  assert.match(html, /\/tickets\?scope=campo&state=vivas&limit=1000/);
+  assert.match(html, /\/tickets\?scope=campo&status=resolved,cancelled&limit=300/);
+  assert.doesNotMatch(html, /\/tickets\?scope=campo&limit=500/);
   assert.match(html, /all\.filter\(t=>String\(t\.project\|\|""\)===PROJECT_SCOPE\)/);
   assert.match(html, /window\.addEventListener\("yk:project-change"/);
   assert.doesNotMatch(html, /subject[^\n]+includes\(PROJECT_SCOPE\)/);
@@ -77,9 +80,17 @@ test("los controles y el detalle exponen semántica accesible", () => {
   assert.match(html, /@media\(prefers-reduced-motion:reduce\)/);
 });
 
-test("el primer fetch y yk_seen esperan el scope canónico incluso en Todos", () => {
+test("la precarga no espera al scope; yk_seen y los avisos sí lo esperan", () => {
   assert.match(html, /SCOPE_READY=false/);
-  assert.match(html, /async function load\(\)\{\s*if\(!SCOPE_READY\)return;/);
+  // La petición sale en el <head>, justo tras acceso.js (fetch con sesión) y antes del marco.
+  const head = html.slice(0, html.indexOf("</head>"));
+  assert.ok(head.indexOf("/acceso.js") < head.indexOf("window.__ykIncPrefetch="), "la precarga va tras acceso.js");
+  assert.match(head, /window\.__ykIncPrefetch=[\s\S]*fetch\("https:\/\/api\.yokup\.com\/tickets\?scope=campo&state=vivas&limit=1000"/);
+  assert.doesNotMatch(html, /async function load\(\)\{\s*if\(!SCOPE_READY\)return;/);
+  assert.match(html, /let PREFETCH=window\.__ykIncPrefetch\|\|null/);
+  assert.match(html, /aplicaFiltro\("activas"\); load\(\); setInterval\(load,12000\);/);
+  assert.match(html, /if\(SCOPE_READY\)\{\s*tks\.filter\(t=>t\.status==="open"&&!seen\.has\(t\.id\)\)/);
+  assert.match(html, /return SCOPE_READY&&PROJECT_SCOPE\?all\.filter/);
   assert.match(html, /yk_seen:"\+\(PROJECT_SCOPE\|\|"todos"\)/);
   assert.match(html, /window\.addEventListener\("yk:project-change"[\s\S]*SCOPE_READY=true;[\s\S]*seen=new Set/);
   assert.doesNotMatch(html, /new Set\(JSON\.parse\(localStorage\.getItem\("yk_seen"\)/);
@@ -111,4 +122,36 @@ test("el alta nace con proyecto atómico y reintenta con recurso estable", () =>
   assert.match(html, /project_id:PROJECT_SCOPE/);
   assert.match(html, /writePendingCreate\(null\);\$\("newSubject"\)\.value=""/);
   assert.doesNotMatch(html, /resource="manual:"\+kind\+":"\+Date\.now\(\)/);
+});
+
+test("filas esqueleto mientras carga, no un «Cargando…» plano", () => {
+  assert.match(html, /<div class="list" id="list" aria-live="polite" aria-busy="true">[\s\S]*?class="tk inc-skel" aria-hidden="true"/);
+  assert.doesNotMatch(html, /<div class="empty">Cargando incidencias…<\/div>/);
+  assert.match(html, /function skeleton\(el,n\)\{/);
+  assert.match(html, /\.inc-skel i\{[^}]*animation:inc-shimmer/);
+  assert.match(html, /@media\(prefers-reduced-motion:reduce\)\{[^\n]*\.inc-skel i\{animation:none\}/);
+});
+
+test("«Ver resueltas» carga las cerradas bajo demanda y el refresco sólo pide vivas", () => {
+  assert.match(html, /id="verResueltas" type="button"/);
+  assert.match(html, /\$\("verResueltas"\)\.onclick=\(\)=>aplicaFiltro\("resolved"\)/);
+  assert.match(html, /const wantsClosed=FILTER==="resolved"\|\|FILTER==="todas"/);
+  assert.match(html, /CLOSED_LOADING=fetchTickets\(TICKETS_CLOSED\)/);
+  // El refresco periódico usa load(), que sólo pide TICKETS_LIVE.
+  const load = html.slice(html.indexOf("async function load(){"), html.indexOf("function loadClosed("));
+  assert.match(load, /fetchTickets\(TICKETS_LIVE\)/);
+  assert.doesNotMatch(load, /TICKETS_CLOSED/);
+});
+
+test("«Cerrar todas las abiertas» sólo para superusuario, con confirmación, lotes y nota", () => {
+  assert.match(html, /id="closeAllBtn" type="button" hidden/);
+  assert.match(html, /ACCESS\.capabilities\.supervisor_project_switch===true/);
+  assert.match(html, /btn\.hidden=!isSuperuser\(\)/);
+  assert.match(html, /btn\.textContent="Cerrar todas las abiertas \("\+n\+"\)"/);
+  assert.match(html, /if\(!confirm\(text\)\)return;/);
+  assert.match(html, /Por origen:[\s\S]*Por equipo:/);
+  assert.match(html, /const CLOSE_ALL_BATCH=100;/);
+  assert.match(html, /fetch\(WORKER\+"\/tickets\/status",\{method:"POST"[^\n]*ids:lote,status:"cancelled",author,note:CLOSE_ALL_NOTE/);
+  assert.match(html, /CLOSE_ALL_NOTE="Cierre en bloque para probar de cero \(Carlos, 30-sep-2026\)"/);
+  assert.match(html, /t\.status==="open"\|\|t\.status==="in_progress"/);
 });

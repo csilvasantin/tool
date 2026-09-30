@@ -52,3 +52,16 @@ test('identidad de flota normaliza apellido MBP16 y nombre físico del portátil
  const samples=agentSamples(telemetry,[{assignee:'NeoMBP16',loc:'MacBookPro16'}],now);
  assert.equal(samples.length,1);assert.equal(samples[0].healthy,true);
 });
+test('las sesiones del gemelo (role xtore-game) no abren incidencias en el sensor; el resto pasa el establecimiento',async()=>{
+ const screens=[{screen:'xtore-ncsar4',role:'xtore-game',online:false,age_seconds:900,loc:'alsea-sbux-021',locName:'Starbucks Paseo de Gracia'},
+  {screen:'sbux-021-menu',role:'menu',online:false,age_seconds:900,loc:'alsea-sbux-021',locName:'Starbucks Paseo de Gracia',latitude:41.39,longitude:2.16}];
+ const signals=playerSignals({fetched_at:now,screens},now);
+ assert.deepEqual(signals.map(s=>s.resource),['sbux-021-menu']);
+ assert.equal(signals[0].locId,'alsea-sbux-021');assert.equal(signals[0].locName,'Starbucks Paseo de Gracia');
+ const env={DB:DB(),ADMIRA_TELEGRAM_PANEL_KEY:'test'};const created=[];
+ env.INCIDENT_DESK={fetch:async req=>{const p=await req.json();return Response.json({ok:true,id:'desk:'+p.external_id,channel:p.channel})}};
+ const adapters={fetch:async()=>Response.json({fetched_at:now,screens}),createPlayer:async s=>{created.push(s);env.DB.db.exec("INSERT OR IGNORE INTO tickets(id,status) VALUES('S','open')");return 'S'},createAgent:async()=>'A',recoverAgent:async()=>{}};
+ const result=await runIncidentSensors(env,adapters,now);
+ assert.equal(result.players,1);
+ assert.deepEqual(created,[{screen:'sbux-021-menu',loc:'Starbucks Paseo de Gracia',loc_id:'alsea-sbux-021',loc_name:'Starbucks Paseo de Gracia',role:'menu',age:900}]);
+});
