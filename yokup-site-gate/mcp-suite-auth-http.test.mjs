@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
-import {handleMcp,hash,TOOLS} from './src/mcp.js';
+import {handleMcp,hash,TOOLS,FLEET_SCOPES} from './src/mcp.js';
 
 const individualToken='ykm_'+'I'.repeat(43);
+const legacyToken='ykm_'+'L'.repeat(43);
 const fleetSeed='flt-2143-independent-fleet-seed';
 const encoder=new TextEncoder();
 
@@ -19,7 +20,10 @@ async function fixture(){
   const db=new DatabaseSync(':memory:');
   db.exec(await readFile(new URL('./migrations/0001_mcp.sql',import.meta.url),'utf8'));
   await db.prepare('INSERT INTO yokup_mcp_credentials VALUES(?,?,?,?,?,?,?,NULL)')
-    .run(await hash(individualToken),'OraculoMacMini','MacMini','["yokup"]','["read","inbox","send","work"]',1,Date.now()+60000);
+    .run(await hash(individualToken),'OraculoMacMini','MacMini','["yokup"]',JSON.stringify(FLEET_SCOPES),1,Date.now()+60000);
+  // Credencial emitida como hasta ahora (sin incidencias): no ve ni puede llamar esas herramientas.
+  await db.prepare('INSERT INTO yokup_mcp_credentials VALUES(?,?,?,?,?,?,?,NULL)')
+    .run(await hash(legacyToken),'OraculoMacMini','MacMini','["yokup"]','["read","inbox","send","work"]',1,Date.now()+60000);
   const dbCalls=[],serviceCalls=[];
   const stmt=(sql,args=[])=>({
     bind:(...values)=>stmt(sql,values),
@@ -79,7 +83,7 @@ test('cliente JSON-RPC HTTP acepta credencial individual y clave común persona-
     assert.equal(listed.status,200);assert.deepEqual(listed.json.result.tools.map(tool=>tool.name),TOOLS.map(tool=>tool.name));
     const who=await rpc(f.endpoint,token,'tools/call',3,{name:'yokup_whoami',arguments:{}});
     assert.equal(who.status,200);assert.deepEqual(result(who),{
-      actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:['read','inbox','send','work'],expires_at:label==='individual'?result(who).expires_at:null
+      actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:[...FLEET_SCOPES],expires_at:label==='individual'?result(who).expires_at:null
     });
     assertNoCredentialLeak([init.text,listed.text,who.text],cases.map(([,secret])=>secret));
   }
@@ -100,4 +104,19 @@ test('cliente JSON-RPC HTTP rechaza credencial ausente o incorrecta sin filtrar 
   }
   assert.equal(f.serviceCalls.length,0,'una clave desconocida no llega al censo ni amplía su superficie de lectura');
   assertNoCredentialLeak({dbCalls:f.dbCalls,serviceCalls:f.serviceCalls,access:f.access},[individualToken,fleetSeed,wrong]);
+});
+
+test('cliente JSON-RPC HTTP: una ykm_ sin scope de incidencias no las lista ni las ejecuta; la clave de flota sí', async(t)=>{
+  const f=await fixture();t.after(()=>f.server.close());
+  const incidentTools=TOOLS.filter(tool=>tool.scope.startsWith('incidents')).map(tool=>tool.name);
+  assert.equal(incidentTools.length,6);
+  const legacy=await rpc(f.endpoint,legacyToken,'tools/list',1);
+  assert.ok(incidentTools.every(name=>!legacy.json.result.tools.some(tool=>tool.name===name)));
+  for(const [name,args] of [['yokup_incidents_list',{}],['yokup_incidents_close_bulk',{ids:['INC-1'],status:'resolved',note:'x'}]]){
+    const denied=await rpc(f.endpoint,legacyToken,'tools/call',2,{name,arguments:args});
+    assert.equal(denied.status,200);assert.equal(denied.json.error.code,-32602);assert.match(denied.json.error.message,/unauthorized/);
+  }
+  assert.ok(!f.serviceCalls.some(call=>call.path.startsWith('/internal/')),'una denegación no llega a yokup-rtc');
+  const fleet=await rpc(f.endpoint,await fleetKey(fleetSeed,'Oraculo','MacMini'),'tools/list',3);
+  assert.ok(incidentTools.every(name=>fleet.json.result.tools.some(tool=>tool.name===name)));
 });

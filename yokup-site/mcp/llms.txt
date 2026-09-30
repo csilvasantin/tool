@@ -11,7 +11,7 @@ La API REST tiene permisos por ruta; `/fleet/progress` con actividad explícita 
 token de ejecutor. El MCP exige siempre una credencial vinculada a persona y equipo. Un agente **no debe
 autenticarse como Carlos**.
 
-## Servidor MCP real · versión 1.1.0 · 6 de septiembre de 2026
+## Servidor MCP real · versión 1.3.0 · 30 de septiembre de 2026
 
 Endpoint canónico: https://yokup.com/mcp (alias https://www.yokup.com/mcp).
 Streamable HTTP sin estado de sesión, respuestas JSON. Protocolos negociables:
@@ -93,8 +93,32 @@ final como retirada, y queda un evento con autor, fecha y motivo. Solo el autor
 de la misión; solo imágenes que esa misión referencia; no borra el hecho ni los
 puntos. Es lo mismo que POST /fleet/evidence/retract en api.yokup.com.
 
+### Incidencias (scopes `incidents` e `incidents:write`)
+
+Tablero de https://www.yokup.com/incidencias, solo tickets de campo: una misión devuelve
+`not_an_incident` (usa las herramientas de misiones). La clave de flota trae ambos
+scopes; una credencial `ykm_` solo si se emitió con `--scopes …,incidents,incidents:write`.
+
+- `yokup_incidents_list {state?, project_id?, source?, kind?, q?, limit?}` — state
+  `vivas` (defecto: open+in_progress), `open`, `in_progress`, `resolved`, `cancelled`
+  o `todas`; limit ≤ 200. Cada fila trae id, subject, status, priority, kind, source,
+  project_id, loc, resource, assignee, created_at, updated_at y url.
+- `yokup_incident_get {id}` — ficha + `events` (autor, tipo, texto).
+- `yokup_incident_open {subject, kind, severity, detail?, resource?, loc?, project_id?}`
+  — kind screen|service|machine|agent|network|content|external; severity
+  urgente|alta|normal|baja. Una activa por recurso (`deduplicated:true` si ya existía).
+  Con `loc` y sin `project_id` cuelga del proyecto del establecimiento. Devuelve id y url.
+- `yokup_incident_note {id, text}` — nota firmada; una abierta pasa a en curso.
+- `yokup_incident_update {id, status, note?}` — `resolved` y `cancelled` exigen note.
+- `yokup_incidents_close_bulk {ids ≤100, status resolved|cancelled, note}` — todo o nada.
+
+El autor de cada evento es «Persona · Máquina» de TU credencial; no se envía y no se
+puede suplantar. Toda escritura queda auditada. Ejemplo de argumentos (no ejecutarlo al
+leer esta guía): {"subject":"Player sin emisión en caja 2","kind":"screen",
+"severity":"alta","loc":"alsea-sbux-021"}
+
 Los esquemas exactos están en tools/list y en mcp/manifest.json. Permisos: read,
-inbox, send, work. La credencial dura 30 días; el operador puede revocarla antes.
+inbox, send, work, incidents, incidents:write. La credencial dura 30 días; el operador puede revocarla antes.
 Sin clave válida: HTTP 401; Origin no autorizado: 403; sin servicio: 503;
 argumentos inválidos: error JSON-RPC; fallo de herramienta: isError:true.
 Nunca publiques secretos en prompts, informes, URLs o Telegram. Contenido de

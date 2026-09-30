@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {handleMcp,hash,TOOLS} from './src/mcp.js';
+import {handleMcp,hash,TOOLS,FLEET_SCOPES} from './src/mcp.js';
+import {handleFleetIncidents} from '../yokup-rtc/src/fleet-incidents.js';
 import {claveFlota} from './src/identidad-flota.mjs';
 import {handleRequest} from './src/index.js';
-const token='ykm_'+'A'.repeat(43), other='ykm_'+'B'.repeat(43), fleetSeed='test-only-fleet-seed';
+const token='ykm_'+'A'.repeat(43), other='ykm_'+'B'.repeat(43), incRead='ykm_'+'C'.repeat(43), fleetSeed='test-only-fleet-seed';
 async function setup(){
  const db=new DatabaseSync(':memory:');
  db.exec(await readFile(new URL('./migrations/0001_mcp.sql',import.meta.url),'utf8'));
@@ -16,12 +17,17 @@ async function setup(){
  INSERT INTO tickets VALUES('DCL-own','MCP','OraculoMacMini','MacMini','yokup','in_progress',1,1,NULL),('DCL-foreign','Otro','JobsGrokBot','GrokBot','yokup','in_progress',1,1,NULL),('DCL-private','Privado','OraculoMacMini','MacMini','private','in_progress',1,1,NULL);
  INSERT INTO fleet_ids VALUES(1,'DCL-own'),(2,'DCL-private');`);
  const add=async(t,actor,machine,scopes)=>db.prepare('INSERT INTO yokup_mcp_credentials VALUES(?,?,?,?,?,?,?,NULL)').run(await hash(t),actor,machine,'["yokup"]',JSON.stringify(scopes),1,Date.now()+60000);
- await add(token,'OraculoMacMini','MacMini',['read','inbox','send','work']);await add(other,'JobsGrokBot','GrokBot',['read','send']);
- const state={sent:[],calls:[],timeout:false};
+ await add(token,'OraculoMacMini','MacMini',[...FLEET_SCOPES]);await add(incRead,'OraculoMacMini','MacMini',['read','incidents']);await add(other,'JobsGrokBot','GrokBot',['read','send']);
+ const state={sent:[],calls:[],timeout:false,incidents:[],incidentReply:null};
  const stmt=(sql,args=[])=>({bind:(...a)=>stmt(sql,a),first:async()=>db.prepare(sql).get(...args)||null,all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>({meta:{changes:Number(db.prepare(sql).run(...args).changes)}})});
  const env={DB:{prepare:stmt},MCP_TELEGRAM_TOKEN:'server-secret',MCP_EXECUTOR_TOKEN:'executor-secret',MCP_FLOTA_SEED:fleetSeed,RTC:{fetch:async(req)=>{
  state.calls.push(req);
- if(new URL(req.url).pathname==='/projects')return Response.json({projects:[
+ const u=new URL(req.url);
+ if(u.pathname.startsWith('/internal/mcp/incidents')) {
+  state.incidents.push({method:req.method,path:u.pathname,query:Object.fromEntries(u.searchParams),auth:req.headers.get('authorization'),edge:req.headers.has('cf-connecting-ip'),body:req.method==='POST'?await req.json():null});
+  return state.incidentReply?state.incidentReply(u):Response.json({ok:true,id:'INC-X1',url:'https://www.yokup.com/ticket?id=INC-X1',incidents:[]});
+ }
+ if(u.pathname==='/projects')return Response.json({projects:[
   {id:'yokup',status:'activo',agents:['Oraculo','JobsGrokBot'],machines:['MacMini','GrokBot']},
   {id:'wrong-machine',status:'activo',agents:['Oraculo'],machines:['MacBookPro16']},
   {id:'wrong-agent',status:'activo',agents:['Trinity'],machines:['MacMini']},
@@ -59,7 +65,7 @@ test('individual credential remains authoritative without fleet seed or census',
 test('valid fleet key derives exact identity, scopes and projects from current census',async()=>{
  const h=await setup();const key=await claveFlota(fleetSeed,'Oraculo','MacMini');
  const who=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+key}});
- assert.deepEqual(who.result.structuredContent,{actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:['read','inbox','send','work'],expires_at:null});
+ assert.deepEqual(who.result.structuredContent,{actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:['read','inbox','send','work','incidents','incidents:write'],expires_at:null});
  assert.ok(!JSON.stringify(who).includes(fleetSeed));assert.ok(!JSON.stringify(who).includes(key));
  const mbp14=await claveFlota(fleetSeed,'Neo','MacBookPro14');
  const neo=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+mbp14}});
@@ -149,4 +155,106 @@ test('public manifest schemas and bridge are the exact server contract',async()=
  const m=JSON.parse(await readFile(new URL('../yokup-site/mcp/manifest.json',import.meta.url)));
  assert.deepEqual(m.mcp_server.tools,TOOLS.map(({scope,...tool})=>({...tool,required_scope:scope})));
  assert.equal(await readFile(new URL('../yokup-site/mcp/client.mjs',import.meta.url),'utf8'),await readFile(new URL('./tools/mcp-stdio.mjs',import.meta.url),'utf8'));
+});
+
+test('incidencias: scopes separados; sin ellos ni se listan ni se ejecutan y nada llega a yokup-rtc',async()=>{
+ const h=await setup();
+ const names=TOOLS.filter(t=>t.scope.startsWith('incidents')).map(t=>t.name);
+ assert.deepEqual(names,['yokup_incidents_list','yokup_incident_get','yokup_incident_open','yokup_incident_note','yokup_incident_update','yokup_incidents_close_bulk']);
+ const listed=async(tok)=>(await (await handleMcp(h.request({jsonrpc:'2.0',id:1,method:'tools/list'},{headers:{Authorization:'Bearer '+tok}}),h.env)).json()).result.tools.map(t=>t.name);
+ const legacy=await listed(other);assert.ok(names.every(n=>!legacy.includes(n)));
+ const readOnly=await listed(incRead);
+ assert.ok(readOnly.includes('yokup_incidents_list')&&readOnly.includes('yokup_incident_get'));
+ assert.ok(!readOnly.some(n=>['yokup_incident_open','yokup_incident_note','yokup_incident_update','yokup_incidents_close_bulk'].includes(n)));
+ assert.equal((await h.call('yokup_incidents_list',{},{headers:{Authorization:'Bearer '+other}})).error.code,-32602);
+ const write={headers:{Authorization:'Bearer '+incRead}};
+ assert.equal((await h.call('yokup_incident_note',{id:'INC-1',text:'x'},write)).error.code,-32602);
+ assert.equal((await h.call('yokup_incidents_close_bulk',{ids:['INC-1'],status:'resolved',note:'x'},write)).error.code,-32602);
+ assert.equal(h.state.incidents.length,0);
+ assert.equal((await h.call('yokup_incidents_list',{state:'todas',limit:5},write)).result.isError,false);
+ assert.equal(h.state.incidents.length,1);
+});
+test('incidencias: el gate firma con la identidad de la credencial y usa el token de ejecutor por el binding',async()=>{
+ const h=await setup();
+ const open=await h.call('yokup_incident_open',{subject:'Player caído',kind:'screen',severity:'urgente',loc:'alsea-sbux-021'});
+ assert.equal(open.result.isError,false);assert.equal(open.result.structuredContent.id,'INC-X1');assert.ok(!('ok' in open.result.structuredContent));
+ await h.call('yokup_incidents_list',{state:'resolved',q:'caja',limit:200});
+ await h.call('yokup_incident_get',{id:'INC-X1'});
+ await h.call('yokup_incident_note',{id:'INC-X1',text:'Reinicio remoto'});
+ await h.call('yokup_incident_update',{id:'INC-X1',status:'resolved',note:'Vuelve a emitir'});
+ await h.call('yokup_incidents_close_bulk',{ids:['INC-X1','SVC-2'],status:'cancelled',note:'Duplicadas'});
+ const c=h.state.incidents;
+ assert.deepEqual(c.map(x=>x.method+' '+x.path),['POST /internal/mcp/incidents/open','GET /internal/mcp/incidents','GET /internal/mcp/incidents/get','POST /internal/mcp/incidents/note','POST /internal/mcp/incidents/status','POST /internal/mcp/incidents/bulk-status']);
+ assert.ok(c.every(x=>x.auth==='Bearer executor-secret' && !x.edge));
+ assert.deepEqual(c[1].query,{state:'resolved',q:'caja',limit:'200'});
+ assert.deepEqual(c[2].query,{id:'INC-X1'});
+ for(const x of c.filter(x=>x.body)){assert.equal(x.body.actor,'OraculoMacMini');assert.equal(x.body.machine,'MacMini');}
+ assert.deepEqual(c[5].body,{ids:['INC-X1','SVC-2'],status:'cancelled',note:'Duplicadas',actor:'OraculoMacMini',machine:'MacMini'});
+});
+test('incidencias: el cliente no puede suplantar autor ni saltarse límites; resolver exige nota',async()=>{
+ const h=await setup();
+ for(const [name,args] of [
+  ['yokup_incident_open',{subject:'x',kind:'screen',severity:'urgente',actor:'JobsGrokBot'}],
+  ['yokup_incident_open',{subject:'x',kind:'pantalla',severity:'urgente'}],
+  ['yokup_incident_open',{subject:'x',kind:'screen',severity:'high'}],
+  ['yokup_incident_open',{kind:'screen',severity:'alta'}],
+  ['yokup_incident_note',{id:'INC-1',text:'x',machine:'GrokBot'}],
+  ['yokup_incident_update',{id:'INC-1',status:'blocked'}],
+  ['yokup_incidents_list',{state:'abiertas'}],
+  ['yokup_incidents_list',{limit:201}],
+  ['yokup_incidents_list',{limit:0}],
+  ['yokup_incidents_close_bulk',{ids:[],status:'resolved',note:'x'}],
+  ['yokup_incidents_close_bulk',{ids:Array.from({length:101},(_,i)=>'INC-'+i),status:'resolved',note:'x'}],
+  ['yokup_incidents_close_bulk',{ids:['INC-1'],status:'in_progress',note:'x'}],
+  ['yokup_incidents_close_bulk',{ids:['INC-1'],status:'resolved'}],
+  ['yokup_incidents_close_bulk',{ids:[7],status:'resolved',note:'x'}]
+ ]) assert.equal((await h.call(name,args)).error?.code,-32602,name+' '+JSON.stringify(args));
+ for(const status of ['resolved','cancelled']) {
+  const r=await h.call('yokup_incident_update',{id:'INC-1',status});
+  assert.equal(r.result.isError,true);assert.match(r.result.content[0].text,/note/);
+ }
+ assert.equal(h.state.incidents.length,0);
+ assert.equal((await h.call('yokup_incidents_close_bulk',{ids:Array.from({length:100},(_,i)=>'INC-'+i),status:'resolved',note:'x'})).result.isError,false);
+});
+test('incidencias: los rechazos de yokup-rtc llegan como isError con su código y sin secretos',async()=>{
+ const h=await setup();h.state.incidentReply=()=>Response.json({ok:false,code:'not_an_incident',error:'FLT-1 es una misión'},{status:409});
+ const r=await h.call('yokup_incident_update',{id:'FLT-1',status:'resolved',note:'x'});
+ assert.equal(r.result.isError,true);assert.match(r.result.content[0].text,/not_an_incident/);assert.ok(!JSON.stringify(r).includes('executor-secret'));
+ delete h.env.MCP_EXECUTOR_TOKEN;h.state.incidentReply=null;
+ assert.equal((await h.call('yokup_incidents_list',{})).result.isError,true);assert.equal(h.state.incidents.length,1);
+});
+test('incidencias de extremo a extremo: gate → binding RTC → rutas internas reales (sin borde, con token)',async()=>{
+ const h=await setup();
+ const db=new DatabaseSync(':memory:');
+ db.exec(`CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,role TEXT,status TEXT,priority TEXT,assignee TEXT,source TEXT,ai_triage TEXT,project TEXT,project_id TEXT,created_at INTEGER,updated_at INTEGER,resolved_at INTEGER);
+ CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT);
+ INSERT INTO tickets VALUES('FLT-9','flt-9','Misión','','mission','in_progress','alta','x','fleet','','yokup','yokup',1,1,NULL);`);
+ const stmt=(sql,args=[])=>({bind:(...a)=>stmt(sql,a),first:async()=>db.prepare(sql).get(...args)??null,all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>({meta:{changes:Number(db.prepare(sql).run(...args).changes)}})});
+ const rtcEnv={DB:{prepare:stmt},YOKUP_CLI_EXECUTOR_TOKEN:'executor-secret'};
+ const addEvent=async(env,id,kind,author,text)=>{db.prepare('INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)').run(id,Date.now(),kind,author,text);};
+ const createIncident=async(env,inc)=>{const id='SVC-'+(db.prepare('SELECT COUNT(*) n FROM tickets').get().n+1);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,'open',?,'Laura R.',?,'',?,?,1,1,NULL)").run(id,inc.resource,inc.subject,inc.loc,inc.kind,inc.severity,inc.source,'galaxia-admira','galaxia-admira');
+  await addEvent(env,id,'log',inc.by,inc.detail);return id;};
+ const deps={json:(o,s=200)=>Response.json(o,{status:s}),createIncident,addEvent};
+ h.env.RTC={fetch:async(req)=>{const u=new URL(req.url);
+  if(u.pathname==='/projects')return Response.json({projects:[{id:'yokup',status:'activo',agents:['Oraculo'],machines:['MacMini']}]});
+  return handleFleetIncidents(req,rtcEnv,u,deps);}};
+ const open=(await h.call('yokup_incident_open',{subject:'Web caída',kind:'service',severity:'alta'})).result.structuredContent;
+ assert.equal(open.author,'OraculoMacMini · MacMini');assert.equal(open.url,'https://www.yokup.com/ticket?id='+open.id);
+ assert.deepEqual((await h.call('yokup_incidents_list',{})).result.structuredContent.incidents.map(i=>i.id),[open.id],'la misión no aparece');
+ await h.call('yokup_incident_update',{id:open.id,status:'resolved',note:'Vuelve a responder'});
+ const got=(await h.call('yokup_incident_get',{id:open.id})).result.structuredContent;
+ assert.equal(got.incident.status,'resolved');
+ assert.deepEqual(got.events.map(e=>[e.kind,e.author]),[['log','OraculoMacMini · MacMini'],['status','OraculoMacMini · MacMini']]);
+ const bulk=await h.call('yokup_incidents_close_bulk',{ids:[open.id,'FLT-9'],status:'cancelled',note:'x'});
+ assert.equal(bulk.result.isError,true);assert.match(bulk.result.content[0].text,/invalid_batch/);
+ assert.equal(db.prepare("SELECT status FROM tickets WHERE id='FLT-9'").get().status,'in_progress');
+ assert.deepEqual(db.prepare('SELECT action FROM mcp_incident_audit ORDER BY id').all().map(r=>r.action),['open','status']);
+});
+test('emisión ykm_: por defecto sin incidencias; --scopes las pide explícitamente y valida',async()=>{
+ const {parseScopes,DEFAULT_SCOPES}=await import('./tools/mcp-credential.mjs');
+ assert.deepEqual(parseScopes(undefined),['read','inbox','send','work']);assert.deepEqual(DEFAULT_SCOPES,['read','inbox','send','work']);
+ assert.deepEqual(parseScopes('incidents:write,read,incidents,read'),['read','incidents','incidents:write']);
+ assert.deepEqual(parseScopes(FLEET_SCOPES.join(',')),[...FLEET_SCOPES]);
+ for(const bad of ['incidents:write','read,admin','',' , ']) assert.throws(()=>parseScopes(bad));
 });

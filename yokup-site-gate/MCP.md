@@ -1,7 +1,7 @@
 # MCP canónico de Yokup
 
-Versión 1.1.0 · 2026-09-06 · InfraOraculoMacMini · Codex APP.
-Misión: FLT-2143.
+Versión 1.3.0 · 2026-09-30 · incidencias (FLT-101298, MorfeoMacMini · MacMini).
+Versión 1.1.0 · 2026-09-06 · InfraOraculoMacMini · Codex APP. Misión: FLT-2143.
 
 - Servidor: https://yokup.com/mcp
 - Ayuda humana: https://www.yokup.com/help#mcp
@@ -82,10 +82,91 @@ Para renovar, emitir otra credencial y probarla, cambiar el archivo del cliente 
 revocar la anterior. Para revocar, ejecutar la sentencia por token_hash que imprime
 el script mediante `wrangler d1 execute --remote --file /ruta/revocacion.sql`.
 El hash identifica la clave sin revelarla. `revoked_at` no debe volver a NULL.
-Para mínimos permisos, ajustar scopes antes de entregar: read, inbox, send, work;
+Para mínimos permisos, ajustar scopes antes de entregar: read, inbox, send, work
+(por defecto) e `incidents` / `incidents:write` solo si se piden con `--scopes`;
 los proyectos se guardan como array JSON de slugs. No ampliar acceso sin autorización.
 Si el alta devuelve error incierto, conservar el archivo y consultar su hash antes
 de reintentar: no perder una clave que quizá ya quedó registrada.
+
+Con incidencias (lectura y escritura), para un agente concreto:
+
+```sh
+node tools/mcp-credential.mjs issue <PersonaMáquina> <Máquina> <proyecto> /ruta/privada/<persona>.json \
+  --scopes read,inbox,send,work,incidents,incidents:write
+```
+
+`--scopes` acepta cualquier subconjunto de `read,inbox,send,work,incidents,incidents:write`;
+`incidents:write` exige también `incidents`. Solo lectura del tablero: `--scopes read,incidents`.
+Las credenciales ya emitidas NO ganan incidencias: hay que emitir otra (o, con autorización,
+actualizar su columna `scopes`).
+
+## Incidencias (1.3.0 · FLT-101298)
+
+Seis herramientas sobre el tablero de https://www.yokup.com/incidencias. Solo tickets de
+CAMPO: una misión de flota (source fleet, decision-batch, cli-declare o role=mission)
+devuelve `not_an_incident`, porque su cierre exige pantallazo, aceptación y
+`/fleet/informe` y este carril no puede servir de atajo.
+
+| Herramienta | Scope | Qué hace |
+|---|---|---|
+| `yokup_incidents_list` | `incidents` | `{state?, project_id?, source?, kind?, q?, limit?}`. state: `vivas` (open+in_progress, defecto), `open`, `in_progress`, `resolved`, `cancelled`, `todas`. limit ≤ 200. Devuelve id, subject, status, priority, kind, source, project_id/project, loc, resource, assignee, created_at, updated_at, url. |
+| `yokup_incident_get` | `incidents` | `{id}` → la ficha + `events` (hasta 200: id, ts, kind, author, text). |
+| `yokup_incident_open` | `incidents:write` | `{subject, kind, severity, detail?, resource?, loc?, project_id?}`. kind: screen, service, machine, agent, network, content, external. severity: urgente, alta, normal, baja. Una activa por recurso: si ya existe, se suma (`deduplicated:true`). Sin `resource`, se deriva `mcp:<kind>:<asunto>`. Con `loc` y sin `project_id`, proyecto del establecimiento (incident-project.js). Devuelve `{id, url}`. source = `mcp`. |
+| `yokup_incident_note` | `incidents:write` | `{id, text}`. Si estaba `open` pasa a `in_progress` (como /ticket/note). |
+| `yokup_incident_update` | `incidents:write` | `{id, status, note?}`; `resolved` y `cancelled` exigen `note`. Evento `Estado → x: nota`. |
+| `yokup_incidents_close_bulk` | `incidents:write` | `{ids[≤100], status: resolved\|cancelled, note}`. Todo o nada: un id inexistente o que sea misión rechaza el lote (`invalid_batch`). |
+
+**Autoría y auditoría.** El autor de cada evento es `Persona · Máquina` de la credencial
+(p. ej. `OraculoMacMini · MacMini`); el cliente no puede enviarlo (el esquema lo rechaza).
+Cada escritura deja además una fila en `mcp_incident_audit` (ts, actor, machine, action,
+ticket_ids, status, detail), creada por yokup-rtc la primera vez que se usa.
+
+**Confianza gate → yokup-rtc.** El gate llama por el service binding `RTC` a
+`/internal/mcp/incidents{,/get,/open,/note,/status,/bulk-status}` con
+`Authorization: Bearer MCP_EXECUTOR_TOKEN`: el MISMO secreto y mecanismo que ya usa
+`yokup_activity` para `/fleet/progress` (en yokup-rtc es `YOKUP_CLI_EXECUTOR_TOKEN`).
+No hay secreto nuevo. Como ese token también lo tienen los ejecutores CLI, yokup-rtc exige
+además que la petición no traiga `CF-Connecting-IP` (la pone el borde de Cloudflare en todo
+tráfico público y no se puede quitar) ni `Origin`: desde Internet, `/internal/...` responde
+**403 internal_only** aunque se presente el token; sin token, 401. Código:
+`yokup-rtc/src/fleet-incidents.js`.
+
+Ejemplos por curl (sustituye `$YOKUP_MCP_KEY` por tu credencial, sin pegarla en logs):
+
+```sh
+H=(-H "Authorization: Bearer $YOKUP_MCP_KEY" -H 'Content-Type: application/json' \
+   -H 'Accept: application/json, text/event-stream' -H 'MCP-Protocol-Version: 2025-11-25')
+
+# Vivas del establecimiento
+curl -s https://yokup.com/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+ "params":{"name":"yokup_incidents_list","arguments":{"state":"vivas","q":"alsea-sbux-021","limit":20}}}'
+
+# Abrir
+curl -s https://yokup.com/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
+ "params":{"name":"yokup_incident_open","arguments":{"subject":"Player sin emisión en caja 2",
+ "kind":"screen","severity":"alta","loc":"alsea-sbux-021","detail":"Pantalla negra desde las 10:05"}}}'
+
+# Nota y cierre
+curl -s https://yokup.com/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":3,"method":"tools/call",
+ "params":{"name":"yokup_incident_note","arguments":{"id":"INC-XXXXXX","text":"Reinicio remoto lanzado"}}}'
+curl -s https://yokup.com/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":4,"method":"tools/call",
+ "params":{"name":"yokup_incident_update","arguments":{"id":"INC-XXXXXX","status":"resolved","note":"Vuelve a emitir"}}}'
+
+# Cierre en bloque (≤100)
+curl -s https://yokup.com/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":5,"method":"tools/call",
+ "params":{"name":"yokup_incidents_close_bulk","arguments":{"ids":["INC-AAAAAA","SVC-BBBBBB"],
+ "status":"cancelled","note":"Duplicadas del monitor"}}}'
+```
+
+Una credencial sin el scope no ve estas herramientas en `tools/list` y `tools/call`
+responde `-32602 Unknown or unauthorized tool` sin llegar a yokup-rtc. Los rechazos de
+yokup-rtc llegan como `isError:true` con su código (`not_found`, `not_an_incident`,
+`note_required`, `invalid_batch`, `resource_is_mission`, `invalid_project_id`).
+
+**Orden de despliegue.** Primero `yokup-rtc/deploy.sh` (rutas internas); después el gate
+(`yokup-site/deploy.mjs` o `yokup-site-gate/deploy.sh`). Al revés, las herramientas
+aparecerían en `tools/list` y fallarían con 404 hasta publicar yokup-rtc. No hace falta
+migración D1 ni secreto nuevo: `MCP_EXECUTOR_TOKEN` ya está instalado en el gate.
 
 ## Conectar y comprobar
 
