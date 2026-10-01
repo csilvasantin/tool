@@ -19,7 +19,7 @@ Un CI (configuration item) es un equipo de `installer_devices` con:
 | Tabla | Qué guarda |
 |---|---|
 | `itil_items` (satélite, PK `device_id`) | `itil_code` (único global), `category`, `role` (uso), `group_name`, `position`, `orientation` (horizontal/vertical), `parent_device_id` (relación «depende de»), `managed_by` (`itil` \| `catalogo`), `created_by`, `updated_by`, `created_at`, `updated_at`. |
-| `device_lifecycle` (ya existía) | Fabricante, modelo, serie, compra, proveedor, factura, garantía, instalación, mantenimiento y estado (operational, degraded, maintenance, planned, retired). |
+| `device_lifecycle` (ya existía) | Fabricante, modelo, serie, compra, proveedor, factura, garantía (inicio, fin y, desde `0021`, `warranty_months`), instalación, mantenimiento y estado (operational, degraded, maintenance, planned, retired). |
 | `itil_audit` | Cada alta, adopción, cambio, retirada y retirada automática del catálogo: actor, canal (`portal`, `mcp-comercio`, `mcp-flota`), código, equipo, establecimiento y detalle. |
 | `itil_read_keys` | Claves de lectura de las soluciones de la Galaxia (solo SHA-256), con orígenes y marcas permitidos. |
 
@@ -195,6 +195,38 @@ Funciones de referencia (puras, con pruebas) en `api/src/itil-model.js`: `toCmdb
   `retailer_device_links.admira_device_id` es ese código, así las incidencias del censo caen en el CI.
 - **Agentes**: MCP de flota (`itil_*`) o MCP del comercio (`itil_*` con token del titular).
 
+## Equipo de la incidencia → ficha de inventario (01-oct-2026)
+
+Carlos: desde el campo **Equipo** de una incidencia de Yokup (p. ej.
+`demo:starbucks-alsea-paseo-de-gracia:tpv:manual:3ec933e9-…`) se ve la ficha del equipo averiado en
+este inventario: modelo, nº de serie, compra, proveedor, garantía (meses, fin e insignia) y estado.
+
+- **Garantía en meses** (`api/migrations/0021_warranty_months.sql`): columna `warranty_months`
+  (1-600, NULL) en `device_lifecycle`. Aditiva. Si falta `warranty_end`, el fin se **calcula**
+  (`warranty_start` o, si falta, `purchase_date` + meses) y la vista lo marca `warranty_until_derived`;
+  nunca se escribe. `lifecycleView` añade `warranty_until`. La insignia: **en garantía** (valid/expiring,
+  «vence pronto» a ≤30 días) · **vencida** · **sin dato**. El barrido diario de avisos sigue leyendo
+  solo `warranty_end`. `itil_ci_upsert`/portal aceptan `lifecycle.warranty_months` (0 por MCP = borrar).
+- **Resolución** (`resolveEquipo`, `api/src/itil.js`) por `GET /internal/itil/equipo?ref=&loc=&code=&portal_incident=`
+  (solo por binding): código ITIL → incidencia del Portal → id del equipo → id del censo
+  (`retailer_device_links.admira_device_id`) → gemelo `demo:<xpacio>:<equipo>` (superficie del Xpacio,
+  id del censo, **nombre igual al del id** —`pantalla-3` → «Pantalla 3»— o **categoría única** activa en ese
+  Xpacio, preferentemente ITIL). Dos o más candidatos =
+  `reason: ambiguo` con la lista; nunca se elige uno al azar. Sin coincidencia: `no_inventariado`
+  (Xpacio conocido), `xpacio_no_encontrado` o `sin_referencia`, con `create` = Xpacio, categoría y
+  nombre sacados del propio id (jamás serie ni fechas). Un equipo sin ficha ITIL = `sin_ficha` (alta por adopción).
+- **Gemelos de XpaceOS**: `XPACEOS_TWIN_ALIASES` (`api/src/itil-model.js`) une el slug del gemelo con su
+  Xpacio real: `starbucks-alsea-paseo-de-gracia` → `alsea-sbux-021` (Starbucks Paseo de Gracia 103).
+  Añadir aquí un gemelo nuevo solo si replica un Xpacio real.
+- **Helpdesk**: `GET https://api.yokup.com/ticket/equipo?id=<ticket>` | `?code=<ITIL>` (yokup-rtc,
+  ruta PROTEGIDA con la sesión Google) llama a lo anterior por el binding `INCIDENT_DESK`.
+- **Web**: `/ticket` (tarjeta Equipo: enlace a la ficha, nº de serie, modelo e insignia; o «No está en el
+  inventario» + «Darlo de alta»), `/equipo-inventario?ticket=|code=` (ficha completa, «sin dato» en lo
+  vacío, imprimible), `/informe-incidencia` (sección «Equipo · inventario ITIL» y línea en el correo) y el
+  Inventario ITIL del portal (`/retailer?xpacio=&itil=<código>#itil` abre esa ficha;
+  `/retailer?itil_alta=1&xpacio=&categoria=&nombre=&adoptar=&incidencia=#itil` abre el alta prefijada).
+  Lógica compartida: `yokup-site/yk-equipo.js`.
+
 ## Orden de despliegue
 
 1. **yokup-api**: `cd api && npx wrangler d1 migrations apply yokup-db --remote` (o
@@ -206,11 +238,16 @@ Funciones de referencia (puras, con pruebas) en `api/src/itil-model.js`: `toCmdb
    `tools/list` y responderían «Yokup rechazó la operación: HTTP 404» hasta publicar yokup-api.
 4. **Claves de lectura** por solución (arriba) y entregarlas por canal privado.
 
-yokup-rtc no cambia. No hay secretos nuevos en los workers.
+Hasta el 01-oct-2026 yokup-rtc no cambiaba. Con la ficha de inventario desde la incidencia:
+1) `cd api && npx wrangler d1 execute yokup-db --remote --file migrations/0021_warranty_months.sql`
+(yokup-db se migra fichero a fichero: su tabla `d1_migrations` está vacía, así que `migrations apply`
+intentaría repetir 0001-0020) y `npx wrangler deploy`;
+2) `cd yokup-rtc && npx wrangler deploy` (ruta `/ticket/equipo`); 3) `yokup-site/deploy.mjs`.
+No hay secretos nuevos en los workers.
 
 ## Pruebas
 
-`node --test api/*.test.mjs` (`api/itil.test.mjs`: sync que no toca ITIL, siembra solo sin ITIL,
+`node --test api/*.test.mjs` (`api/itil-equipo.test.mjs`: garantía en meses y equipo de la incidencia → CI; `api/itil.test.mjs`: sync que no toca ITIL, siembra solo sin ITIL,
 retirada del catálogo al primer CI, upsert idempotente, validación del código, rutas internas,
 lectura sin datos privados, CORS, claves, portal y MCP del comercio, mapeos) ·
 `cd yokup-site-gate && node --test ./*.test.mjs` (`itil.test.mjs`: scopes, esquema, extremo a

@@ -105,6 +105,10 @@ a{color:var(--green)}
 .datum dd{margin-top:3px;font:700 15px/1.35 var(--sans);overflow-wrap:anywhere}
 .datum dd.sub{font:13px/1.4 var(--sans);color:var(--muted)}
 .datum.wide{grid-column:1/-1}
+.datum.inv dd a{color:var(--green);text-decoration:underline;text-underline-offset:2px}
+.datum.inv dd.ko{color:#8f4712}
+.war{display:inline-block;margin-left:4px;padding:2px 8px;border-radius:6px;font:700 11.5px/1.4 var(--sans);background:#eef1ea;color:#53635e;vertical-align:1px}
+.war[data-w="en_garantia"]{background:#e3f1d3;color:#2f5a22}.war[data-w="vencida"]{background:#f9dede;color:#8f2a2a}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;font-weight:600}
 
 /* Resumen IA */
@@ -211,7 +215,7 @@ body.rp-static .stamp{transform:rotate(-8deg)!important}
   .sheet{border:0;border-radius:0;box-shadow:none}
   .rv,.ev,.stamp{opacity:1!important;transform:none!important;animation:none!important}
   .stamp{transform:rotate(-8deg)!important}
-  .hero,.ai,.kpi.hl,.chip,.track .fill,.ev::before,.person .av,.res .tick,.stamp{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .hero,.ai,.kpi.hl,.chip,.war,.track .fill,.ev::before,.person .av,.res .tick,.stamp{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .hero::after{animation:none}
   .hero{padding:24px 26px 26px}.hero h1{font-size:32px;letter-spacing:-1.2px}
   .track .mk{opacity:1;transform:none}
@@ -254,6 +258,7 @@ body.rp-static .stamp{transform:rotate(-8deg)!important}
 </main>
 
 <script src="/yk-duracion.js?v=r1"></script>
+<script src="/yk-equipo.js?v=r1"></script>
 <script>
 (function(){
 "use strict";
@@ -287,11 +292,12 @@ function cuerpo(e){
 function iniciales(n){ const s=String(n||"").replace(/[^\p{L}\s.]/gu,"").trim(); if(!s)return "?"; const p=s.split(/\s+/); return ((p[0][0]||"")+(p.length>1?(p[1][0]||""):"")).toUpperCase(); }
 function msg(t){ $("rpMsg").textContent=t; if(t) setTimeout(()=>{ if($("rpMsg").textContent===t) $("rpMsg").textContent=""; },4000); }
 
-let T=null, EV=[], SUMMARY="";
+let T=null, EV=[], SUMMARY="", INV=null;
 function mailto(){
   const t=T||{}, dur=D&&T?D.etiqueta(t):"";
   const lines=["Hola,","","Te comparto el informe de la incidencia "+id+":","«"+(t.subject||"(sin asunto)")+"»",
     [t.project_name||t.project,t.loc].filter(Boolean).join(" · "),dur?"⏱ "+dur:"",
+    INV&&window.YkEquipo?"🗂 Equipo: "+YkEquipo.resumen(INV):"",
     SUMMARY?"\nResumen IA: "+SUMMARY:"","","Informe completo (línea de tiempo, duración y resumen IA):",informeUrl(),"","— Yokup · AdmiraNeXT"];
   return "mailto:?subject="+encodeURIComponent("Informe de incidencia "+id+" · "+(t.subject||""))+"&body="+encodeURIComponent(lines.filter((l,i,a)=>l!==""||a[i-1]!=="").join("\n"));
 }
@@ -455,6 +461,8 @@ function render(){
   dato("Origen",t.source==="agent-iot"?"🤖 Agente IoT":"👤 Manual",t.source&&t.source!=="agent-iot"?t.source:"");
   dato("Gravedad",sevLabel,t.priority?"prioridad "+t.priority:"");
   const eq=dato("Equipo",t.screen||"Sin equipo","","wide"); if(t.screen) eq.classList.add("mono");
+  // 🗂 Inventario ITIL del equipo (nº de serie y garantía): lo rellena inventario() tras cargar.
+  if(t.screen){ const inv=dato("Equipo · inventario ITIL","Buscando en el inventario…","","wide inv"); inv.id="rInv"; }
   dato("Estado",estado,t.portal&&t.portal.incident_id?(t.portal.url?"Portal del comercio · ":"Yokup Desk · ")+(t.portal.site_name||t.portal.incident_id):"");
   dato("Duración",dur&&D?D.formato(dur.ms):"—",dur?(dur.viva?"sigue abierta":"de la creación al cierre"):"");
 
@@ -500,6 +508,24 @@ function render(){
   });
 }
 
+// 🗂 Inventario ITIL: nº de serie, modelo y garantía del equipo (GET /ticket/equipo). Nada se inventa:
+// lo que falta es «sin dato»; si el equipo no está en el inventario, se dice.
+async function inventario(){
+  const dd=$("rInv"); if(!dd||!window.YkEquipo) return;
+  const E=window.YkEquipo; let r=null;
+  try{ const res=await fetch(WORKER+"/ticket/equipo?id="+encodeURIComponent(id),{cache:"no-store"}); r=await res.json(); }catch(e){}
+  INV=r&&r.ok?r:null; $("rpMail").href=mailto();
+  const box=dd.parentNode; dd.textContent="";
+  const sub=t=>{ const s=document.createElement("dd"); s.className="sub"; s.textContent=t; box.appendChild(s); return s; };
+  if(!r||!r.ok){ dd.textContent="Inventario no disponible ahora"; return; }
+  if(!r.found||!r.ci){ dd.textContent="⚠ "+E.motivo(r); dd.classList.add("ko"); if(r.xpacio&&r.xpacio.name) sub("Establecimiento: "+r.xpacio.name+(r.xpacio.admira_store_id?" · "+r.xpacio.admira_store_id:"")); return; }
+  const ci=r.ci, lc=ci.lifecycle||{}, g=E.garantia(lc);
+  const a=document.createElement("a"); a.href=E.fichaUrl({ticket:id}); a.textContent=(ci.itil_code||"Ficha")+" · "+(ci.name||"equipo"); dd.appendChild(a);
+  const w=document.createElement("span"); w.className="war"; w.dataset.w=g.estado; w.textContent="Garantía · "+g.label+(g.pronto?" · vence pronto":""); dd.append(" ",w);
+  sub("Nº de serie: "+E.txt(lc.serial)+" · Modelo: "+E.txt([lc.manufacturer,lc.model].filter(Boolean).join(" ")||null));
+  sub("Garantía: "+(g.estado==="sin_dato"?E.SIN:g.detalle)+" · Fecha de compra: "+(lc.purchase_date?E.dia(lc.purchase_date):E.SIN)+" · Proveedor: "+E.txt(lc.supplier));
+}
+
 // Resumen IA: el mismo POST /ai-summary del botón de la ficha. Si la ficha ya lo
 // generó en los últimos 30 min, se reutiliza (localStorage) en vez de pedir otro.
 async function resumen(){
@@ -531,8 +557,8 @@ async function main(){
   if(PRINT) document.body.classList.add("rp-static");
   render();
   $("rpMail").href=mailto();
-  const sum=resumen();
-  if(PRINT){ await Promise.race([sum,new Promise(r=>setTimeout(r,6000))]); setTimeout(()=>window.print(),400); }
+  const sum=resumen(), inv=inventario();
+  if(PRINT){ await Promise.race([Promise.all([sum,inv]),new Promise(r=>setTimeout(r,6000))]); setTimeout(()=>window.print(),400); }
 }
 main();
 })();

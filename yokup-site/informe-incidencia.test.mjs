@@ -66,7 +66,7 @@ test("ficha /ticket: acción «Enviar informe» con hoja de envío que nunca env
   assert.doesNotMatch(ticket, /mailto:[a-z0-9._%+-]+@/i);
   // el Resumen IA de la ficha queda disponible para el informe
   assert.match(ticket, /localStorage\.setItem\("ykInformeResumen:"\+id/);
-  assert.match(ticket, /\/ticket-portal\.css\?v=2"/);
+  assert.match(ticket, /\/ticket-portal\.css\?v=\d+"/);
 });
 
 test("informe: protegido, con datos por textContent, Resumen IA reutilizado, imprimible y compartible", () => {

@@ -10,7 +10,7 @@
 import {statement,rows,hash,rateLimit} from './installer-portal.js';
 import {isoDay,validDay,lifecycleView,LIFECYCLE_COLUMNS} from './device-lifecycle.js';
 import {viaBinding,INTERNAL_HOST} from './incident-links.js';
-import {ITIL_SCHEMA,ITIL_CATEGORIES,ITIL_ORIENTATIONS,ITIL_LIFECYCLE_TEXTS,ITIL_LIFECYCLE_DATES,ITIL_LIFECYCLE_FIELDS,ITIL_LIMITS,validItilCode,lifecycleCategory,skillForCategory,publicCi} from './itil-model.js';
+import {ITIL_SCHEMA,ITIL_CATEGORIES,ITIL_ORIENTATIONS,ITIL_LIFECYCLE_TEXTS,ITIL_LIFECYCLE_DATES,ITIL_LIFECYCLE_FIELDS,ITIL_LIMITS,validItilCode,lifecycleCategory,skillForCategory,publicCi,parseEquipoRef,equipoCategory,equipoLabel} from './itil-model.js';
 export const GALAXY_ORIGINS=new Set(['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.clearchannel.tv','https://clearchannel.tv']);
 export const ITIL_DOCS='https://www.yokup.com/mcp/llms.txt';
 const bad=(status,code,message)=>{throw Object.assign(new Error(message),{status,code});};
@@ -43,6 +43,7 @@ export function parseCi(b){
    if(x===null||x===''){v.lifecycle[k]=null;continue;}
    if(ITIL_LIFECYCLE_DATES.includes(k)){if(!validDay(x))bad(400,'invalid_date','Fecha no válida en '+k+' (usa AAAA-MM-DD).');v.lifecycle[k]=x;}
    else if(k==='maintenance_interval_days'){if(!Number.isInteger(x)||x<1||x>3650)bad(400,'invalid_interval','El intervalo de mantenimiento debe ser de 1 a 3650 días.');v.lifecycle[k]=x;}
+   else if(k==='warranty_months'){if(!Number.isInteger(x)||x<1||x>600)bad(400,'invalid_warranty_months','La garantía debe ser de 1 a 600 meses.');v.lifecycle[k]=x;}
    else v.lifecycle[k]=optText(x,[0,ITIL_LIFECYCLE_TEXTS[k]],k);
   }
  }
@@ -189,6 +190,53 @@ export async function listXpacios(env,{brand,q,limit=50}={}){
   FROM admira_xpacio_sites x JOIN retailer_sites s ON s.id=x.site_id LEFT JOIN brand_accounts b ON b.brand_key=x.brand_key WHERE ${where.join(' AND ')} ORDER BY s.name,x.admira_store_id LIMIT ?`,...args,n);
  return {limit:n,xpacios:list.map(x=>({...x,managed_by:x.itil_cis>0?'itil':'catalogo'}))};
 }
+// ── Equipo de una incidencia → su CI (01-oct-2026). Lo pide la ficha de incidencia de Yokup (yokup-rtc, por binding)
+// con el «Equipo» del ticket (screen), el establecimiento (loc) y, si la lleva el Portal, su incidencia. Orden:
+// código ITIL · incidencia del Portal · id del equipo · id del censo (admira_device_id) · gemelo 'demo:<xpacio>:<equipo>'
+// (superficie, id del censo, nombre igual al del id o categoría única en ese Xpacio). Si no casa, dice por qué y qué alta proponer.
+const SLUG=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+export async function resolveEquipo(env,{ref='',loc='',code='',portal_incident=''}={},now=Date.now()){
+ const today=isoDay(now),clean=v=>typeof v==='string'?v.trim().slice(0,200):'';
+ ref=clean(ref);loc=clean(loc);code=clean(code);portal_incident=clean(portal_incident);
+ const ciBy=async(where,...a)=>{const r=await statement(env,CI_SELECT+' WHERE '+where,...a).first();return r?ciView(r,today):null;};
+ const siteOf=async deviceId=>statement(env,SITE_SELECT+' JOIN retailer_device_links l ON l.site_id=s.id WHERE l.device_id=?',deviceId).first();
+ const xpacioOut=site=>site?{site_id:site.id,name:site.name,city:site.city||null,admira_store_id:site.admira_store_id||null,twin_url:site.twin_url||null}:null;
+ const hit=async(ci,match)=>({ok:true,found:true,match,ref,ci,xpacio:xpacioOut(await siteOf(ci.device_id))});
+ const byDevice=async(deviceId,match)=>{
+  if(!deviceId)return null;const ci=await ciBy('i.device_id=?',deviceId);if(ci)return hit(ci,match);
+  const d=await statement(env,'SELECT d.id,d.name,d.skill FROM installer_devices d WHERE d.id=?',deviceId).first();if(!d)return null;
+  const site=await siteOf(d.id);
+  // Existe el equipo, pero sin ficha ITIL: se propone convertirlo en CI conservando su historial.
+  return {ok:true,found:false,reason:'sin_ficha',ref,device:{id:d.id,name:d.name},xpacio:xpacioOut(site),
+   create:{admira_store_id:site?.admira_store_id||null,site_id:site?.id||null,adopt_device_id:d.id,name:d.name,category:equipoCategory(d.skill==='screen'?'pantalla':d.skill)||'otro'}};
+ };
+ const c=validItilCode(code)?code:validItilCode(ref)?ref:'';
+ if(c){const ci=await ciBy('i.itil_code=?',c);if(ci)return hit(ci,'itil_code');}
+ if(portal_incident&&ID.test(portal_incident)){const i=await statement(env,'SELECT device_id FROM installer_incidents WHERE id=?',portal_incident).first();const r=await byDevice(i?.device_id,'portal');if(r)return r;}
+ if(ref&&ID.test(ref)){const r=await byDevice(ref,'device');if(r)return r;}
+ const store=STORE.test(loc)?loc:null;
+ if(ref){const l=await statement(env,'SELECT device_id FROM retailer_device_links WHERE admira_device_id=?'+(store?' AND admira_store_id=?':'')+' LIMIT 2',ref,...(store?[store]:[])).first();const r=l&&await byDevice(l.device_id,'censo');if(r)return r;}
+ const p=parseEquipoRef(ref);
+ const sid=p?.admira_store_id||store,site=sid?await xpacioSite(env,sid):null;
+ const equipo=p?.equipo||'',category=equipoCategory(equipo);
+ const create={admira_store_id:site?.admira_store_id||sid||null,site_id:site?.id||null,category:category||null,name:equipo?equipoLabel(equipo):null};
+ if(!site)return {ok:true,found:false,reason:sid?'xpacio_no_encontrado':'sin_referencia',ref,parsed:p,xpacio:null,create};
+ if(equipo){
+  const l=await statement(env,'SELECT device_id FROM retailer_device_links WHERE site_id=? AND admira_device_id=?',site.id,equipo).first()
+   ||await statement(env,'SELECT device_id FROM admira_xpacio_devices WHERE admira_store_id=? AND surface_key=? AND removed_at IS NULL',site.admira_store_id,SLUG(equipo).slice(0,60)).first();
+  if(l){const r=await byDevice(l.device_id,'superficie');if(r?.found)return r;}
+  // Nombre igual al del propio id ('pantalla-3' → «Pantalla 3»), único y activo en ese Xpacio.
+  const byName=(await rows(env,CI_SELECT+" WHERE i.site_id=? AND lower(d.name)=lower(?) AND COALESCE(lc.status,'operational')!='retired' LIMIT 2",site.id,equipoLabel(equipo))).map(r=>ciView(r,today));
+  if(byName.length===1)return hit(byName[0],'nombre');
+  if(category){
+   const list=(await rows(env,CI_SELECT+" WHERE i.site_id=? AND i.category=? AND COALESCE(lc.status,'operational')!='retired' ORDER BY i.managed_by DESC,i.itil_code",site.id,category)).map(r=>ciView(r,today));
+   const itil=list.filter(x=>x.managed_by==='itil'),pool=itil.length?itil:list;
+   if(pool.length===1)return hit(pool[0],'categoria');
+   if(pool.length>1)return {ok:true,found:false,reason:'ambiguo',ref,parsed:p,xpacio:xpacioOut(site),candidates:pool.slice(0,20).map(x=>({itil_code:x.itil_code,name:x.name,position:x.position||null})),create};
+  }
+ }
+ return {ok:true,found:false,reason:'no_inventariado',ref,parsed:p,xpacio:xpacioOut(site),create};
+}
 // ── /internal/itil/* · solo por service binding (MCP de flota desde el gate). El autor lo pone el gate.
 const internalReply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 function author(b){
@@ -202,6 +250,7 @@ export async function handleItilInternal(request,env){
   const url=new URL(request.url),path=url.pathname,q=url.searchParams;
   if(request.method==='GET'&&path==='/internal/itil/xpacios')return internalReply({ok:true,...await listXpacios(env,{brand:q.get('brand'),q:q.get('q'),limit:q.has('limit')?Number(q.get('limit')):50})});
   const one=/^\/internal\/itil\/xpacios\/([^/]+)$/.exec(path);
+  if(request.method==='GET'&&path==='/internal/itil/equipo')return internalReply(await resolveEquipo(env,{ref:q.get('ref')||'',loc:q.get('loc')||'',code:q.get('code')||'',portal_incident:q.get('portal_incident')||''}));
   if(request.method==='GET'&&one){const id=decodeURIComponent(one[1]);if(!STORE.test(id))bad(400,'invalid_store','admira_store_id no válido.');const site=await xpacioSite(env,id);if(!site)bad(404,'xpacio_not_found','Xpacio no encontrado en Yokup.');return internalReply({ok:true,...await inventory(env,site)});}
   if(request.method!=='POST'||!['/internal/itil/ci/upsert','/internal/itil/ci/retire'].includes(path))bad(404,'not_found','Ruta no encontrada.');
   const raw=await request.text();if(raw.length>16384)bad(413,'too_large','Petición demasiado grande.');

@@ -134,6 +134,12 @@ devuelve `not_an_incident`, porque su cierre exige pantallazo, aceptación y
 impresión). Ninguna herramienta MCP cambia ni envía correos: para compartir un informe, pasa
 ese enlace. Detalle: `docs/informe-incidencia.md`.
 
+**Ficha de inventario del equipo (01-10-2026).** El campo Equipo de la incidencia enlaza
+`https://www.yokup.com/equipo-inventario?ticket=<INC-…>` (sesión Google): modelo, nº de serie,
+compra, proveedor y garantía del inventario ITIL (`GET api.yokup.com/ticket/equipo`, que resuelve
+por el binding de yokup-rtc a yokup-api). `itil_ci_upsert` admite `lifecycle.warranty_months`
+(1-600; 0 = borrar). Detalle: `docs/itil-yokup.md` · «Equipo de la incidencia → ficha de inventario».
+
 **Autoría y auditoría.** El autor de cada evento es `Persona · Máquina` de la credencial
 (p. ej. `OraculoMacMini · MacMini`); el cliente no puede enviarlo (el esquema lo rechaza).
 Cada escritura deja además una fila en `mcp_incident_audit` (ts, actor, machine, action,
