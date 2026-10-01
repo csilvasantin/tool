@@ -15,7 +15,7 @@ function install() {
  document.documentElement.classList.add('inventory-frame');
  const nav = node('nav',null,'inventory-subnav');nav.setAttribute('aria-label',tr('Vistas del inventario','Inventory views'));
  for (const [label,href] of [[tr('Catálogo','Catalogue'),X+'/inventario/'],[tr('Conjunto 3D','3D showroom'),X+'/inventario/conjunto/'],['Starbucks 3D',X+'/inventario/starbucks/?view=inventory'],[tr('Referencias reales','Real references'),X+'/inventario/starbucks/?view=references'],['ITIL · Yokup',Y+'/retailer#itil']]) {const a=node('a',label);a.href=localized(href);nav.append(a);}
- const languages=node('span',null,'inventory-languages');for(const lang of ['es','en']){const a=node('a',lang.toUpperCase());a.dataset.inventoryLanguage=lang;languages.append(a);}nav.append(languages);document.querySelector('#xsOptions .xs-actions').prepend(nav);
+ const languages=node('span',null,'inventory-languages');for(const lang of ['es','en']){const a=node('a',lang.toUpperCase());a.dataset.inventoryLanguage=lang;languages.append(a);}nav.append(languages);document.querySelector('#xsOptions .xs-page-options').prepend(nav);
  const bridge=node('div',null,'inventory-bridge');for(const label of [tr('Ver en XpaceOS','View in XpaceOS'),tr('Ficha en Yokup','Yokup record')])bridge.append(node('a',label));document.querySelector('#xsAdvanced .xs-actions').prepend(bridge);
  const note=node('p',tr('Yokup mantiene las fichas ITIL y sus permisos. Modelos y fotos se relacionan por el código del equipo.','Yokup owns ITIL records and permissions. Models and photos link through the equipment code.'),'qm-hint');document.querySelector('#xsAdvanced .xs-actions').append(note);
  for (const panel of ['left','right','expert']) shell.close(panel);
