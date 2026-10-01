@@ -1,0 +1,10 @@
+/* Inventario ITIL dentro del marco cuadrático común de Yokup (yk-frame). FLT-101338:
+   sin segundo shell; las vistas, el puente y los verbos los monta inventory-frame.mjs en
+   los raíles canónicos. Tema claro del portal (tokens --yk-* / --p-* de yk-frame.css). */
+html.inventory-frame .inventory-subnav .inventory-languages{display:flex;gap:12px;padding:10px 10px 4px}
+html.inventory-frame .inventory-subnav .inventory-languages a{color:var(--yk-brand);font:700 12px/1 var(--yk-sans);letter-spacing:.08em;text-decoration:none}
+html.inventory-frame .inventory-subnav .inventory-languages a:hover{text-decoration:underline}
+html.inventory-frame .inventory-bridge{margin-bottom:12px}
+html.inventory-frame .inventory-bridge .inventory-note{margin:4px 0 0}
+html.inventory-frame :is(dialog,#access-gate){z-index:calc(var(--yk-z) + 20)}
+@media print{.inventory-subnav,.inventory-bridge{display:none!important}}

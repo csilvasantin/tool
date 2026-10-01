@@ -768,6 +768,7 @@ html.yk-framed{ scroll-padding-top: calc(var(--yk-bar-h) + 12px); }
 .yk-frame .yk-pub-nav{ display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; gap:0;
   position:static; height:auto; margin:14px 0 0; padding:12px 0 0; border:0; border-top:1px solid var(--yk-line); background:none; text-align:left }
 .yk-rail-left > .yk-hd + .yk-pub-nav, .yk-rail-left > .yk-slot:empty + .yk-pub-nav{ margin-top:0; padding-top:0; border-top:0 }
+.yk-frame .yk-slot > .yk-pub-nav:first-child{ margin-top:0; padding-top:0; border-top:0 }
 .yk-frame .yk-pub-nav .yk-rail-navhd{ text-align:left; font:700 9.5px/1.3 var(--yk-sans); letter-spacing:.14em; color:var(--yk-dim); padding:0 2px 6px }
 .yk-frame :is(.yk-pub-link, .yk-slot [data-yk-links] a, .yk-slot > a.yk-link){
   display:flex; align-items:center; justify-content:flex-start; min-height:40px; margin:0; padding:0 10px; text-align:left; width:100%;

@@ -64,6 +64,10 @@ El `?v=` lo sella `deploy.mjs` (patrón `/yk-*.js|css`). El marco se oculta al i
 
 El marco es el único enganche de la marca blanca del catálogo de admiranext.com/marcablanca (plataforma `yokup`): con `?marca=<id>` o `/marca <id>` carga `/yk-marca.js` con su mismo sello; sin marca no carga nada. Detalles en `docs/marca-blanca-yokup.md`.
 
+## Inventario ITIL dentro del marco
+
+`retailer` y `equipo-inventario` (`data-inventory-host="yokup"`) llevan el adaptador `inventory-frame.mjs` (+ `inventory-frame.css`), que espera a `yk:frame-ready` y monta en los raíles canónicos de `yk-frame`: las vistas del inventario (Catálogo, Conjunto 3D, Starbucks 3D, Referencias reales, ITIL · Yokup), el idioma y los enlaces en el contenedor de ☰ Opciones; el puente XpaceOS ↔ Yokup, la ayuda (`/help#inventory-frame`) y la Xperience en ▤ Avanzado; y los verbos `/inventario`, `/starbucks`, `/referencias`, `/ref`, `/equipo`, `/xpaceos` y `/yokup` en la consola local (`YkFrame.registerVerb`). Los paneles empiezan plegados. No hay un segundo shell: la copia de `xpace-shell` que traía el merge (`inventory-shell.js/.css`) se retiró y el guardián rechaza cualquier shell paralelo.
+
 ## APP_NAV y las rutas mudadas a admira.live
 
 `APP_NAV` (Dashboard, Objetivos, Decisiones, Misiones, Tareas, Incidencias, Supervisor, Informes, Notificaciones, Highscore) es la fuente única del menú de la flota y la sigue usando el espejo de Pages, donde esas páginas existen. En **www.yokup.com** el guardián redirige con 301 a admira.live 16 de ellas (`MUDADAS_A_ADMIRA_LIVE` en `yokup-site-gate/src/index.js`): allí el menú de la barra sólo enseña lo que se sirve (Incidencias, Supervisor) y lo mudado pasa a ☰ Opciones, plegado en «EN ADMIRA.LIVE ↗», con enlace directo a `https://www.admira.live/…` (sin el salto del 301). Highscore, Equipo, Status y Panel de control hacen lo mismo. `yk-frame.js` lleva su copia (`MUDADAS_A_LIVE`) y el guardián del test comprueba que coincide con la del worker.

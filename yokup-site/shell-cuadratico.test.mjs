@@ -80,6 +80,8 @@ export function shellProblems(html) {
   // Una página con la paleta oscura de siempre en :root necesita la piel clara del marco.
   if (/--bg:\s*#02080d/.test(html) && !/<body[^>]*class="[^"]*\b(yk-claro|yk-light|inc-portal)\b/.test(html)) problems.push("tokens oscuros sin body.yk-claro");
   if (/100vh\s*-\s*\d+px/.test(html)) problems.push("altura 100vh - Npx: usa var(--yk-bar-h)");
+  // Un solo marco: nada de shells paralelos (el del inventario se integró en yk-frame).
+  if (/(inventory-shell|xpace-shell|galaxy-shell)\.(js|css)/.test(html)) problems.push("carga un shell paralelo: intégralo en yk-frame");
   return problems;
 }
 
@@ -198,4 +200,30 @@ test("las cabeceras propias dejan paso al marco y sus controles conservan su id"
   assert.match(frameJs, /document\.querySelectorAll\("\[data-yk-replace\]"\)/);
   // El informe descargable no se lleva el marco dentro.
   assert.match(read("informe-incidencia.html"), /#yk-frame,\.yk-navpop,\.yk-submenu/);
+});
+
+test("inventario ITIL: se monta en los raíles canónicos de yk-frame, sin un segundo shell", () => {
+  const adapter = read("inventory-frame.mjs");
+  assert.ok(!existsSync(join(site, "inventory-shell.js")) && !existsSync(join(site, "inventory-shell.css")), "sin shell paralelo");
+  for (const [file, kind] of [["retailer.html", "retailer"], ["equipo-inventario.html", "equipment"]]) {
+    const html = read(file);
+    assert.match(html, new RegExp('data-inventory-host="yokup" data-inventory-page="' + kind + '"'), file);
+    assert.ok(html.indexOf("/yk-frame.js") < html.indexOf("/inventory-frame.mjs"), file + ": el adaptador después del marco");
+    assert.doesNotMatch(html, /window\.XPACE_SHELL/, file);
+  }
+  // Vistas en el contenedor canónico de Opciones; puente y ayuda en Avanzado; plegados al entrar.
+  assert.match(adapter, /document\.querySelector\('#yk-rail-left \.yk-slot'\)/);
+  assert.match(adapter, /document\.querySelector\('#yk-rail-right \.yk-slot'\)/);
+  assert.match(adapter, /options\.prepend\(nav\)/);
+  assert.match(adapter, /href: '\/help#inventory-frame'/);
+  assert.match(adapter, /for \(const panel of \['left', 'right', 'bottom'\]\) frame\.close\(panel\);/);
+  assert.match(adapter, /frame\.registerVerb\(/);
+  assert.match(adapter, /document\.addEventListener\('yk:frame-ready', install, \{once: true\}\)/);
+  assert.match(frameJs, /document\.dispatchEvent\(new CustomEvent\("yk:frame-ready"/);
+  assert.match(frameJs, /window\.YkFrame\.registerVerb = registerVerb;/);
+  // La ayuda del inventario usa los glifos del canon.
+  const help = read("help/index.html");
+  assert.match(help, /<section id="inventory-frame">/);
+  assert.match(help, /☰ y ▤ muestran u ocultan paneles/);
+  assert.doesNotMatch(help, /◨/);
 });

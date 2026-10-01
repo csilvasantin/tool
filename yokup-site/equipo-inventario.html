@@ -76,8 +76,9 @@ a{color:var(--green)}
 @media print{.bar{display:none}.wrap{padding:0;max-width:none}.sheet{border:0;box-shadow:none;border-radius:0}.hero,.war,.chip,.f.key{-webkit-print-color-adjust:exact;print-color-adjust:exact}.f,.grp{break-inside:avoid}}
 </style>
 <link rel="stylesheet" href="/yk-frame.css?v=r35">
+<link rel="stylesheet" href="/inventory-frame.css?v=inventory-frame-5">
 </head>
-<body data-yk-title="INVENTARIO" data-yk-zone="app" data-yk-parent="/incidencias">
+<body data-yk-title="INVENTARIO" data-yk-zone="app" data-yk-parent="/incidencias" data-inventory-host="yokup" data-inventory-page="equipment">
 <!-- FLT-101338: la barra propia deja paso al marco común. Volver y abrir en el
      inventario (navegación) van a ☰ Opciones; imprimir (acción) a ▤ Avanzado. -->
 <header class="bar" aria-label="Acciones de la ficha" data-yk-replace>
@@ -158,5 +159,6 @@ main();
 })();
 </script>
 <script src="/yk-frame.js?v=r35"></script>
+<script type="module" src="/inventory-frame.mjs?v=inventory-frame-5"></script>
 </body>
 </html>

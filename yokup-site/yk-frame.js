@@ -1921,6 +1921,19 @@
   // la única consola que ve quien entra sin sesión de flota.
   var LOCAL_HISTORY_KEY = "yk_local_cli_history_v1";
   var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand"];
+  // Verbos propios de una página (p. ej. el inventario ITIL: /inventario, /equipo…),
+  // registrados con YkFrame.registerVerb({id, aliases, es, run(args, ctx)}). Sólo
+  // valen en esa página y, como el resto de la consola local, nunca llegan a un agente.
+  var PAGE_VERBS = {}, PAGE_VERB_DEFS = [];
+  function registerVerb(def) {
+    if (!def || typeof def.run !== "function" || !/^[a-z0-9-]+$/i.test(def.id || "")) throw new Error("yk-frame: verbo no válido");
+    if (PAGE_VERB_DEFS.indexOf(def) < 0) PAGE_VERB_DEFS.push(def);
+    [def.id].concat(def.aliases || []).forEach(function (name) {
+      name = String(name).toLowerCase();
+      PAGE_VERBS[name] = def;
+      if (LOCAL_VERBS.indexOf(name) < 0) LOCAL_VERBS.push(name);
+    });
+  }
   var LOCAL_CLI = {
     log: null, input: null,
     isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")); },
@@ -1942,6 +1955,9 @@
     L.push(t("  /limpiar (/clear) — vacía la consola", "  /limpiar (/clear) — clear the console"));
     L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
       "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
+    PAGE_VERB_DEFS.forEach(function (def) {
+      L.push("  /" + def.id + (def.aliases && def.aliases.length ? " (/" + def.aliases.join(", /") + ")" : "") + " — " + (en ? (def.en || def.es || "") : (def.es || def.en || "")));
+    });
     if (fleet) L.push(t("Para hablar con un agente, elige su CLI abajo y escribe en su caja: ese texto sí va a su tmux. /marca escrito allí también se resuelve aquí.", "To talk to an agent, pick its CLI below and type in its box: that text goes to its tmux. /marca typed there is also handled here."));
     L.push(t("Ayuda completa: yokup.com/help · MCP de flota: yokup.com/mcp", "Full help: yokup.com/help · Fleet MCP: yokup.com/mcp"));
     return L.join("\n");
@@ -1960,6 +1976,11 @@
     if (MARCA_VERB.test(verb)) {
       if (!isOpen("bottom")) setOpen("bottom", true);
       return cargarMarca().then(function (M) { return runMarca(args, M, localEn(), LOCAL_CLI.print); });
+    }
+    if (PAGE_VERBS[verb]) {
+      return Promise.resolve().then(function () { return PAGE_VERBS[verb].run(args, {print:LOCAL_CLI.print, lang:localEn() ? "en" : "es"}); })
+        .then(function (out) { if (out != null && out !== "") LOCAL_CLI.print(typeof out === "string" ? out : JSON.stringify(out)); },
+          function (error) { LOCAL_CLI.print("Error: " + ((error && error.message) || error)); });
     }
     LOCAL_CLI.print(localEn() ? "Unknown verb: /" + verb + ". /help lists the verbs of this console." : "Verbo desconocido: /" + verb + ". /help lista los verbos de esta consola.");
     return Promise.resolve();
@@ -2030,6 +2051,7 @@
   window.YkFrame.marca = function (arg, write) { return cargarMarca().then(function (M) { return runMarca(arg, M, localEn(), write || LOCAL_CLI.print); }); };
   window.YkFrame.cargarMarca = cargarMarca;
   window.YkFrame.run = function (text) { return runLocal(text); };
+  window.YkFrame.registerVerb = registerVerb;
   window.YkFrame._test = {wantsBrand:wantsBrand, runMarca:runMarca, localComplete:localComplete, liveTarget:liveTarget};
 
   function build() {
@@ -2244,6 +2266,14 @@
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     if (FLEET_MODE) wireExpertFetch(root);
+
+    // Adaptadores de página (p. ej. inventory-frame.mjs) montan lo suyo en los raíles
+    // canónicos cuando el marco existe: YkFrame.ready + evento yk:frame-ready.
+    window.YkFrame.ready = true;
+    window.YkFrame.open = function (p) { setOpen(p, true); };
+    window.YkFrame.close = function (p) { setOpen(p, false); };
+    window.YkFrame.isOpen = isOpen;
+    try { document.dispatchEvent(new CustomEvent("yk:frame-ready", {detail:{mode:FLEET_MODE ? "flota" : "publico"}})); } catch (e) {}
 
     if (!FLEET_MODE) return;
     // --- contadores reales «curso/pend» del menú (un fetch, degradación silenciosa) ---
