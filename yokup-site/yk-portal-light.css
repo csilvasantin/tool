@@ -6,67 +6,25 @@
  *
  * ALCANCE: todo cuelga de body.yk-light. Sólo lo llevan las páginas que la
  * enlazan; se carga DESPUÉS del <style> base de cada una, así que vence a sus
- * reglas sin tocar yk-frame.css / yk-misiones.css / yk-cabezal.css, que siguen
- * sirviendo al resto de Yokup en oscuro. La barra yk-frame se re-pinta en claro
- * SÓLO aquí, reasignando sus tokens (--yk-*) en body y ajustando lo que
- * yk-frame.css fija con cian literal. Lo exclusivo de la ficha vive aparte en
- * ticket-portal.css (body.yk-ticket).
+ * reglas sin tocar yk-frame.css / yk-misiones.css / yk-cabezal.css. Desde
+ * FLT-101338 el marco (barra, raíles, Experto) es claro por defecto y la paleta
+ * del portal vive en yk-frame.css; esta hoja sólo viste el CONTENIDO de estas
+ * vistas. Lo exclusivo de la ficha vive aparte en ticket-portal.css (body.yk-ticket).
  *
- * Bloques: tokens · barra yk-frame · cabecera · métricas · píldoras · botones ·
+ * Bloques: experto · cabecera · métricas · píldoras · botones ·
  * formularios · tarjetas del tablero · árbol de tareas · raíles · esqueleto ·
  * popovers · responsive.
  * ==========================================================================*/
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
-
 /* --------------------------------- Tokens ---------------------------------- */
-body.yk-light{
-  color-scheme:light;
-  /* Tokens del portal (los mismos de incidencias-portal.css) */
-  --p-ink:#173632;--p-muted:#667a75;--p-paper:#f6f8f3;--p-line:#dbe3d9;--p-line2:#c9d5c4;
-  --p-lime:#d8f36a;--p-dark:#133d32;--p-dark2:#285444;--p-red:#ac3838;
-  --p-accent:#67935c;--p-green:#4f6e4c;--p-live:#7aab49;--p-soft:#eaf0df;--p-soft-line:#d7e2c8;
-  --p-amber:#d9a21b;--p-hover:#adc87d;--p-sel:#9cbf6c;
-  --p-sans:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  --p-head:Manrope,'DM Sans',sans-serif;
-  /* Tokens que leen el <style> base, yk-misiones.css y yk-cabezal.css */
-  --bg:var(--p-paper);--card:#fff;--card2:#fbfcf8;--ink:var(--p-ink);--mut:var(--p-muted);--dim:#86958f;
-  --brand:var(--p-green);--accent:#9a6a00;--good:#3f6b2f;--warn:var(--p-red);--violet:var(--p-green);
-  --line:var(--p-line);--line2:var(--p-line2);--sans:var(--p-sans);--mono:var(--p-sans);
-  /* Tokens del marco yk-frame (barra y raíles) */
-  --yk-bg:#fff;--yk-bg2:var(--p-paper);--yk-card:#fff;--yk-ink:var(--p-ink);--yk-mut:var(--p-muted);--yk-dim:#86958f;
-  --yk-brand:var(--p-green);--yk-hi:var(--p-ink);--yk-line:var(--p-line);--yk-line2:var(--p-line2);
-  background:var(--p-paper);color:var(--p-ink);font:15px/1.5 var(--p-sans);
-}
-html:has(body.yk-light){background:#f6f8f3}
+/* La paleta --p-*, los tokens de página (--bg, --card, --ink…) y el fondo papel
+   viven en yk-frame.css (FLT-101338: una sola fuente). Aquí sólo lo propio. */
 body.yk-light .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 body.yk-light :is(button,input,select,textarea){font-family:var(--p-sans)}
 body.yk-light :is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #6c985c;outline-offset:3px}
 body.yk-light .wrap{max-width:1240px;padding:0 28px 56px}
 body.yk-light a{color:var(--p-green)}
 
-/* ---------------- Barra yk-frame en claro (sólo estas páginas) -------------- */
-body.yk-light .yk-bar{background:#fff;border-bottom:1px solid var(--p-line);box-shadow:none;font-family:var(--p-sans)}
-body.yk-light .yk-page{color:var(--p-green);border-left-color:var(--p-line)}
-body.yk-light .yk-nav{align-self:stretch;padding:0 2px;gap:20px}
-body.yk-light .yk-nav a{align-self:stretch;min-height:0;font:700 11px/1 var(--p-sans);letter-spacing:.12em;color:var(--p-muted);text-shadow:none}
-body.yk-light .yk-nav a:hover,body.yk-light .yk-nav a:focus-visible{color:var(--p-ink);text-shadow:none}
-body.yk-light .yk-nav a.on{color:var(--p-ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--p-live)}
-body.yk-light .yk-nav a.on .yk-nav-c,body.yk-light .yk-nav-c{color:var(--p-green)}
-body.yk-light :is(.yk-ico,.yk-proj-btn){background:#fff;border:1px solid var(--p-line);color:var(--p-ink);box-shadow:none;font-family:var(--p-sans)}
-body.yk-light :is(.yk-ico,.yk-proj-btn):hover{background:#f1f5ea;border-color:var(--p-hover);box-shadow:none}
-body.yk-light .yk-ico[aria-pressed="true"]{background:var(--p-dark);border-color:var(--p-dark);color:#fff;box-shadow:none}
-body.yk-light .yk-proj-btn{font-weight:600;letter-spacing:.04em}
-body.yk-light .yk-proj-btn b{color:var(--p-green)}
-body.yk-light .yk-proj-dot{background:var(--p-live);box-shadow:none}
-body.yk-light .yk-proj-menu{background:#fff;border-color:var(--p-line);box-shadow:0 14px 36px #153b3022}
-body.yk-light .yk-proj-opt:hover{background:#f1f5ea;border-color:var(--p-line)}
-body.yk-light .yk-proj-opt.on{background:var(--p-soft);border-color:var(--p-soft-line)}
-body.yk-light .yk-proj-opt .yk-proj-txt b,body.yk-light .yk-proj-opt.on .yk-proj-txt b{color:var(--p-ink)}
-body.yk-light :is(.yk-navpop,.yk-submenu){background:#fff;border-color:var(--p-line);color:var(--p-ink);box-shadow:0 14px 36px #153b3022}
-/* sin sombra: los raíles cerrados viven fuera de pantalla y su sombra teñía los bordes */
-body.yk-light .yk-rail{background:#fff;border-color:var(--p-line);box-shadow:none;font-family:var(--p-sans)}
-body.yk-light .yk-hd{color:var(--p-green)}
-body.yk-light .yk-hd::before{background:var(--p-live);box-shadow:none}
+/* La barra, los raíles y el Experto ya son claros en yk-frame.css (FLT-101338). */
 body.yk-light .yk-expert-out{background:var(--p-paper);color:var(--p-ink);border-color:var(--p-line)}
 body.yk-light .yk-expert-btns button{background:#fff;border:1px solid var(--p-line);border-radius:8px;color:var(--p-ink);font:600 12px var(--p-sans)}
 

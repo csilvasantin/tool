@@ -48,13 +48,21 @@ test("todas las reglas cuelgan de su clase raíz (no contaminan yk-frame / yk-mi
 });
 
 test("tokens del portal y barra yk-frame clara con activo subrayado verde", () => {
+  // FLT-101338 («todo claro»): la paleta y la barra clara viven UNA vez en
+  // yk-frame.css y valen para todo el marco; la piel ya no las duplica.
+  const frameCss = read("yk-frame.css");
   for (const tok of ["--p-ink:#173632", "--p-muted:#667a75", "--p-paper:#f6f8f3", "--p-line:#dbe3d9", "--p-lime:#d8f36a", "--p-dark:#133d32", "--p-red:#ac3838", "--p-accent:#67935c", "--p-soft:#eaf0df"])
-    assert.ok(shared.includes(tok), tok);
-  assert.match(shared, /family=DM\+Sans[\s\S]*family=Manrope/);
-  assert.match(shared, /--yk-bg:#fff;/);
-  assert.match(shared, /body\.yk-light \.yk-bar\{background:#fff/);
-  assert.match(shared, /body\.yk-light \.yk-nav a\.on\{[^}]*box-shadow:inset 0 -2px 0 var\(--p-live\)/);
-  assert.match(shared, /body\.yk-light \.yk-rail\{background:#fff/);
+    assert.ok(frameCss.includes(tok), tok);
+  assert.match(frameCss, /family=DM\+Sans[\s\S]*family=Manrope/);
+  assert.match(frameCss, /--yk-bg: #fff;/);
+  assert.match(frameCss, /\.yk-bar\{[^}]*background: #fff;/);
+  assert.match(frameCss, /\.yk-nav a\.on\{[^}]*box-shadow: inset 0 -2px 0 var\(--yk-live\)/);
+  assert.match(frameCss, /\.yk-rail\{[^}]*background: var\(--yk-bg\);/);
+  assert.match(frameCss, /:is\(body\.yk-claro, body\.yk-light, body\.inc-portal\)\{[^}]*--bg:var\(--p-paper\)/);
+  // sin duplicados: ni la paleta ni la barra se redefinen en la piel
+  assert.doesNotMatch(shared, /--p-ink:/);
+  assert.doesNotMatch(shared, /--yk-bg:/);
+  assert.doesNotMatch(shared, /\.yk-(bar|nav|ico|rail|hd)\b/);
 });
 
 test("componentes compartidos: cabecera, métricas, píldoras, botones, tarjetas, esqueleto y formularios", () => {

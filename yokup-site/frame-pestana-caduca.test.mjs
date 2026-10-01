@@ -63,5 +63,5 @@ test("el aviso se ve, se puede pulsar y respeta reduced-motion", () => {
   assert.match(css, /\.yk-stale:focus-visible\{/);
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{ \.yk-stale\{ animation:none \} \}/);
   // ámbar, no el rojo de «equipo parado»: son severidades distintas
-  assert.match(css, /\.yk-stale\{[^}]*background:#ffb454/s);
+  assert.match(css, /\.yk-stale\{[^}]*background:var\(--p-amber\)/s);
 });

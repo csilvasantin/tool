@@ -6,7 +6,7 @@
 <script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Estrategia · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
@@ -15,10 +15,10 @@
 <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
 <style>
-:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+:root{--bg:#ffffff;--card:#ffffff;--card2:#ffffff;--ink:#173632;--mut:#667a75;--dim:#86958f;--brand:#4f6e4c;--accent:#9a6a00;--good:#3f6b2f;--warn:#ac3838;--violet:#5d4b9a;--line:#dbe3d9;--line2:#c9d5c4;--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 /* Acentos por equipo: Átomos = ámbar (materia); Bits = cian (silicio). */
-:root{--atomo:#ffb545;--atomo-soft:rgba(255,181,69,.09);--atomo-line:rgba(255,181,69,.32);
-      --bit:#78f3ff;--bit-soft:rgba(120,243,255,.07);--bit-line:rgba(120,243,255,.30)}
+:root{--atomo:#ac3838;--atomo-soft:#fbe3dc;--atomo-line:#e4b4a8;
+      --bit:#4f6e4c;--bit-soft:#f4f7ef;--bit-line:#dbe3d9}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 .wrap{max-width:1180px;margin:0 auto;padding:22px 24px 48px}
@@ -70,9 +70,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .mrow .mid{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--brand)}
 .mrow .mst{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;
   border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--mut);white-space:nowrap}
-.mrow .mst.st-sin{color:var(--warn);border-color:rgba(255,136,102,.4)}
-.mrow .mst.st-prog{color:var(--accent);border-color:rgba(255,216,102,.4)}
-.mrow .mst.st-done{color:var(--good);border-color:rgba(136,255,170,.4)}
+.mrow .mst.st-sin{color:var(--warn);border-color:var(--yk-err-line)}
+.mrow .mst.st-prog{color:var(--accent);border-color:#e6d29a}
+.mrow .mst.st-done{color:var(--good);border-color:var(--yk-ok-line)}
 .mrow .msub{font-size:13px;color:var(--ink);line-height:1.35;font-weight:500}
 .mrow .mmeta{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
 .mempty{border:1px dashed var(--line);border-radius:10px;padding:20px 14px;text-align:center;
@@ -92,34 +92,34 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 
 /* ═══ RELOJES DE DECISIÓN (reutilizado de /tareas) ═══ */
 .dec{border:1px solid var(--line2);border-radius:10px;background:var(--card2);padding:12px 13px;margin-bottom:9px}
-.dec.urge{border-color:#ff6b6b;box-shadow:0 0 18px -6px #ff6b6b}
+.dec.urge{border-color:var(--warn);box-shadow:none}
 .dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
 .dec-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);
   border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
-.dec-k.ag{color:var(--brand);border-color:rgba(120,243,255,.35)}
-.dec-k.sur{color:#9effb0;border-color:rgba(61,240,138,.35)}
+.dec-k.ag{color:var(--brand);border-color:var(--line)}
+.dec-k.sur{color:var(--good);border-color:var(--yk-ok-line)}
 .dec-clock{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--atomo);
   letter-spacing:.06em;font-variant-numeric:tabular-nums}
-.dec.urge .dec-clock{color:#ff6b6b;animation:decblink 1s infinite}
+.dec.urge .dec-clock{color:var(--warn);animation:decblink 1s infinite}
 @keyframes decblink{0%,100%{opacity:1}50%{opacity:.45}}
 .dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}
 .dec-opts{display:flex;flex-direction:column;gap:6px}
 .dec-opt{display:flex;align-items:flex-start;gap:8px;text-align:left;width:100%;font-family:inherit;font-size:12px;
   line-height:1.35;color:var(--ink);cursor:pointer;background:transparent;border:1px solid var(--line);
   border-radius:8px;padding:8px 10px;transition:.15s}
-.dec-opt:hover{border-color:var(--brand);background:rgba(120,243,255,.06)}
+.dec-opt:hover{border-color:var(--brand);background:var(--yk-tint)}
 .dec-opt .n{font-family:var(--mono);font-size:10px;color:var(--mut);flex:none;padding-top:2px}
 .dec-opt.rec{border-color:var(--atomo);position:relative;overflow:hidden;--fill:0%}
 .dec-opt.rec .n{color:var(--atomo)}
 .dec-opt.rec::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--fill);
-  background:linear-gradient(90deg,rgba(255,181,69,.05),rgba(255,181,69,.22));
+  background:linear-gradient(90deg,var(--yk-err-soft),var(--yk-err-soft));
   border-right:2px solid var(--atomo);transition:width 1s linear;pointer-events:none;z-index:0}
 .dec-opt.rec > *{position:relative;z-index:1}
-.dec.urge .dec-opt.rec::before{background:linear-gradient(90deg,rgba(255,107,107,.08),rgba(255,107,107,.3));border-right-color:#ff6b6b}
+.dec.urge .dec-opt.rec::before{background:linear-gradient(90deg,var(--yk-err-soft),var(--warn));border-right-color:var(--warn)}
 .dec-done{font-family:var(--mono);font-size:11px;padding:7px 0 0}
 .dec-done.ok{color:var(--good)}
 .dec-done.exp{color:var(--mut)}
-.dec-av{width:18px;height:18px;border-radius:4px;object-fit:cover;object-position:center top;border:1px solid rgba(120,243,255,.35);display:block}
+.dec-av{width:18px;height:18px;border-radius:4px;object-fit:cover;object-position:center top;border:1px solid var(--line);display:block}
 
 /* Triángulo de pliegue de la descripción (patrón canónico de la suite). */
 h1{display:flex;align-items:center;gap:10px}
@@ -128,13 +128,13 @@ h1{display:flex;align-items:center;gap:10px}
 .tgl:hover{color:var(--brand);border-color:var(--line2)}
 
 /* ═══ AGENTE SMITH — Grok en CLI, se multiplica por la flota (Matrix) ═══ */
-:root{--smith:#6bffa1;--smith-dim:#8299a0}
+:root{--smith:#3f6b2f;--smith-dim:#667a75}
 .smith{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin:2px 0 20px;padding:13px 16px;
-  border:1px solid rgba(107,255,161,.32);border-radius:14px;
-  background:linear-gradient(100deg,rgba(107,255,161,.07),transparent 70%)}
-.smith.reposo{border-color:rgba(130,153,160,.42);background:linear-gradient(100deg,rgba(130,153,160,.06),transparent 70%)}
+  border:1px solid var(--yk-ok-line);border-radius:14px;
+  background:linear-gradient(100deg,var(--yk-ok-soft),transparent 70%)}
+.smith.reposo{border-color:var(--line2);background:linear-gradient(100deg,var(--yk-tint),transparent 70%)}
 .smith.off{border-color:var(--line);background:var(--card)}
-.smith-ico{font-size:26px;line-height:1;filter:drop-shadow(0 0 10px rgba(107,255,161,.4))}
+.smith-ico{font-size:26px;line-height:1;filter:drop-shadow(0 0 10px transparent)}
 .smith.reposo .smith-ico,.smith.off .smith-ico{filter:none;opacity:.65}
 .smith-main{flex:1;min-width:0}
 .smith-hd{font-size:15px;font-weight:600;color:var(--ink);display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
@@ -148,8 +148,8 @@ h1{display:flex;align-items:center;gap:10px}
 .smith-chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--mut);
   border:1px solid var(--line);border-radius:8px;padding:4px 8px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .smith-chip .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--smith-dim)}
-.smith-chip.on{color:var(--ink);border-color:rgba(107,255,161,.4)}
-.smith-chip.on .dot{background:var(--smith);box-shadow:0 0 8px var(--smith);animation:smithpulse 1.8s infinite}
+.smith-chip.on{color:var(--ink);border-color:var(--yk-ok-line)}
+.smith-chip.on .dot{background:var(--smith);box-shadow:none;animation:smithpulse 1.8s infinite}
 .smith-chip .mult{color:var(--smith);font-weight:700;margin-left:2px}
 .smith-chip.idle .mult{color:var(--smith-dim)}
 @keyframes smithpulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -164,7 +164,7 @@ h1{display:flex;align-items:center;gap:10px}
   background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;outline:none}
 .sm-in::placeholder{color:var(--dim)}
 .sm-in:focus{border-color:var(--smith)}
-.sm-go{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#02120a;
+.sm-go{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#fff;
   background:var(--smith);border:1px solid var(--smith);border-radius:9px;padding:9px 15px;cursor:pointer;transition:.15s}
 .sm-go:hover{filter:brightness(1.08)}
 .sm-go:disabled{opacity:.5;cursor:wait}
@@ -189,7 +189,7 @@ h1{display:flex;align-items:center;gap:10px}
 @keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
-<body data-yk-title="ESTRATEGIA" data-yk-zone="app">
+<body class="yk-claro" data-yk-title="ESTRATEGIA" data-yk-zone="app">
 <div class="wrap">
   <details class="page-intro">
     <summary>

@@ -6,7 +6,7 @@
 <script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Informe de incidencia · Yokup · AdmiraNeXT</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#133d32">
+<meta name="theme-color" content="#f6f8f3">
 <!-- 📄 INFORME DE INCIDENCIA (Carlos, 01-10-2026). Vista HTML compartible e
      imprimible (PDF) de una incidencia de Yokup: cabecera, establecimiento,
      equipo, gravedad, duración, responsable, KPIs, Resumen IA, línea de tiempo
@@ -207,6 +207,8 @@ body.rp-static .stamp{transform:rotate(-8deg)!important}
 
 /* ---------- Impresión / PDF ---------- */
 @page{size:A4;margin:12mm}
+/* FLT-101338: acciones del informe dentro de ▤ Avanzado (en columna por data-yk-stack). */
+.yk-slot .rp-actions .rp-msg{font-size:13px;color:var(--muted)}
 @media print{
   html,body{background:#fff}
   body{font-size:12.5px}
@@ -241,17 +243,23 @@ body.rp-static .stamp{transform:rotate(-8deg)!important}
   a{text-decoration:none;color:inherit}
 }
 </style>
+<link rel="stylesheet" href="/yk-frame.css?v=r35">
 </head>
-<body>
-<header class="rp-toolbar" aria-label="Acciones del informe">
+<body data-yk-title="INFORME" data-yk-zone="app" data-yk-parent="/incidencias">
+<!-- FLT-101338: la barra propia deja paso al marco común (que se oculta al imprimir).
+     Volver a la ficha va a ☰ Opciones; imprimir, enviar, copiar, compartir y
+     descargar (acciones del informe) a ▤ Avanzado. -->
+<header class="rp-toolbar" aria-label="Acciones del informe" data-yk-replace>
   <a class="brand" href="/incidencias" title="Yokup · incidencias">yokup<span>●</span></a>
-  <a class="rp-btn" id="rpBack" href="/incidencias">← Ficha</a>
-  <button class="rp-btn primary" type="button" id="rpPrint">🖨 Imprimir / PDF</button>
-  <a class="rp-btn lime" id="rpMail" href="#">✉️ Enviar por correo</a>
-  <button class="rp-btn" type="button" id="rpCopy">🔗 Copiar enlace</button>
-  <button class="rp-btn" type="button" id="rpShare" hidden>📤 Compartir…</button>
-  <button class="rp-btn" type="button" id="rpDownload" title="Copia autónoma del informe en un .html">⬇ HTML</button>
+  <nav aria-label="Informe" data-yk-slot="left" data-yk-links><a class="rp-btn" id="rpBack" href="/incidencias">← Ficha</a></nav>
+  <div class="rp-actions" data-yk-slot="right" data-yk-stack>
+  <button class="rp-btn primary yk-action" type="button" id="rpPrint">🖨 Imprimir / PDF</button>
+  <a class="rp-btn lime yk-action" id="rpMail" href="#">✉️ Enviar por correo</a>
+  <button class="rp-btn yk-action" type="button" id="rpCopy">🔗 Copiar enlace</button>
+  <button class="rp-btn yk-action" type="button" id="rpShare" hidden>📤 Compartir…</button>
+  <button class="rp-btn yk-action" type="button" id="rpDownload" title="Copia autónoma del informe en un .html">⬇ HTML</button>
   <span class="rp-msg" id="rpMsg" role="status"></span>
+  </div>
 </header>
 <main class="rp" id="rp">
   <div class="loading" role="status"><div class="orb" aria-hidden="true"></div><b>Componiendo el informe…</b><span>Ficha, historial y Resumen IA</span></div>
@@ -313,8 +321,9 @@ function wireToolbar(){
 function descargar(){
   if(!T) return;
   const doc=document.documentElement.cloneNode(true);
-  doc.classList.remove("yk-locked");
-  doc.querySelectorAll("script,.rp-toolbar,#yk-gate").forEach(n=>n.remove());
+  doc.classList.remove("yk-locked","yk-framed","yk-public");
+  // Sin el marco común (barra, raíles, popovers): la copia es sólo el informe.
+  doc.querySelectorAll("script,.rp-toolbar,#yk-gate,#yk-frame,.yk-navpop,.yk-submenu,.yk-nav-live,link[href*=\"yk-frame.css\"]").forEach(n=>n.remove());
   const body=doc.querySelector("body"); body.classList.add("ready","rp-static");
   const html="<!DOCTYPE html>\n"+doc.outerHTML;
   const a=document.createElement("a");
@@ -563,5 +572,6 @@ async function main(){
 main();
 })();
 </script>
+<script src="/yk-frame.js?v=r35"></script>
 </body>
 </html>

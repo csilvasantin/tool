@@ -4,21 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>App Yokup · para el técnico</title>
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <style>
 :root{
-  --bg:#02080d; --card:#0a1620; --ink:#dff8ff; --mut:#75aab9; --dim:#4d7a88;
-  --brand:#78f3ff; --accent:#ffd866; --good:#88ffaa;
-  --line:rgba(120,243,255,.16); --line2:rgba(120,243,255,.30);
+  --bg:#ffffff; --card:#ffffff; --ink:#173632; --mut:#667a75; --dim:#86958f;
+  --brand:#4f6e4c; --accent:#9a6a00; --good:#3f6b2f;
+  --line:#dbe3d9; --line2:#c9d5c4;
   --sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);
   --mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
-body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(700px 400px at 50% 0%,rgba(120,243,255,.10),transparent 60%)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(700px 400px at 50% 0%,var(--yk-tint),transparent 60%)}
 .wrap{position:relative;max-width:600px;margin:0 auto;padding:34px 24px 60px;text-align:center}
 .icon{width:88px;height:88px;border-radius:22px;margin:0 auto 18px;display:block}
 .logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:14px;text-transform:uppercase;color:var(--mut)}
@@ -27,10 +27,10 @@ h1{font-size:clamp(26px,6vw,36px);letter-spacing:-.02em;margin:10px 0 8px}
 .card{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:24px;text-align:left;margin-bottom:16px}
 .card h3{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);display:flex;align-items:center;gap:9px;margin-bottom:12px}
 .card p{color:var(--mut);font-size:14px;line-height:1.55;margin-bottom:14px}
-.btn{font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 20px;border-radius:11px;border:1px solid var(--line2);color:var(--ink);background:rgba(10,22,32,.6);cursor:pointer;transition:.2s;text-decoration:none;display:block;text-align:center}
+.btn{font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 20px;border-radius:11px;border:1px solid var(--line2);color:var(--ink);background:var(--card2);cursor:pointer;transition:.2s;text-decoration:none;display:block;text-align:center}
 .btn:hover{border-color:var(--brand);color:var(--brand)}
-.btn.solid{background:var(--accent);color:#1a1200;border-color:var(--accent);box-shadow:0 0 26px rgba(255,216,102,.3)}
-.btn.solid:hover{background:#ffe49a;color:#1a1200}
+.btn.solid{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:none}
+.btn.solid:hover{background:var(--accent);color:#fff}
 .steps{list-style:none;counter-reset:s}
 .steps li{counter-increment:s;color:var(--mut);font-size:14px;line-height:1.5;padding:8px 0 8px 34px;position:relative}
 .steps li::before{content:counter(s);position:absolute;left:0;top:7px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);color:var(--brand);font-family:var(--mono);font-size:12px;display:grid;place-items:center}
@@ -39,8 +39,9 @@ h1{font-size:clamp(26px,6vw,36px);letter-spacing:-.02em;margin:10px 0 8px}
 .foot b{color:var(--brand)}
 a.plain{color:var(--brand);text-decoration:none}
 </style>
+<link rel="stylesheet" href="/yk-frame.css?v=r35">
 </head>
-<body>
+<body class="yk-claro" data-yk-title="APP DEL TÉCNICO">
 <div class="wrap">
   <img class="icon" src="/app/icon-512.png" alt="Yokup">
   <div class="logo">Yokup · técnico de campo</div>
@@ -67,5 +68,5 @@ a.plain{color:var(--brand);text-decoration:none}
 
   <div class="foot">Yokup · app de campo · <b>yokup.com/app</b></div>
 </div>
-</body>
+<script src="/yk-frame.js?v=r35"></script></body>
 </html>

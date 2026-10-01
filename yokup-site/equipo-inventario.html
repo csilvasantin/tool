@@ -6,7 +6,7 @@
 <script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Ficha de inventario · Yokup · AdmiraNeXT</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#133d32">
+<meta name="theme-color" content="#f6f8f3">
 <!-- 🗂 FICHA DE INVENTARIO DEL EQUIPO (Carlos, 01-10-2026). Desde el «Equipo» de una
      incidencia: las características del equipo averiado tal como están en el
      inventario ITIL de Yokup (la CMDB de los Xpacios): modelo, nº de serie, compra,
@@ -75,13 +75,16 @@ a{color:var(--green)}
 @page{size:A4;margin:12mm}
 @media print{.bar{display:none}.wrap{padding:0;max-width:none}.sheet{border:0;box-shadow:none;border-radius:0}.hero,.war,.chip,.f.key{-webkit-print-color-adjust:exact;print-color-adjust:exact}.f,.grp{break-inside:avoid}}
 </style>
+<link rel="stylesheet" href="/yk-frame.css?v=r35">
 </head>
-<body>
-<header class="bar" aria-label="Acciones de la ficha">
+<body data-yk-title="INVENTARIO" data-yk-zone="app" data-yk-parent="/incidencias">
+<!-- FLT-101338: la barra propia deja paso al marco común. Volver y abrir en el
+     inventario (navegación) van a ☰ Opciones; imprimir (acción) a ▤ Avanzado. -->
+<header class="bar" aria-label="Acciones de la ficha" data-yk-replace>
   <a class="brand" href="/incidencias" title="Yokup · incidencias">yokup<span>●</span></a>
-  <a class="btn" id="fBack" href="/incidencias">← Incidencias</a>
-  <a class="btn lime" id="fEdit" href="/retailer#itil" hidden>✎ Abrir en Inventario ITIL ↗</a>
-  <button class="btn primary" type="button" id="fPrint">🖨 Imprimir / PDF</button>
+  <nav aria-label="Ficha de inventario" data-yk-slot="left" data-yk-links><a class="btn" id="fBack" href="/incidencias">← Incidencias</a>
+  <a class="btn lime" id="fEdit" href="/retailer#itil" hidden>✎ Abrir en Inventario ITIL ↗</a></nav>
+  <button class="btn primary yk-action" type="button" id="fPrint" data-yk-slot="right">🖨 Imprimir / PDF</button>
 </header>
 <main class="wrap" id="root"><div class="loading" role="status">🗂 Buscando el equipo en el inventario…</div></main>
 <script src="/yk-equipo.js?v=r1"></script>
@@ -154,5 +157,6 @@ async function main(){
 main();
 })();
 </script>
+<script src="/yk-frame.js?v=r35"></script>
 </body>
 </html>

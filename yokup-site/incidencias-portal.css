@@ -7,56 +7,17 @@
  * ALCANCE: todo cuelga de body.inc-portal, que sólo lleva incidencias.html. Se
  * carga DESPUÉS del <style> base de la página, así que vence a sus reglas sin
  * tocar yk-frame.css / yk-misiones.css (compartidos con el resto de Yokup).
- * La barra yk-frame se re-pinta en claro SÓLO aquí, reasignando sus tokens
- * (--yk-*) en body y ajustando lo que yk-frame.css fija con cian literal.
+ * Desde FLT-101338 la barra y los raíles son claros por defecto y la paleta del
+ * portal vive en yk-frame.css: esta hoja sólo viste el contenido de /incidencias.
  * ==========================================================================*/
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
-
-body.inc-portal{
-  color-scheme:light;
-  /* Tokens del portal */
-  --p-ink:#173632;--p-muted:#667a75;--p-paper:#f6f8f3;--p-line:#dbe3d9;--p-line2:#c9d5c4;
-  --p-lime:#d8f36a;--p-dark:#133d32;--p-dark2:#285444;--p-red:#ac3838;
-  --p-accent:#67935c;--p-green:#4f6e4c;--p-live:#7aab49;--p-soft:#eaf0df;--p-soft-line:#d7e2c8;
-  --p-sans:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  --p-head:Manrope,'DM Sans',sans-serif;
-  /* Tokens que leen yk-misiones.css (tarjetas, insignias, árbol) y el <style> base */
-  --bg:var(--p-paper);--card:#fff;--card2:#fbfcf8;--ink:var(--p-ink);--mut:var(--p-muted);--dim:#86958f;
-  --brand:var(--p-green);--accent:#9a6a00;--good:#3f6b2f;--warn:var(--p-red);--violet:var(--p-green);
-  --line:var(--p-line);--line2:var(--p-line2);--sans:var(--p-sans);
-  /* Tokens del marco yk-frame (barra y raíles) */
-  --yk-bg:#fff;--yk-bg2:var(--p-paper);--yk-ink:var(--p-ink);--yk-mut:var(--p-muted);--yk-dim:#86958f;
-  --yk-brand:var(--p-green);--yk-hi:var(--p-ink);--yk-line:var(--p-line);--yk-line2:var(--p-line2);
-  background:var(--p-paper);color:var(--p-ink);font:15px/1.5 var(--p-sans);
-}
-html:has(body.inc-portal){background:#f6f8f3}
+/* Paleta, tokens de página (--bg, --card, --ink…) y fondo papel: yk-frame.css
+   (FLT-101338, una sola fuente para el marco y las pieles claras). */
 body.inc-portal .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 body.inc-portal :is(button,input,select,textarea){font-family:var(--p-sans)}
 body.inc-portal :is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #6c985c;outline-offset:3px}
 body.inc-portal .wrap{max-width:1240px;padding:0 28px 56px}
 
-/* ---------------- Barra yk-frame en claro (sólo esta página) ---------------- */
-body.inc-portal .yk-bar{background:#fff;border-bottom:1px solid var(--p-line);box-shadow:none;font-family:var(--p-sans)}
-body.inc-portal .yk-page{color:var(--p-green);border-left-color:var(--p-line)}
-body.inc-portal .yk-nav{align-self:stretch;padding:0 2px;gap:20px}
-body.inc-portal .yk-nav a{align-self:stretch;min-height:0;font:700 11px/1 var(--p-sans);letter-spacing:.12em;color:var(--p-muted);text-shadow:none}
-body.inc-portal .yk-nav a:hover,body.inc-portal .yk-nav a:focus-visible{color:var(--p-ink);text-shadow:none}
-body.inc-portal .yk-nav a.on{color:var(--p-ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--p-live)}
-body.inc-portal .yk-nav a.on .yk-nav-c,body.inc-portal .yk-nav-c{color:var(--p-green)}
-body.inc-portal :is(.yk-ico,.yk-proj-btn){background:#fff;border:1px solid var(--p-line);color:var(--p-ink);box-shadow:none;font-family:var(--p-sans)}
-body.inc-portal :is(.yk-ico,.yk-proj-btn):hover{background:#f1f5ea;border-color:#adc87d;box-shadow:none}
-body.inc-portal .yk-ico[aria-pressed="true"]{background:var(--p-dark);border-color:var(--p-dark);color:#fff;box-shadow:none}
-body.inc-portal .yk-proj-btn{font-weight:600;letter-spacing:.04em}
-body.inc-portal .yk-proj-btn b{color:var(--p-green)}
-body.inc-portal .yk-proj-dot{background:var(--p-live);box-shadow:none}
-body.inc-portal .yk-proj-menu{background:#fff;border-color:var(--p-line);box-shadow:0 14px 36px #153b3022}
-body.inc-portal .yk-proj-opt:hover{background:#f1f5ea;border-color:var(--p-line)}
-body.inc-portal .yk-proj-opt.on{background:var(--p-soft);border-color:var(--p-soft-line)}
-body.inc-portal .yk-proj-opt .yk-proj-txt b,body.inc-portal .yk-proj-opt.on .yk-proj-txt b{color:var(--p-ink)}
-/* sin sombra: los raíles cerrados viven fuera de pantalla y su sombra teñía los bordes */
-body.inc-portal .yk-rail{background:#fff;border-color:var(--p-line);box-shadow:none;font-family:var(--p-sans)}
-body.inc-portal .yk-hd{color:var(--p-green)}
-body.inc-portal .yk-hd::before{background:var(--p-live);box-shadow:none}
+/* La barra y los raíles ya son claros en yk-frame.css (FLT-101338). */
 
 /* ------------------------------- Cabecera ---------------------------------- */
 body.inc-portal .inc-heading{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);gap:6%;align-items:center;padding:44px 0 34px}
