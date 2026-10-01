@@ -75,8 +75,8 @@ a{color:var(--green)}
 @page{size:A4;margin:12mm}
 @media print{.bar{display:none}.wrap{padding:0;max-width:none}.sheet{border:0;box-shadow:none;border-radius:0}.hero,.war,.chip,.f.key{-webkit-print-color-adjust:exact;print-color-adjust:exact}.f,.grp{break-inside:avoid}}
 </style>
-</head>
-<body>
+<link rel="stylesheet" href="/inventory-shell.css?v=20261001-inventory-1"><script>window.XPACE_SHELL={common:false,twinHome:"https://www.xpaceos.com/admira-xp/",options:[{href:"/retailer#itil",es:"Inventario ITIL",en:"ITIL inventory"},{href:"https://www.xpaceos.com/inventario/",es:"Catálogo XpaceOS",en:"XpaceOS catalogue"},{href:"https://www.xpaceos.com/inventario/starbucks/?view=references",es:"Referencias Starbucks",en:"Starbucks references"},{href:"/incidencias",es:"Incidencias",en:"Incidents"}],advanced:[{href:"/help/#inventory-frame",es:"Ayuda del inventario",en:"Inventory help"},{href:"https://www.xpaceos.com/admira-xp/?play=xtanco&inventory=1",es:"Abrir Xperience",en:"Open Xperience"}]};</script><script defer src="/inventory-shell.js?v=20261001-inventory-1" data-section="/ inventario" data-section-en="/ inventory"></script><link rel="stylesheet" href="/inventory-frame.css?v=inventory-frame-2"></head>
+<body data-inventory-host="yokup" data-inventory-page="equipment">
 <header class="bar" aria-label="Acciones de la ficha">
   <a class="brand" href="/incidencias" title="Yokup · incidencias">yokup<span>●</span></a>
   <a class="btn" id="fBack" href="/incidencias">← Incidencias</a>
@@ -154,5 +154,5 @@ async function main(){
 main();
 })();
 </script>
-</body>
+<script type="module" src="/inventory-frame.mjs?v=inventory-frame-2"></script></body>
 </html>

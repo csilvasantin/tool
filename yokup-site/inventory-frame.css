@@ -1,0 +1,31 @@
+/* Inventory-specific content inside the shared XpaceOS quadratic shell. */
+html.inventory-frame[data-xpace-shell="on"]{--xs-bar-h:82px;scroll-padding-top:94px}
+html.inventory-frame #topBar.xs-bar{height:46px}
+.inventory-frame .inventory-subnav{position:fixed;top:46px;left:0;right:0;height:36px;z-index:8900;display:flex;align-items:center;gap:18px;padding:0 12px;margin:0;border-bottom:1px solid #1f6b78;background:#08141d;color:#dff8ff;overflow-x:auto;white-space:nowrap;font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
+.inventory-frame .inventory-subnav a{color:#78f3ff;text-decoration:none;padding:6px 0}
+.inventory-frame .inventory-subnav a[aria-current=page]{color:white;border-bottom:2px solid #78f3ff}
+.inventory-frame .inventory-subnav .inventory-languages{display:flex;gap:10px;margin-left:auto}
+.inventory-frame .inventory-bottom{position:fixed;inset:auto 0 0;z-index:8900;min-height:38px;padding:0 10px;display:flex;align-items:center;gap:15px;background:#05070c;border-top:1px solid #1f6b78;color:#80a0a9;font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
+.inventory-frame .inventory-bottom button{font:inherit;color:#78f3ff;border:0;background:none;padding:8px;cursor:pointer}
+.inventory-frame .inventory-bottom[hidden]{display:none!important}
+.inventory-frame .xs-panel.quad-menu{bottom:max(38px,var(--xs-bottom))}
+.inventory-frame body.xs-page{padding-bottom:max(38px,var(--xs-bottom))}
+.inventory-frame :is(.detail,.blender-pilot){scroll-margin-top:94px}
+.inventory-frame .detail{top:94px}
+.inventory-frame .xs-panel :is(.toolbar,.spacebar,.controls,.pilot-controls,.pilot-downloads,.show-toolbar,.downloads){display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:0;margin:12px 0;font-size:12px}
+.inventory-frame .xs-panel .view-switch,.inventory-frame .xs-panel .tabs{display:grid;gap:5px;margin:10px 0}
+.inventory-frame .xs-panel .search{width:100%}
+.inventory-frame .xs-panel .search input{width:100%}
+.inventory-frame .xs-panel .spacebar a{margin:0}
+.inventory-frame .xs-panel label{display:block;max-width:100%}
+.inventory-frame .xs-panel select{max-width:100%;margin:6px 0}
+.inventory-frame .xs-panel .pilot-controls label{margin:0}
+.inventory-frame .xs-panel [hidden]{display:none!important}
+.inventory-frame .inventory-accountbar,.inventory-frame .bar{position:relative;top:auto;z-index:1;backdrop-filter:none}
+.inventory-frame :is(dialog,#access-gate){z-index:9200}
+.inventory-frame .inventory-bridge{display:grid;gap:7px;margin-bottom:12px}
+@media(max-width:1100px){.inventory-frame .grid,.inventory-frame .catalog{grid-template-columns:1fr}.inventory-frame .detail{position:static}}
+@media(max-width:600px){.inventory-frame .inventory-subnav{gap:14px}.inventory-frame .inventory-bottom span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media print{.inventory-subnav,.inventory-bottom{display:none!important}}
+/* A focusable descendant must scroll its own panel, never the fixed layer. */
+.inventory-frame .xs-layer{overflow:clip}
