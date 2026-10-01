@@ -94,6 +94,42 @@ body.yk-ticket .asig .rhint a{color:var(--p-green)}
 body.yk-ticket .tk-skel{max-width:720px;margin-top:30px}
 body.yk-ticket #root>.load{margin-top:30px;padding:38px;border:1px dashed #b8c8a5;border-radius:12px;background:#eaf0e1;color:var(--p-muted);font:15px var(--p-sans);letter-spacing:0;text-transform:none}
 
+/* ---------- ⏱ Duración (Carlos, 01-10-2026): cerrada «Duración», viva «Abierta hace» ---------- */
+body.yk-ticket .tk-dur{display:inline-flex;align-items:center;gap:6px;font:800 17px/1.3 var(--p-head);letter-spacing:-.2px;color:var(--p-ink)}
+body.yk-ticket .tk-dur::before{content:"⏱";font-size:14px}
+body.yk-ticket .tk-dur[data-state="live"]{color:#8f4712}
+body.yk-ticket .tk-dur[data-state="live"]::after{content:"";width:7px;height:7px;border-radius:50%;background:#e0892b;animation:tkDurPulse 1.6s ease-in-out infinite}
+body.yk-ticket .tk-dur-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:5px;background:var(--p-dark);color:var(--p-lime);font:700 12px/1.3 var(--p-sans);letter-spacing:.2px;font-variant-numeric:tabular-nums}
+body.yk-ticket .tk-dur-pill[data-state="live"]{background:#fdecd9;color:#8f4712}
+@keyframes tkDurPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+
+/* ---------- 📄 Enviar informe: botón y hoja de envío (dialog) ---------- */
+body.yk-ticket .btn.report{background:linear-gradient(135deg,var(--p-dark),#1f5a47);border-color:var(--p-dark);color:#fff;position:relative;overflow:hidden}
+body.yk-ticket .btn.report::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,#d8f36a55 50%,transparent 70%);transform:translateX(-100%);animation:tkShine 3.8s ease-in-out infinite}
+body.yk-ticket .btn.report:hover{background:linear-gradient(135deg,#1f5a47,var(--p-dark));color:var(--p-lime)}
+@keyframes tkShine{0%,60%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+body.yk-ticket .tk-inf{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);margin:auto;padding:28px 28px 22px;border:1px solid var(--p-line);border-radius:20px;background:#fff;color:var(--p-ink);box-shadow:0 30px 90px #0b2a2244;font:15px/1.5 var(--p-sans)}
+body.yk-ticket .tk-inf[open]{animation:tkInfIn .38s cubic-bezier(.2,.9,.25,1.15)}
+body.yk-ticket .tk-inf::backdrop{background:#0b2a22aa;backdrop-filter:blur(3px)}
+@keyframes tkInfIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
+body.yk-ticket .tk-inf-x{position:absolute;top:12px;right:12px}
+body.yk-ticket .tk-inf-x button{width:34px;height:34px;border-radius:50%;border:1px solid var(--p-line);background:#fff;color:var(--p-ink);font-size:20px;line-height:1;cursor:pointer}
+body.yk-ticket .tk-inf-x button:hover{background:var(--p-paper)}
+body.yk-ticket .tk-inf-eyebrow{display:flex;align-items:center;gap:8px;font:700 10px/1.3 var(--p-sans);letter-spacing:1.8px;color:var(--p-green)}
+body.yk-ticket .tk-inf h2{margin:8px 0 6px;font:700 26px/1.15 var(--p-head);letter-spacing:-.8px}
+body.yk-ticket .tk-inf-lede{margin:0 0 18px;font-size:14px;color:var(--p-muted)}
+body.yk-ticket .tk-inf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+body.yk-ticket .tk-inf-act{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid var(--p-line);border-radius:12px;background:#fbfcf8;color:var(--p-ink);text-align:left;text-decoration:none;cursor:pointer;font:inherit;transition:transform .15s,border-color .15s,background .15s}
+body.yk-ticket .tk-inf-act:hover{transform:translateY(-2px);border-color:var(--p-hover);background:#fff}
+body.yk-ticket .tk-inf-act b{font:700 14px/1.3 var(--p-sans)}
+body.yk-ticket .tk-inf-act span{font-size:12px;line-height:1.4;color:var(--p-muted)}
+body.yk-ticket .tk-inf-act.primary{background:var(--p-lime);border-color:#c3dc55}
+body.yk-ticket .tk-inf-act.primary span{color:#3d5130}
+body.yk-ticket .tk-inf-act[hidden]{display:none}
+body.yk-ticket .tk-inf-url{width:100%;margin-top:14px;padding:9px 12px;border:1px dashed var(--p-line2);border-radius:8px;background:var(--p-paper);color:var(--p-muted);font:12px var(--p-sans)}
+body.yk-ticket .tk-inf-msg{min-height:18px;margin:8px 0 0;font:600 13px var(--p-sans);color:var(--p-green)}
+body.yk-ticket .tk-inf-note{margin:6px 0 0;font-size:12px;color:var(--p-muted)}
+
 /* ------------------------------ Responsive --------------------------------- */
 @media(max-width:1100px){
   body.yk-ticket .tk-data{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -112,6 +148,8 @@ body.yk-ticket #root>.load{margin-top:30px;padding:38px;border:1px dashed #b8c8a
   body.yk-ticket .tk-acciones .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:520px){
+  body.yk-ticket .tk-inf{padding:22px 18px 18px}
+  body.yk-ticket .tk-inf-grid{grid-template-columns:minmax(0,1fr)}
   body.yk-ticket .wrap>nav{padding-top:20px}
   body.yk-ticket .tk-heading{padding:20px 0 20px}
   body.yk-ticket .tk-heading h1{font-size:32px;letter-spacing:-1.2px}
@@ -126,4 +164,5 @@ body.yk-ticket #root>.load{margin-top:30px;padding:38px;border:1px dashed #b8c8a
 }
 @media(prefers-reduced-motion:reduce){
   body.yk-ticket .ev-imgs a{transition:none}
+  body.yk-ticket .tk-dur[data-state="live"]::after,body.yk-ticket .btn.report::after,body.yk-ticket .tk-inf[open]{animation:none}
 }

@@ -74,7 +74,7 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
      y /tareas (body.yk-light) + lo propio de la ficha (body.yk-ticket). Van
      DESPUÉS del <style> base, que queda de respaldo sin tocar el resto de Yokup. -->
 <link rel="stylesheet" href="/yk-portal-light.css?v=1">
-<link rel="stylesheet" href="/ticket-portal.css?v=1">
+<link rel="stylesheet" href="/ticket-portal.css?v=2">
 </head>
 <body class="yk-light yk-ticket" data-yk-title="TICKET">
 <div class="wrap">
@@ -91,10 +91,30 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «ticket JSON» para volcar la entidad cruda del worker.</pre>
 </div>
 
+<!-- 📄 Enviar informe: hoja de envío. Nada se manda solo; el correo lo abre tu cliente. -->
+<dialog class="tk-inf" id="tkInforme" aria-labelledby="tkInfH">
+  <form method="dialog" class="tk-inf-x"><button aria-label="Cerrar">×</button></form>
+  <p class="tk-inf-eyebrow"><span class="live-dot" aria-hidden="true"></span>INFORME DE INCIDENCIA</p>
+  <h2 id="tkInfH">Listo para compartir</h2>
+  <p class="tk-inf-lede">Ficha, gravedad, duración, línea de tiempo del historial, resolución y Resumen IA, con el look de AdmiraNeXT. Se imprime limpio en PDF.</p>
+  <div class="tk-inf-grid">
+    <a class="tk-inf-act primary" id="tkInfOpen" href="#" target="_blank" rel="noopener"><b>✨ Abrir informe</b><span>Vista web compartible</span></a>
+    <a class="tk-inf-act" id="tkInfPrint" href="#" target="_blank" rel="noopener"><b>🖨 Imprimir / PDF</b><span>Abre el informe y el diálogo de impresión</span></a>
+    <a class="tk-inf-act" id="tkInfMail" href="#"><b>✉️ Enviar por correo</b><span>Abre tu correo con el enlace; tú eliges a quién</span></a>
+    <button class="tk-inf-act" type="button" onclick="informeCopiar()"><b>🔗 Copiar enlace</b><span>Para pegarlo en Telegram, Slack…</span></button>
+    <button class="tk-inf-act" type="button" id="tkInfShare" onclick="informeCompartir()" hidden><b>📤 Compartir…</b><span>Menú de compartir del sistema</span></button>
+  </div>
+  <input class="tk-inf-url" id="tkInfUrl" readonly aria-label="Enlace del informe">
+  <p class="tk-inf-msg" id="tkInfMsg" role="status"></p>
+  <p class="tk-inf-note">El enlace abre el informe tras el acceso con Google de Yokup. Nada se envía automáticamente.</p>
+</dialog>
+
 <!-- yk-misiones aporta canonMachine (nombres canónicos de máquina) al selector de asignación -->
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-misiones.js?v=20260930-flt101292"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
+<!-- Duración de la incidencia (creación → cierre; en vivo mientras sigue abierta) -->
+<script src="/yk-duracion.js?v=r1"></script>
 <script>
 const WORKER="https://api.yokup.com";
 YkAdjuntos.init(WORKER);
@@ -148,6 +168,33 @@ function dato(dl,label,valor,...subs){
   dl.appendChild(box);
 }
 
+// ⏱ Duración: nodo de la tarjeta Fechas + píldora de cabecera. Mientras la
+// incidencia siga abierta, un único intervalo refresca ambos cada segundo.
+let durTimer=null;
+function duracionNodo(t){
+  const n=nodo("span","tk-dur");
+  const d=window.YkDuracion?YkDuracion.duracion(t):null;
+  n.dataset.state=d?(d.viva?"live":"done"):"none";
+  n.textContent=window.YkDuracion?YkDuracion.etiqueta(t):"Abierta hace "+ago(t.created_at);
+  n.id="tkDur";
+  return n;
+}
+function pintaDuracion(){
+  if(durTimer){ clearInterval(durTimer); durTimer=null; }
+  if(!window.YkDuracion||!TICKET) return;
+  const pill=$("tkDurPill");
+  const tick=()=>{
+    const d=YkDuracion.duracion(TICKET), box=$("tkDur");
+    if(!d) return;
+    const txt=YkDuracion.formato(d.ms);
+    if(box) box.textContent=(d.viva?"Abierta hace ":"Duración ")+txt;
+    if(pill){ pill.textContent="⏱ "+(d.viva?"Abierta "+txt:"Duró "+txt); pill.dataset.state=d.viva?"live":"done"; pill.hidden=false; }
+  };
+  tick();
+  const d=YkDuracion.duracion(TICKET);
+  if(d&&d.viva) durTimer=setInterval(()=>{ if(!$("tkDur")){ clearInterval(durTimer); durTimer=null; return; } tick(); },1000);
+}
+
 async function render(){
   let d; try{ const r=await fetch(WORKER+"/ticket?id="+encodeURIComponent(id),{cache:"no-store"}); d=await r.json(); }catch(e){ $("root").innerHTML='<div class="load">No se pudo cargar el ticket.</div>'; return; }
   if(d.error){ $("root").innerHTML='<div class="load">Ticket no encontrado.</div>'; return; }
@@ -170,7 +217,7 @@ async function render(){
     <header class="ykl-heading tk-heading">
       <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span class="tid" id="tkEyebrow"></span></p>
       <h1 id="tkTitle"><span id="tkSubject"></span><br><em id="tkSubline"></em></h1>
-      <div class="tk-pills"><span class="badge ${sb}"><i></i>${stt}</span><span class="ykl-sev" id="tkSev" hidden></span>${t.portal&&t.portal.url?'<a href="https://www.yokup.com/retailer/incidencia?id='+encodeURIComponent(t.portal.incident_id)+'" target="_blank" rel="noopener" class="tk-portal" title="La lleva el Portal del comercio: técnico, cita, cierre con evidencia y valoración">🏪 Portal del comercio · '+esc(t.portal.site_name||t.portal.incident_id)+' ↗</a>':t.portal?'<span class="tk-portal">Yokup Desk · '+esc(t.portal.incident_id)+'</span>':''}</div>
+      <div class="tk-pills"><span class="badge ${sb}"><i></i>${stt}</span><span class="ykl-sev" id="tkSev" hidden></span>${t.portal&&t.portal.url?'<a href="https://www.yokup.com/retailer/incidencia?id='+encodeURIComponent(t.portal.incident_id)+'" target="_blank" rel="noopener" class="tk-portal" title="La lleva el Portal del comercio: técnico, cita, cierre con evidencia y valoración">🏪 Portal del comercio · '+esc(t.portal.site_name||t.portal.incident_id)+' ↗</a>':t.portal?'<span class="tk-portal">Yokup Desk · '+esc(t.portal.incident_id)+'</span>':''}<span class="tk-dur-pill" id="tkDurPill" hidden></span></div>
     </header>
     <div class="tk-sheet">
       <div class="tk-main">
@@ -196,6 +243,7 @@ async function render(){
             <a class="btn live" href="/asistencia?room=${encodeURIComponent(t.screen)}">🎥 Asistencia en vivo</a>
             ${actionBtns}
             <button class="btn ai" onclick="summary()">🧠 Resumen IA</button>
+            <button class="btn report" onclick="informe()">📄 Enviar informe</button>
             <a class="btn" href="https://admira.tv/cms.html" target="_blank" rel="noopener">admira.tv ↗</a>
           </div>
         </section>
@@ -231,10 +279,14 @@ async function render(){
   else dato(dl,"Equipo",t.screen?nodo("span","scr",t.screen):"Sin equipo");
   const sevPill=nodo("span","ykl-sev",sev?(SEV_LABEL[sev]||t.priority):"Sin gravedad"); if(sev) sevPill.dataset.sev=sev;
   dato(dl,"Gravedad",sevPill,t.priority?"prioridad "+t.priority:"");
-  dato(dl,"Fechas","Abierta hace "+ago(t.created_at),
+  // DURACIÓN (Carlos, 01-10-2026): cerrada → «Duración 31 s» (creación → cierre);
+  // abierta → «Abierta hace …» que corre en vivo. Antes ponía «Abierta hace» también
+  // en las finalizadas, y eso parecía una incidencia todavía viva.
+  dato(dl,"Fechas",duracionNodo(t),
     t.created_at?"Creada "+fecha(t.created_at):"",
     t.resolved_at?"Finalizada "+fecha(t.resolved_at):"",
     Number(t.race_bonus_points)>0?"🏁 Bonus Track +"+Number(t.race_bonus_points)+" puntos":"");
+  pintaDuracion();
   if(esFlota) llenaAsig();
   montaAdjuntos();   // el composer se recrea en cada render → re-engancha
 }
@@ -363,7 +415,43 @@ window.addNote=async()=>{
   await fetch(WORKER+"/ticket/note",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,author:"Técnico",text:(v||"(imagen adjunta)")+img})});
   $("note").value=""; if(noteAdj)noteAdj.clear(); render();
 };
-window.summary=async()=>{ $("sum").classList.add("show"); $("sumtext").textContent="Generando resumen…"; try{ const r=await fetch(WORKER+"/ai-summary",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); $("sumtext").textContent=d.text||"Sin resumen."; }catch(e){ $("sumtext").textContent="No disponible."; } };
+window.summary=async()=>{ $("sum").classList.add("show"); $("sumtext").textContent="Generando resumen…"; try{ const r=await fetch(WORKER+"/ai-summary",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); $("sumtext").textContent=d.text||"Sin resumen."; if(d.text) guardaResumen(d.text); }catch(e){ $("sumtext").textContent="No disponible."; } };
+// El informe reutiliza el Resumen IA ya generado aquí (30 min) en vez de pedir otro.
+function guardaResumen(text){ try{ localStorage.setItem("ykInformeResumen:"+id,JSON.stringify({text,ts:Date.now()})); }catch(e){} }
+
+// ---- 📄 ENVIAR INFORME (Carlos, 01-10-2026) ----------------------------------
+// Abre la hoja de envío: el informe vive en /informe-incidencia?id=… (vista HTML
+// compartible, imprimible a PDF). NADA se envía solo: «Enviar por correo» abre el
+// cliente de correo con el enlace y tú eliges los destinatarios.
+function informeUrl(print){ return location.origin+"/informe-incidencia?id="+encodeURIComponent(id)+(print?"&print=1":""); }
+function informeMailto(){
+  const t=TICKET||{}, dur=window.YkDuracion?YkDuracion.etiqueta(t):"";
+  const asunto="Informe de incidencia "+id+" · "+(t.subject||"");
+  const cuerpo=["Hola,","","Te comparto el informe de la incidencia "+id+":",
+    "«"+(t.subject||"(sin asunto)")+"»",
+    [t.project_name||t.project,t.loc].filter(Boolean).join(" · "),
+    dur?("⏱ "+dur):"","",
+    "Informe completo (línea de tiempo, duración y resumen IA):",informeUrl(false),"","— Yokup · AdmiraNeXT"].filter((l,i,a)=>l!==""||a[i-1]!=="").join("\n");
+  return "mailto:?subject="+encodeURIComponent(asunto)+"&body="+encodeURIComponent(cuerpo);
+}
+window.informe=()=>{
+  const dlg=$("tkInforme");
+  $("tkInfOpen").href=informeUrl(false);
+  $("tkInfPrint").href=informeUrl(true);
+  $("tkInfMail").href=informeMailto();
+  $("tkInfUrl").value=informeUrl(false);
+  $("tkInfMsg").textContent="";
+  $("tkInfShare").hidden=!navigator.share;
+  if(dlg.showModal) dlg.showModal(); else window.open(informeUrl(false),"_blank","noopener");
+};
+window.informeCopiar=async()=>{
+  const url=informeUrl(false);
+  try{ await navigator.clipboard.writeText(url); $("tkInfMsg").textContent="✓ Enlace copiado"; }
+  catch(e){ const i=$("tkInfUrl"); i.focus(); i.select(); $("tkInfMsg").textContent="Selecciona y copia el enlace (⌘C)"; }
+};
+window.informeCompartir=async()=>{
+  try{ await navigator.share({title:"Informe de incidencia "+id,text:(TICKET&&TICKET.subject)||"",url:informeUrl(false)}); }catch(e){}
+};
 window.suggest=async()=>{ const ta=$("note"); const old=ta.value; ta.value="🧠 pensando…"; try{ const r=await fetch(WORKER+"/ai-suggest",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); ta.value=d.text||old; }catch(e){ ta.value=old; } };
 if(!id){ $("root").innerHTML='<div class="load">Falta el id del ticket.</div>'; } else render();
 </script>

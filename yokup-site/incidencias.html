@@ -96,7 +96,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 </style>
 <!-- FLT-101292 · Piel clara «Portal del comercio» sólo para esta página (body.inc-portal):
      va DESPUÉS del <style> base para vencerlo; no toca yk-frame/yk-misiones compartidos. -->
-<link rel="stylesheet" href="/incidencias-portal.css?v=2">
+<link rel="stylesheet" href="/incidencias-portal.css?v=3">
 </head>
 <body class="inc-portal" data-yk-title="INCIDENCIAS" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
@@ -195,6 +195,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 <script src="/yk-agent-identity.js?v=20260930-flt101292"></script>
 <script src="/yk-avatar.js?v=r3"></script>
 <script src="/yk-misiones.js?v=20260930-flt101292"></script>
+<!-- ⏱ Duración de cada incidencia (creación → cierre; en curso mientras sigue abierta) -->
+<script src="/yk-duracion.js?v=r1"></script>
 <script>
 const WORKER="https://api.yokup.com";
 // Compat: llegadas antiguas con #misiones / #tareas abren su raíl (el nav ya no lo usa).
@@ -235,6 +237,16 @@ function portalPillHtml(p){
   return p.url?'<a class="inc-comercio" href="'+esc(PORTAL_FICHA+encodeURIComponent(p.incident_id))+'" target="_blank" rel="noopener" title="Abrir la ficha en el Portal del comercio">'+esc(label)+' ↗</a>'
     :'<span class="inc-comercio" title="Incidencia '+esc(p.incident_id)+' del Yokup Desk">'+esc(label)+'</span>';
 }
+// ⏱ DURACIÓN (Carlos, 01-10-2026): cerrada → «Duró 2 h 14 min»; abierta → «Abierta 25 min».
+function durChipHtml(t){
+  if(!window.YkDuracion)return "";
+  const d=YkDuracion.duracion(t); if(!d)return "";
+  return '<span class="inc-dur" data-state="'+(d.viva?'live':'done')+'" title="'+(d.viva?'Tiempo abierta hasta ahora':'Duración: de la creación al cierre')+'">⏱ '+(d.viva?'Abierta ':'Duró ')+esc(YkDuracion.formato(d.ms))+'</span>';
+}
+function durDetalleHtml(t){
+  const d=window.YkDuracion&&YkDuracion.duracion(t); if(!d)return "";
+  return '<p><b>'+(d.viva?'Abierta desde hace':'Duración')+'</b><br>'+esc(YkDuracion.formato(d.ms))+'</p>';
+}
 function incidenceRowHtml(t){
   YkMisiones.cacheMission(t);
   const state=incidentState(t), kind=classificationOf(t), machine=YkMisiones.machineOf(t)||t.loc||"";
@@ -249,12 +261,12 @@ function incidenceRowHtml(t){
   return '<article class="tk incident-row '+(t.status==="open"?'open ':'')+(t.id===FOCUS?'inc-focus ':'')+'" data-id="'+esc(t.id)+'" data-kind="'+esc(kind)+'" data-state="'+esc(t.status||"open")+'" data-sev="'+esc(sev)+'" tabindex="0" role="group" aria-label="Incidencia '+esc(t.id)+' · '+esc(t.subject||'sin título')+'">'+
     '<div class="inc-main">'+
       '<div class="inc-cell inc-origin-cell"><span class="inc-project">'+esc(project)+'</span><span class="inc-origin">'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+' · '+esc(source)+'</span></div>'+
-      '<div class="inc-cell inc-copy"><div class="inc-pills"><a class="inc-ref tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'" title="Abrir ficha '+esc(t.id)+'">'+esc(YkMisiones.visibleId(t))+'</a><span class="badge '+state.cls+'"><i></i>'+state.label+'</span><span class="inc-sev" data-sev="'+esc(sev)+'">'+esc(sevLabel)+'</span>'+portalPillHtml(t.portal)+'</div><span class="inc-subject">'+esc(t.subject||"Incidencia sin título")+'</span><span class="inc-resource">'+esc(t.screen||"recurso no indicado")+'</span></div>'+
+      '<div class="inc-cell inc-copy"><div class="inc-pills"><a class="inc-ref tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'" title="Abrir ficha '+esc(t.id)+'">'+esc(YkMisiones.visibleId(t))+'</a><span class="badge '+state.cls+'"><i></i>'+state.label+'</span><span class="inc-sev" data-sev="'+esc(sev)+'">'+esc(sevLabel)+'</span>'+portalPillHtml(t.portal)+'</div><span class="inc-subject">'+esc(t.subject||"Incidencia sin título")+'</span><span class="inc-resource">'+esc(t.screen||"recurso no indicado")+'</span>'+durChipHtml(t)+'</div>'+
       '<div class="inc-cell inc-owner">'+YkMisiones.whoHtml(t.assignee||"",machine,"",t._agents,null)+'<span class="inc-machine">'+(machine?'🖥 '+esc(machine):'sin equipo indicado')+'</span></div>'+
       '<div class="inc-cell inc-state"><div class="inc-actions"><button class="inc-action advance" type="button" data-status-id="'+esc(t.id)+'" data-next="'+state.next+'" aria-label="'+state.action+' incidencia '+esc(t.id)+'">'+state.action+'</button><a class="inc-action tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'">Abrir →</a></div></div>'+
     '</div>'+
     '<details class="inc-detail"'+(t.id===FOCUS?' open':'')+'><summary>Detalle de la incidencia</summary><div class="inc-detail-body">'+
-      '<p><b>Proyecto/origen</b><br>'+esc(project)+' · '+esc(source)+'</p><p><b>Clasificación</b><br>'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+'</p><p><b>Creada</b><br>'+esc(YkMisiones.ago(t.created_at))+'</p>'+
+      '<p><b>Proyecto/origen</b><br>'+esc(project)+' · '+esc(source)+'</p><p><b>Clasificación</b><br>'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+'</p><p><b>Creada</b><br>'+esc(YkMisiones.ago(t.created_at))+'</p>'+durDetalleHtml(t)+
       (detail.length?'<p class="inc-triage">'+esc(detail.join(' · '))+'</p>':'')+(t.ai_triage?'<p class="inc-triage"><b>Triaje IA</b><br>'+esc(t.ai_triage)+'</p>':'')+
     '</div></details></article>';
 }

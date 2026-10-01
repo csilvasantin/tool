@@ -33,7 +33,7 @@ test("la fila la pinta junto a estado y gravedad; un 409 del portal lo explica e
 });
 
 test("estilo con el alcance de la piel y versión subida", () => {
-  assert.ok(html.includes('/incidencias-portal.css?v=2"'));
+  assert.ok(html.includes('/incidencias-portal.css?v=3"'));
   const css = read("incidencias-portal.css");
   assert.match(css, /body\.inc-portal \.inc-comercio\{[^}]*background:var\(--p-dark\)/);
   assert.match(css, /body\.inc-portal a\.inc-comercio:hover,body\.inc-portal a\.inc-comercio:focus-visible\{/);

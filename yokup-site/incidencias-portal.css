@@ -159,6 +159,9 @@ body.inc-portal .inc-sev{display:inline-block;padding:4px 9px;border-radius:5px;
 body.inc-portal .inc-sev[data-sev="urgente"]{background:var(--p-red);color:#fff}
 body.inc-portal .inc-sev[data-sev="alta"]{background:#fdecd9;color:#8f4712}
 body.inc-portal .inc-sev[data-sev="normal"]{background:#edf3df;color:var(--p-green)}
+/* ⏱ Duración (01-10-2026): cerrada en verde oscuro, abierta en ámbar */
+body.inc-portal .inc-dur{display:inline-block;align-self:flex-start;margin-top:6px;padding:4px 9px;border-radius:5px;background:var(--p-dark);color:var(--p-lime);font:700 12px var(--p-sans);letter-spacing:.2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+body.inc-portal .inc-dur[data-state="live"]{background:#fff3cf;color:#865c00}
 body.inc-portal .inc-subject{font:700 19px/1.3 var(--p-head);letter-spacing:-.3px;color:var(--p-ink)}
 body.inc-portal .inc-resource{font:13px var(--p-sans);color:var(--p-muted)}
 body.inc-portal .inc-project{font:700 14px/1.35 var(--p-sans);color:var(--p-ink);white-space:normal;overflow-wrap:anywhere}
