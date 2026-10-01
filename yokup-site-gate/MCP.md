@@ -219,6 +219,17 @@ Cloudflare obligatoria (los bindings no cruzan cuentas). Sin secreto nuevo.
 2) yokup-site (Pages); 3) el gate (`yokup-site/deploy.mjs` o `deploy.sh`). Al revés, las
 herramientas `itil_*` aparecerían en `tools/list` y fallarían con 404 hasta publicar yokup-api.
 
+## La web: marca blanca y /marca (FLT-101338)
+
+Funcionalidad del site, no del servidor MCP (no hay herramienta nueva ni cambia
+`MCP_VERSION`): el marco común `yk-frame.js` de www.yokup.com viste cualquier página con
+una marca del catálogo de admiranext.com/marcablanca (plataforma `yokup`) con
+`?marca=<id>` o con el verbo `/marca <id|off|web>` (alias `/brand`) de la consola local
+de ⌘ Experto. Un agente que quiera enseñar Yokup con marca entrega el enlace
+(`https://www.yokup.com/retailer?marca=starbucks`; `?marca=admira` vuelve). La consola
+local ejecuta `/help` y `/marca` en el navegador y nunca los envía al tmux de un agente.
+Detalle en `docs/marca-blanca-yokup.md`.
+
 ## Conectar y comprobar
 
 Remoto: URL `https://yokup.com/mcp`, autenticación Bearer con la clave privada.

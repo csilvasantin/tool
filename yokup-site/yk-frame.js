@@ -1819,12 +1819,100 @@
     var form=el("form","yk-cli-terminal-form");
     FLEET.cliInput=el("textarea","yk-cli-terminal-input");FLEET.cliInput.rows=2;FLEET.cliInput.maxLength=4000;FLEET.cliInput.disabled=true;FLEET.cliInput.setAttribute("aria-label","Mensaje para el agente CLI seleccionado");form.appendChild(FLEET.cliInput);
     FLEET.cliSend=fleetText("button","yk-cli-terminal-send","Enviar ⌘↵");FLEET.cliSend.type="submit";FLEET.cliSend.disabled=true;form.appendChild(FLEET.cliSend);
-    function submitCliEditor(){var text=FLEET.cliInput.value;if(!text.trim()||FLEET.busy)return;terminalAction("write",text);}
+    // /marca y /brand nunca viajan al tmux del agente: los resuelve la consola
+    // LOCAL de este navegador (FLT-101338). El resto del texto, /help incluido
+    // (que es la ayuda del propio CLI remoto), se envía como siempre.
+    function submitCliEditor(){var text=FLEET.cliInput.value;if(!text.trim()||FLEET.busy)return;if(LOCAL_CLI.isLocalOnly(text)){FLEET.cliInput.value="";LOCAL_CLI.run(text.trim());return;}terminalAction("write",text);}
     form.addEventListener("submit",function(event){event.preventDefault();submitCliEditor();});
     FLEET.cliInput.addEventListener("keydown",function(event){var enter=event.key==="Enter"||event.code==="Enter"||event.code==="NumpadEnter";if(enter&&(event.metaKey||event.ctrlKey)&&!event.isComposing){event.preventDefault();event.stopPropagation();submitCliEditor();}});
     terminal.appendChild(form);
     section.appendChild(terminal);return section;
   }
+
+  // ── MARCA BLANCA (FLT-101338): el único enganche ─────────────────────────────
+  // Yokup (la pata «Yokup mantiene») se viste con una marca del catálogo único de
+  // https://www.admiranext.com/marcablanca (plataforma «yokup»), igual que admira.app,
+  // Pixeria y XpaceOS. Este marco inserta /yk-marca.js —con su MISMO sello ?v=— sólo
+  // si la pestaña pide marca (?marca=<id> o la recordada en sessionStorage mb:marca)
+  // o si se usa /marca. Sin marca no se carga nada ni se habla con admiranext.com.
+  // Ver docs/marca-blanca-yokup.md.
+  var MB_SESSION_KEY = "mb:marca";
+  var MARCA_VERB = /^\/?(?:marca|brand|marcablanca)$/i;
+  var BRAND_SEED = ["admira", "lumbre", "brumelle", "frescaria"];
+  function wantsBrand(search, storage) {
+    var q = null;
+    try { q = new URLSearchParams(search || "").get("marca"); } catch (e) {}
+    if (q != null) return true;
+    try { return !!(storage && storage.getItem(MB_SESSION_KEY)); } catch (e) { return false; }
+  }
+  var _marcaPromise = null;
+  function cargarMarca() {
+    if (window.AdmiraMarca) return Promise.resolve(window.AdmiraMarca);
+    if (!_marcaPromise) {
+      _marcaPromise = new Promise(function (resolve) {
+        var src = "/yk-marca.js";
+        try { var u = new URL("/yk-marca.js", FRAME_SRC || location.href); u.search = new URL(FRAME_SRC || location.href).search; src = u.pathname + u.search; } catch (e) {}
+        var s = document.createElement("script");
+        s.src = src; s.async = true; s.setAttribute("data-yk-marca", "");
+        // La URL con la que se pidió la marca: una página puede reescribirla antes de
+        // que el cargador llegue (p. ej. /contactanos añade ?room=).
+        s.setAttribute("data-search", location.search || "");
+        s.onload = function () { resolve(window.AdmiraMarca || null); };
+        s.onerror = function () { if (s.parentNode) s.parentNode.removeChild(s); _marcaPromise = null; resolve(null); };
+        (document.head || document.documentElement).appendChild(s);
+      });
+    }
+    return _marcaPromise;
+  }
+  // /marca <id|off|web> (alias /brand). M es window.AdmiraMarca (yk-marca.js);
+  // write pinta una línea en la consola. Mismos textos que admira.app, Pixeria y XpaceOS.
+  function runMarca(arg, M, en, write) {
+    function t(es, english) { return en ? english : es; }
+    function tag(b) { return b && b.propuesta ? t(" · propuesta automática, no es la marca oficial", " · automatic proposal, not the official brand") : b && b.ejemplo ? t(" · marca ficticia de ejemplo", " · fictional sample brand") : ""; }
+    function list(items) { return items.map(function (b) { return b.id + (b.propuesta ? t(" (propuesta)", " (proposal)") : b.ejemplo ? t(" (ejemplo)", " (sample)") : ""); }).join(", "); }
+    if (!M) { write(t("La marca blanca aún no está lista en esta página. Vuelve a intentarlo en un momento.", "White label is not ready on this page yet. Try again in a moment.")); return Promise.resolve({ok:false}); }
+    var p = M.parseArg(arg);
+    if (p.kind === "invalid") {
+      write(t("Marca no válida: «" + p.input + "».", "Invalid brand: “" + p.input + "”.") + "\n" +
+        t("Usa un id del catálogo (" + M.conocidas().map(function (b) { return b.id; }).join(", ") + "), off para volver a Admira o una web (starbucks.es) para analizarla.",
+          "Use a catalogue id (" + M.conocidas().map(function (b) { return b.id; }).join(", ") + "), off to return to Admira or a website (starbucks.es) to analyse it."));
+      return Promise.resolve({ok:false});
+    }
+    if (p.kind === "status") {
+      var now = M.actual();
+      write(now
+        ? t("Marca activa: " + now.nombre + " (" + now.id + ")" + tag(now) + ". /marca off vuelve a Admira.", "Active brand: " + now.nombre + " (" + now.id + ")" + tag(now) + ". /marca off returns to Admira.")
+        : t("Sin marca blanca: ves el aspecto de Admira.", "No white label: you see the Admira look."));
+      return M.listar().then(function (items) { write(t("Disponibles: ", "Available: ") + list(items) + "."); return {ok:true}; },
+        function () { write(t("No se pudo leer el catálogo de admiranext.com. Conocidas: ", "Could not read the admiranext.com catalogue. Known: ") + list(M.conocidas()) + "."); return {ok:false}; });
+    }
+    if (p.kind === "off") {
+      var r = M.desactivar();
+      write(r.changed && r.previous
+        ? t("Marca " + r.previous.nombre + " desactivada: vuelve Admira.", r.previous.nombre + " brand turned off: back to Admira.")
+        : t("No había ninguna marca blanca activa: ya ves Admira.", "No white label was active: you already see Admira."));
+      return Promise.resolve({ok:true});
+    }
+    if (p.kind === "web") {
+      var w = M.analizar(p.url);
+      write(t("Abriendo el analizador de marca blanca en otra pestaña: " + w.href, "Opening the white-label analyser in a new tab: " + w.href) + "\n" +
+        t("Allí se analiza la web y se guarda en el catálogo; después actívala aquí con /marca <id>.", "There the site is analysed and saved to the catalogue; then turn it on here with /marca <id>."));
+      return Promise.resolve({ok:!!w.ok});
+    }
+    write(t("Aplicando la marca " + p.id + "…", "Applying the " + p.id + " brand…"));
+    return M.activar(p.id).then(function (res) {
+      if (res.ok) { write(t("Marca " + res.nombre + " (" + res.id + ") activa" + tag(res) + ". Se mantiene al navegar en esta pestaña; /marca off vuelve a Admira.", res.nombre + " (" + res.id + ") brand on" + tag(res) + ". It stays while you browse in this tab; /marca off returns to Admira.")); return {ok:true}; }
+      if (res.reason === "unknown") {
+        write(t("La marca «" + p.id + "» no está en el catálogo de admiranext.com. No se ha aplicado nada.", "The brand “" + p.id + "” is not in the admiranext.com catalogue. Nothing was applied.") + "\n" +
+          t("Disponibles: ", "Available: ") + list(M.conocidas()) + t(". Para crearla: /marca <web de la marca>.", ". To create it: /marca <brand website>."));
+        return {ok:false};
+      }
+      write(t("No se pudo contactar con admiranext.com. No se ha aplicado nada; vuelve a intentarlo.", "Could not reach admiranext.com. Nothing was applied; try again."));
+      return {ok:false};
+    });
+  }
+  // Arranque: sólo si esta pestaña pide marca (nunca en una visita normal).
+  (function () { var ss = null; try { ss = window.sessionStorage; } catch (e) {} if (wantsBrand(location.search, ss)) cargarMarca(); })();
 
   // ── CONSOLA LOCAL de ⌘ Experto (FLT-101338) ──────────────────────────────────
   // El Experto de Yokup escribe en el tmux REMOTO del agente seleccionado. Los
@@ -1832,9 +1920,10 @@
   // navegador y nunca llegan a un agente. Esta consola es su intérprete mínimo, y
   // la única consola que ve quien entra sin sesión de flota.
   var LOCAL_HISTORY_KEY = "yk_local_cli_history_v1";
-  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear"];
+  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand"];
   var LOCAL_CLI = {
     log: null, input: null,
+    isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")); },
     print: function (text, cls) {
       var ol = LOCAL_CLI.log; if (!ol) return;
       String(text == null ? "" : text).split("\n").forEach(function (line) {
@@ -1851,7 +1940,9 @@
     L.push(t("Yokup · consola local. Se ejecuta en este navegador; nunca llega a un agente.", "Yokup · local console. It runs in this browser and never reaches an agent."));
     L.push(t("  /help (/ayuda) — esta ayuda", "  /help (/ayuda) — this help"));
     L.push(t("  /limpiar (/clear) — vacía la consola", "  /limpiar (/clear) — clear the console"));
-    if (fleet) L.push(t("Para hablar con un agente, elige su CLI abajo y escribe en su caja: ese texto sí va a su tmux.", "To talk to an agent, pick its CLI below and type in its box: that text goes to its tmux."));
+    L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
+      "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
+    if (fleet) L.push(t("Para hablar con un agente, elige su CLI abajo y escribe en su caja: ese texto sí va a su tmux. /marca escrito allí también se resuelve aquí.", "To talk to an agent, pick its CLI below and type in its box: that text goes to its tmux. /marca typed there is also handled here."));
     L.push(t("Ayuda completa: yokup.com/help · MCP de flota: yokup.com/mcp", "Full help: yokup.com/help · Fleet MCP: yokup.com/mcp"));
     return L.join("\n");
   }
@@ -1860,16 +1951,20 @@
     if (!raw) return Promise.resolve();
     LOCAL_CLI.print("› " + raw, "yk-lcli-in");
     var m = raw.match(/^\/?(\S+)\s*([\s\S]*)$/), verb = (m ? m[1] : "").toLowerCase(), args = m ? m[2].trim() : "";
-    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear)$/i.test(verb)) {
+    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand)$/i.test(verb)) {
       LOCAL_CLI.print(localEn() ? "This console only runs slash verbs. /help lists them." : "Esta consola sólo ejecuta verbos con barra. /help los lista.");
       return Promise.resolve();
     }
     if (verb === "help" || verb === "ayuda" || verb === "?") { LOCAL_CLI.print(localHelp(fleetMode())); return Promise.resolve(); }
     if (verb === "limpiar" || verb === "clear" || verb === "cls") { if (LOCAL_CLI.log) LOCAL_CLI.log.textContent = ""; return Promise.resolve(); }
+    if (MARCA_VERB.test(verb)) {
+      if (!isOpen("bottom")) setOpen("bottom", true);
+      return cargarMarca().then(function (M) { return runMarca(args, M, localEn(), LOCAL_CLI.print); });
+    }
     LOCAL_CLI.print(localEn() ? "Unknown verb: /" + verb + ". /help lists the verbs of this console." : "Verbo desconocido: /" + verb + ". /help lista los verbos de esta consola.");
     return Promise.resolve();
   }
-  function localComplete(value) {
+  function localComplete(value, brandIds) {
     var text = String(value == null ? "" : value), m = text.match(/^(\s*)(\/?)(\S*)$/);
     function prefix(list) { return list.reduce(function (a, b) { var i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); }, list[0] || ""); }
     if (m) {
@@ -1877,7 +1972,11 @@
       if (!pool.length) return {value:text, options:[]};
       return pool.length === 1 ? {value:m[1] + "/" + pool[0] + " ", options:pool} : {value:m[1] + "/" + prefix(pool), options:pool};
     }
-    return {value:text, options:[]};
+    var a = text.match(/^(\s*\/?(\S+)\s+)(\S*)$/);
+    if (!a || !/^(marca|brand|marcablanca)$/i.test(a[2])) return {value:text, options:[]};
+    var ids = (brandIds || []).concat(["off"]).filter(function (o, i, all) { return all.indexOf(o) === i && o.indexOf(a[3].toLowerCase()) === 0; });
+    if (!ids.length) return {value:text, options:[]};
+    return ids.length === 1 ? {value:a[1] + ids[0], options:ids} : {value:a[1] + prefix(ids), options:ids};
   }
   function buildLocalCli(fleet) {
     var section = el("section", "yk-local-cli" + (fleet ? " is-compact" : ""));
@@ -1886,11 +1985,11 @@
     var form = el("form", "yk-lcli-form"); form.setAttribute("autocomplete", "off");
     var prompt = el("span", "yk-lcli-prompt", "›"); prompt.setAttribute("aria-hidden", "true");
     var input = document.createElement("input");
-    input.type = "text"; input.className = "yk-lcli-input"; input.placeholder = "/help";
+    input.type = "text"; input.className = "yk-lcli-input"; input.placeholder = "/help · /marca starbucks";
     input.setAttribute("aria-label", "Orden de la consola local"); input.spellcheck = false; input.setAttribute("autocapitalize", "off");
     var run = el("button", "yk-lcli-run", "Ejecutar"); run.type = "submit";
     form.appendChild(prompt); form.appendChild(input); form.appendChild(run);
-    var hint = el("p", "yk-lcli-hint", "Consola local: sus verbos se ejecutan en este navegador, nunca en un agente · Tab completa · ↑/↓ historial");
+    var hint = el("p", "yk-lcli-hint", "Consola local: /help y /marca se ejecutan en este navegador, nunca en un agente · Tab completa · ↑/↓ historial");
     // Con la consola de la flota debajo, la local es una sola fila (la orden y,
     // sólo si hay respuesta, sus últimas líneas): no le roba alto a los CLIs.
     if (fleet) { section.appendChild(form); section.appendChild(ol); }
@@ -1910,8 +2009,11 @@
     });
     input.addEventListener("keydown", function (ev) {
       if (ev.key === "Tab" && !ev.shiftKey) {
-        var c = localComplete(input.value);
+        var brands = window.AdmiraMarca ? window.AdmiraMarca.conocidas().map(function (b) { return b.id; }) : BRAND_SEED;
+        var c = localComplete(input.value, brands);
         if (c.options.length) { ev.preventDefault(); input.value = c.value; if (c.options.length > 1) LOCAL_CLI.print(c.options.join("  ")); }
+        // Con /marca se trae el catálogo real para el siguiente Tab (sólo al usar /marca).
+        if (/^\s*\/?(?:marca|brand|marcablanca)\s/i.test(input.value)) cargarMarca().then(function (M) { if (M) M.listar().catch(function () {}); });
         return;
       }
       if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
@@ -1921,12 +2023,14 @@
       input.value = cursor === history.length ? draft : history[cursor];
     });
     if (!fleet) LOCAL_CLI.print("Yokup · consola lista. Escribe /help.");
-    else input.placeholder = "Consola local: /help (se ejecuta aquí, no en un agente)";
+    else input.placeholder = "Consola local: /help, /marca (se ejecutan aquí, no en un agente)";
     return section;
   }
   window.YkFrame = window.YkFrame || {};
+  window.YkFrame.marca = function (arg, write) { return cargarMarca().then(function (M) { return runMarca(arg, M, localEn(), write || LOCAL_CLI.print); }); };
+  window.YkFrame.cargarMarca = cargarMarca;
   window.YkFrame.run = function (text) { return runLocal(text); };
-  window.YkFrame._test = {localComplete:localComplete, liveTarget:liveTarget};
+  window.YkFrame._test = {wantsBrand:wantsBrand, runMarca:runMarca, localComplete:localComplete, liveTarget:liveTarget};
 
   function build() {
     if (document.getElementById("yk-frame")) return;

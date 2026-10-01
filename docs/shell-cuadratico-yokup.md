@@ -9,7 +9,7 @@ Estado: implementado en la rama `morfeo/shell-marca-yokup` (pendiente de push y 
 - **Barra superior** (`.yk-bar`, 46 px, blanca con borde del portal): a la izquierda **☰ Opciones** + el logo **yokup●** (el wordmark del Portal del comercio, enlace a `/`) + la sección discreta de la página (`data-yk-title`); a la derecha **▤ Avanzado** y **⌘ Experto**. Con sesión de flota, entre medias van además el menú de secciones (con sus contadores y su referencia lumínica) y el selector de proyecto.
 - **☰ Opciones** (raíl izquierdo): la navegación general. En las páginas públicas, lo que la página trae y los enlaces comunes de Yokup (Inicio, Mi comercio, Instaladores, Llamadas, Entrenamiento, Ayuda, Para agentes · MCP, Contáctanos), sin repetir un destino que la página ya trae. Con sesión de flota, además AJUSTES, Nuevo proyecto, Equipo, Status, Panel de control y el sello de versión.
 - **▤ Avanzado** (raíl derecho): las acciones de la página (Entrar, Salir, ver como, idioma, imprimir, enviar…) y, con sesión de flota, Highscore y DesktopAPP.
-- **⌘ Experto** (abajo, redimensionable): la **consola local** (`/help`, `/limpiar`; `/marca` en la fase 2) y, sólo con sesión de flota, la consola de CLIs de la flota (xterm + escritura al tmux del agente).
+- **⌘ Experto** (abajo, redimensionable): la **consola local** (`/help`, `/limpiar`, `/marca`), que se ejecuta en el navegador y nunca llega a un agente y, sólo con sesión de flota, la consola de CLIs de la flota (xterm + escritura al tmux del agente).
 
 Los tres paneles empiezan cerrados en cada carga (decisión de Yokup desde el 12-jul: una superficie operativa no se reabre sola). **Esc cierra el panel que tiene el foco** y devuelve el foco a su icono (el mismo teclado que `responsive-shell` de admira.app y el shell de XpaceOS); un diálogo propio que ya atendió el Esc gana. Los iconos llevan `aria-pressed` y `aria-controls`.
 
@@ -59,6 +59,10 @@ Los tres paneles empiezan cerrados en cada carga (decisión de Yokup desde el 12
 El `?v=` lo sella `deploy.mjs` (patrón `/yk-*.js|css`). El marco se oculta al imprimir (`@media print`).
 
 **Reparto**: lo que lleva a otra página o a otro sitio va a ☰ Opciones; lo que trabaja sobre la página va a ▤ Avanzado; los filtros de uso diario se quedan en el contenido.
+
+## Marca blanca
+
+El marco es el único enganche de la marca blanca del catálogo de admiranext.com/marcablanca (plataforma `yokup`): con `?marca=<id>` o `/marca <id>` carga `/yk-marca.js` con su mismo sello; sin marca no carga nada. Detalles en `docs/marca-blanca-yokup.md`.
 
 ## APP_NAV y las rutas mudadas a admira.live
 

@@ -248,6 +248,20 @@ La traza de qué puntuó cada misión está en `traceability.chains[]`, indexabl
   [espejo](https://www.yokup.com/normativa). La regla 24 dice que todo proyecto
   publica su `/help` y su `/mcp`; esto es el `/mcp` de Yokup.
 
+## La web: barra cuadrática y marca blanca (FLT-101338)
+
+- Todas las páginas de www.yokup.com llevan el marco común `yk-frame.js` (canon de la
+  Galaxia): ☰ Opciones + logo yokup● + sección; ▤ Avanzado y ⌘ Experto. Tema claro del
+  Portal del comercio.
+- Marca blanca del catálogo https://www.admiranext.com/marcablanca (plataforma `yokup`):
+  `?marca=<id>` en cualquier página (p. ej. https://www.yokup.com/retailer?marca=starbucks) o
+  el verbo `/marca <id|off|web>` (alias `/brand`) en ⌘ Experto. `/marca off` o
+  `?marca=admira` vuelven al aspecto propio. Se mantiene en la pestaña (sessionStorage `mb:marca`).
+- No es una herramienta MCP: la marca se aplica en el navegador que abre el enlace. Para
+  enseñar Yokup con marca, entrega el enlace con `?marca=<id>`.
+- La consola local de ⌘ Experto ejecuta `/help` y `/marca` en el navegador; nunca llegan al
+  tmux de un agente.
+
 ## Para personas
 
 La puerta de carbono es [yokup.com/help](https://www.yokup.com/help).

@@ -203,6 +203,17 @@ curl -s -X POST https://api.yokup.com/fleet/informe -H 'content-type: applicatio
       (<code>yokup</code>, <code>admira-academy</code>), no la web.</li>
   </ul>
 
+  <h2 id="marca"><span class="n">07</span>La web: barra cuadrática y marca blanca</h2>
+  <p>Funcionalidad del site, no del MCP: el servidor no tiene herramienta de marca porque la marca
+  se aplica en el navegador que abre la página. Todas las páginas llevan el marco común
+  (<code>yk-frame.js</code>): ☰ Opciones, logo yokup● y sección; ▤ Avanzado y ⌘ Experto. Con
+  <code>?marca=&lt;id&gt;</code> o el verbo <code>/marca &lt;id|off|web&gt;</code> (alias <code>/brand</code>)
+  en ⌘ Experto se viste con una marca del catálogo de admiranext.com/marcablanca (plataforma
+  <code>yokup</code>), igual que admira.app, Pixeria y XpaceOS. Un agente que quiera enseñar Yokup con
+  marca entrega el enlace: <code>https://www.yokup.com/retailer?marca=starbucks</code>;
+  <code>?marca=admira</code> vuelve al aspecto propio. La consola local de ⌘ Experto ejecuta
+  <code>/help</code> y <code>/marca</code> en el navegador; nunca se envían al tmux de un agente.</p>
+
   <h2><span class="n">08</span>La Galaxia, medida: las dos puertas de cada solución</h2>
   <p>Un sitio por dominio del <a href="https://api.yokup.com/projects">censo de proyectos</a>; los
   proyectos que son una sección de otro sitio <b>heredan</b> sus puertas. Esto ya no es una tabla
