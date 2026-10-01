@@ -6,17 +6,30 @@ export const CATEGORIES=['pantalla','player','iot','audio','tpv','red','mobiliar
 export const STATUSES=['operational','degraded','maintenance','retired','planned'];
 const TEXTS={manufacturer:120,model:120,serial:120,supplier:160,invoice_ref:120,installed_by:160,notes:2000};
 const DATES=['purchase_date','warranty_start','warranty_end','installed_at','last_maintenance_at','retired_at'];
-export const LIFECYCLE_FIELDS=['category','status',...Object.keys(TEXTS),...DATES,'maintenance_interval_days'];
+// warranty_months (0021, 01-oct-2026): duración de la garantía en meses; opcional y aditivo.
+export const LIFECYCLE_FIELDS=['category','status',...Object.keys(TEXTS),...DATES,'maintenance_interval_days','warranty_months'];
 const SKILL_CATEGORY={screen:'pantalla',player:'player',network:'red',audio:'audio',sensor:'iot',kiosk:'otro',hvac:'otro'};
 export const categoryForSkill=skill=>SKILL_CATEGORY[skill]||'otro';
 export const isoDay=ms=>new Date(ms).toISOString().slice(0,10);
 export const validDay=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&isoDay(Date.parse(v+'T00:00:00Z'))===v;
 const dayDiff=(a,b)=>Math.round((Date.parse(a+'T00:00:00Z')-Date.parse(b+'T00:00:00Z'))/86400000);
 export function maintenanceDueOn(lc){const base=lc?.last_maintenance_at||lc?.installed_at;return base&&lc?.maintenance_interval_days?isoDay(Date.parse(base+'T00:00:00Z')+lc.maintenance_interval_days*86400000):null;}
+// Suma meses a un día ISO sin desbordar (31-ene + 1 mes = 28/29-feb).
+export function addMonths(day,months){
+ if(!validDay(day)||!Number.isInteger(months)||months<1)return null;
+ const [y,m,d]=day.split('-').map(Number),t=new Date(Date.UTC(y,m-1+months,1)),last=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate();
+ return isoDay(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),Math.min(d,last)));
+}
+// Fin de garantía efectivo: el registrado o, si falta, (inicio de garantía | compra) + meses. Nunca se inventa.
+export function warrantyUntil(lc){
+ if(lc?.warranty_end)return {until:lc.warranty_end,derived:false};
+ const until=addMonths(lc?.warranty_start||lc?.purchase_date,lc?.warranty_months);
+ return {until,derived:!!until};
+}
 // warranty: none (sin fecha) · valid · expiring (≤30 días) · expired.
 export function lifecycleState(lc,today=isoDay(Date.now())){
- const days=lc?.warranty_end?dayDiff(lc.warranty_end,today):null,due=maintenanceDueOn(lc);
- return {warranty:days===null?'none':days<0?'expired':days<=30?'expiring':'valid',warranty_days:days,maintenance_due_on:due,maintenance_due:!!due&&due<=today&&lc?.status!=='retired'};
+ const w=warrantyUntil(lc),days=w.until?dayDiff(w.until,today):null,due=maintenanceDueOn(lc);
+ return {warranty:days===null?'none':days<0?'expired':days<=30?'expiring':'valid',warranty_days:days,warranty_until:w.until,warranty_until_derived:w.derived,maintenance_due_on:due,maintenance_due:!!due&&due<=today&&lc?.status!=='retired'};
 }
 export function lifecycleView(row,skill,today){
  const lc={category:row?.category??categoryForSkill(skill),status:row?.status||'operational'};
@@ -43,6 +56,7 @@ function parse(b){
   if(k==='category'||k==='status'){if(!(k==='category'?CATEGORIES:STATUSES).includes(x))fail(400,k==='category'?'Categoría no válida.':'Estado no válido.');v[k]=x;}
   else if(DATES.includes(k)){if(!validDay(x))fail(400,'Fecha no válida en '+k+' (usa AAAA-MM-DD).');v[k]=x;}
   else if(k==='maintenance_interval_days'){if(!Number.isInteger(x)||x<1||x>3650)fail(400,'El intervalo de mantenimiento debe ser de 1 a 3650 días.');v[k]=x;}
+  else if(k==='warranty_months'){if(!Number.isInteger(x)||x<1||x>600)fail(400,'La garantía debe ser de 1 a 600 meses.');v[k]=x;}
   else{if(typeof x!=='string'||x.trim().length>TEXTS[k]||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(x))fail(400,'Revisa el campo '+k+' (máximo '+TEXTS[k]+' caracteres).');v[k]=x.trim()||null;}
  }
  return v;

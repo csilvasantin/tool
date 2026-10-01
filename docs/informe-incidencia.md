@@ -41,6 +41,14 @@ Starbucks Alsea · Paseo de Gracia 103).
 - **Descargar HTML**: copia autónoma del informe ya pintado (sin scripts), útil para quien no
   tiene acceso a Yokup.
 
+## 3. Equipo · inventario ITIL (01-10-2026)
+
+La sección de datos del informe añade «Equipo · inventario ITIL»: enlace a la ficha
+(`/equipo-inventario?ticket=`), nº de serie, modelo, insignia y detalle de la garantía, fecha de
+compra y proveedor, con «sin dato» si falta; si el equipo no está en el inventario, lo dice. El
+correo (`mailto:` sin destinatarios) lleva una línea «🗂 Equipo: …». Datos: `GET
+api.yokup.com/ticket/equipo?id=` (ver `docs/itil-yokup.md`).
+
 ## Contratos y límites
 
 - Datos: `GET api.yokup.com/ticket?id=` y `POST /ai-summary` (ambos con sesión). No hay

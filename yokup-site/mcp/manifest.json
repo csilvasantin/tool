@@ -1087,6 +1087,11 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 3650
+                },
+                "warranty_months": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 600
                 }
               },
               "required": [],

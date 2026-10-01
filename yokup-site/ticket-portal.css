@@ -99,6 +99,16 @@ body.yk-ticket .tk-dur{display:inline-flex;align-items:center;gap:6px;font:800 1
 body.yk-ticket .tk-dur::before{content:"⏱";font-size:14px}
 body.yk-ticket .tk-dur[data-state="live"]{color:#8f4712}
 body.yk-ticket .tk-dur[data-state="live"]::after{content:"";width:7px;height:7px;border-radius:50%;background:#e0892b;animation:tkDurPulse 1.6s ease-in-out infinite}
+/* 🗂 Equipo → ficha del inventario ITIL (01-10-2026) */
+body.yk-ticket .tk-inv{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font:600 13px/1.4 var(--p-sans);color:var(--p-muted)}
+body.yk-ticket .tk-inv[data-state="loading"]{font-weight:500;font-style:italic}
+body.yk-ticket .tk-inv-link{color:var(--p-green,#4f6e4c);font-weight:700;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+body.yk-ticket .tk-inv-link:hover{color:var(--p-ink)}
+body.yk-ticket .tk-inv-meta{flex-basis:100%;font:500 12.5px/1.4 var(--p-sans);color:var(--p-muted);overflow-wrap:anywhere}
+body.yk-ticket .tk-inv-miss{font-weight:700;color:#8f4712}
+body.yk-ticket .tk-war{display:inline-flex;align-items:center;padding:3px 8px;border-radius:5px;font:700 11.5px/1.3 var(--p-sans);letter-spacing:.2px;background:#eef1ea;color:#53635e}
+body.yk-ticket .tk-war[data-w="en_garantia"]{background:#e3f1d3;color:#2f5a22}
+body.yk-ticket .tk-war[data-w="vencida"]{background:#f9dede;color:#8f2a2a}
 body.yk-ticket .tk-dur-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:5px;background:var(--p-dark);color:var(--p-lime);font:700 12px/1.3 var(--p-sans);letter-spacing:.2px;font-variant-numeric:tabular-nums}
 body.yk-ticket .tk-dur-pill[data-state="live"]{background:#fdecd9;color:#8f4712}
 @keyframes tkDurPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}

@@ -74,7 +74,7 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
      y /tareas (body.yk-light) + lo propio de la ficha (body.yk-ticket). Van
      DESPUÉS del <style> base, que queda de respaldo sin tocar el resto de Yokup. -->
 <link rel="stylesheet" href="/yk-portal-light.css?v=1">
-<link rel="stylesheet" href="/ticket-portal.css?v=2">
+<link rel="stylesheet" href="/ticket-portal.css?v=3">
 </head>
 <body class="yk-light yk-ticket" data-yk-title="TICKET">
 <div class="wrap">
@@ -115,6 +115,8 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 <script src="/yk-adjuntos.js?v=r3"></script>
 <!-- Duración de la incidencia (creación → cierre; en vivo mientras sigue abierta) -->
 <script src="/yk-duracion.js?v=r1"></script>
+<!-- Equipo → ficha del inventario ITIL (nº de serie, garantía, modelo…) -->
+<script src="/yk-equipo.js?v=r1"></script>
 <script>
 const WORKER="https://api.yokup.com";
 YkAdjuntos.init(WORKER);
@@ -193,6 +195,32 @@ function pintaDuracion(){
   tick();
   const d=YkDuracion.duracion(TICKET);
   if(d&&d.viva) durTimer=setInterval(()=>{ if(!$("tkDur")){ clearInterval(durTimer); durTimer=null; return; } tick(); },1000);
+}
+
+// 🗂 INVENTARIO (Carlos, 01-10-2026): el «Equipo» enlaza su ficha del inventario ITIL
+// (CMDB de los Xpacios en Yokup) con nº de serie e insignia de garantía; si no está,
+// lo dice claro y ofrece el alta prefijada. Datos: GET /ticket/equipo (textContent).
+let EQUIPO_INV=null;
+function equipoInvNodo(){ const n=nodo("span","tk-inv"); n.id="tkInv"; n.dataset.state="loading"; n.textContent="🗂 Buscando en el inventario…"; return n; }
+function enlace(cls,href,text,title){ const a=nodo("a",cls,text); a.href=href; if(title)a.title=title; return a; }
+async function cargaEquipoInv(t){
+  const box=$("tkInv"); if(!box||!window.YkEquipo) return;
+  let r=null; try{ const res=await fetch(WORKER+"/ticket/equipo?id="+encodeURIComponent(t.id),{cache:"no-store"}); r=await res.json(); }catch(e){}
+  EQUIPO_INV=r&&r.ok?r:null;
+  const E=YkEquipo; box.replaceChildren();
+  if(!r||!r.ok){ box.dataset.state="error"; box.textContent="🗂 Inventario no disponible ahora"; return; }
+  if(r.found&&r.ci){
+    const lc=r.ci.lifecycle||{}, g=E.garantia(lc);
+    box.dataset.state="found";
+    box.append(enlace("tk-inv-link",E.fichaUrl({ticket:t.id}),"🗂 "+(r.ci.itil_code||"Ficha")+" · "+(r.ci.name||"equipo")+" ↗","Ficha del equipo en el inventario ITIL: modelo, nº de serie, compra y garantía"));
+    const w=nodo("span","tk-war",g.label+(g.pronto?" · vence pronto":"")); w.dataset.w=g.estado; w.title=g.detalle; box.append(w);
+    box.append(nodo("span","tk-inv-meta","Nº de serie: "+E.txt(lc.serial)+" · Modelo: "+E.txt([lc.manufacturer,lc.model].filter(Boolean).join(" ")||null)));
+    return;
+  }
+  box.dataset.state="missing";
+  box.append(nodo("span","tk-inv-miss","⚠ "+E.motivo(r)));
+  if(r.reason==="ambiguo"&&r.candidates&&r.candidates.length){ const c=nodo("span","tk-inv-meta","Candidatos: "); r.candidates.slice(0,4).forEach((x,i)=>{ if(i)c.append(", "); c.append(enlace("",E.fichaUrl({code:x.itil_code}),x.itil_code+" · "+x.name)); }); box.append(c); }
+  box.append(enlace("tk-inv-link",E.altaUrl(r,t.id),r.reason==="sin_ficha"?"＋ Convertir en CI del inventario ↗":"＋ Darlo de alta en el inventario ↗","Abre el Inventario ITIL con el alta prefijada (establecimiento, categoría y nombre)"));
 }
 
 async function render(){
@@ -276,7 +304,7 @@ async function render(){
   dato(dl,"Origen",t.source==='agent-iot'?'🤖 abierto por Agente IoT':'👤 manual',t.source&&t.source!=='agent-iot'?t.source:"");
   dato(dl,"Responsable","👷 "+(t.assignee||"sin asignar"),[t.agent_runtime,t.agent_host==="cli"?"CLI":t.agent_host==="app"?"Desktop App":""].filter(Boolean).join(" · "));
   if(esFlota) dato(dl,"Equipo",t.loc?maqTxt(t.loc):"Sin equipo",t.screen?nodo("span","scr",t.screen):"");
-  else dato(dl,"Equipo",t.screen?nodo("span","scr",t.screen):"Sin equipo");
+  else dato(dl,"Equipo",t.screen?nodo("span","scr",t.screen):"Sin equipo",t.screen?equipoInvNodo():"");
   const sevPill=nodo("span","ykl-sev",sev?(SEV_LABEL[sev]||t.priority):"Sin gravedad"); if(sev) sevPill.dataset.sev=sev;
   dato(dl,"Gravedad",sevPill,t.priority?"prioridad "+t.priority:"");
   // DURACIÓN (Carlos, 01-10-2026): cerrada → «Duración 31 s» (creación → cierre);
@@ -287,6 +315,7 @@ async function render(){
     t.resolved_at?"Finalizada "+fecha(t.resolved_at):"",
     Number(t.race_bonus_points)>0?"🏁 Bonus Track +"+Number(t.race_bonus_points)+" puntos":"");
   pintaDuracion();
+  if(!esFlota&&t.screen) cargaEquipoInv(t);
   if(esFlota) llenaAsig();
   montaAdjuntos();   // el composer se recrea en cada render → re-engancha
 }
@@ -430,7 +459,8 @@ function informeMailto(){
   const cuerpo=["Hola,","","Te comparto el informe de la incidencia "+id+":",
     "«"+(t.subject||"(sin asunto)")+"»",
     [t.project_name||t.project,t.loc].filter(Boolean).join(" · "),
-    dur?("⏱ "+dur):"","",
+    dur?("⏱ "+dur):"",
+    EQUIPO_INV&&window.YkEquipo?("🗂 Equipo: "+YkEquipo.resumen(EQUIPO_INV)):"","",
     "Informe completo (línea de tiempo, duración y resumen IA):",informeUrl(false),"","— Yokup · AdmiraNeXT"].filter((l,i,a)=>l!==""||a[i-1]!=="").join("\n");
   return "mailto:?subject="+encodeURIComponent(asunto)+"&body="+encodeURIComponent(cuerpo);
 }

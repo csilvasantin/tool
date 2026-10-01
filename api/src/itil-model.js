@@ -7,7 +7,7 @@ export const ITIL_CATEGORIES=['pantalla','player','tpv','audio','iot','red','kio
 export const ITIL_ORIENTATIONS=['horizontal','vertical'];
 export const ITIL_LIFECYCLE_TEXTS={manufacturer:120,model:120,serial:120,supplier:160,invoice_ref:120,installed_by:160};
 export const ITIL_LIFECYCLE_DATES=['purchase_date','warranty_start','warranty_end','installed_at'];
-export const ITIL_LIFECYCLE_FIELDS=[...Object.keys(ITIL_LIFECYCLE_TEXTS),...ITIL_LIFECYCLE_DATES,'maintenance_interval_days'];
+export const ITIL_LIFECYCLE_FIELDS=[...Object.keys(ITIL_LIFECYCLE_TEXTS),...ITIL_LIFECYCLE_DATES,'maintenance_interval_days','warranty_months'];
 export const ITIL_LIMITS={name:[2,160],role:[0,120],group_name:[0,80],position:[0,160],note:[3,300]};
 export const validItilCode=v=>typeof v==='string'&&ITIL_CODE.test(v);
 // La ficha de ciclo de vida no tiene 'kiosk': el CI conserva la categoría ITIL y la ficha usa 'otro'.
@@ -51,9 +51,30 @@ const DAY={type:'string',maxLength:10,pattern:'^(\\d{4}-\\d{2}-\\d{2})?$'};
 export const ITIL_CODE_SCHEMA=str(5,51,{pattern:ITIL_CODE_PATTERN});
 export const ITIL_NOTE_SCHEMA=str(3,300);
 export const ITIL_LIFECYCLE_SCHEMA={type:'object',properties:{manufacturer:str(0,120),model:str(0,120),serial:str(0,120),supplier:str(0,160),invoice_ref:str(0,120),installed_by:str(0,160),
- purchase_date:DAY,warranty_start:DAY,warranty_end:DAY,installed_at:DAY,maintenance_interval_days:{type:'integer',minimum:0,maximum:3650}},required:[],additionalProperties:false};
+ purchase_date:DAY,warranty_start:DAY,warranty_end:DAY,installed_at:DAY,maintenance_interval_days:{type:'integer',minimum:0,maximum:3650},warranty_months:{type:'integer',minimum:0,maximum:600}},required:[],additionalProperties:false};
 export const ITIL_CI_PROPERTIES={itil_code:ITIL_CODE_SCHEMA,name:str(2,160),category:{type:'string',enum:[...ITIL_CATEGORIES]},role:str(0,120),group_name:str(0,80),position:str(0,160),
  orientation:{type:'string',enum:[...ITIL_ORIENTATIONS,'']},parent_itil_code:str(0,51,{pattern:'^('+CODE_BODY+')?$'}),lifecycle:ITIL_LIFECYCLE_SCHEMA,adopt_device_id:str(1,180,{pattern:'^[\\w:-]+$'})};
 export const ITIL_CI_REQUIRED=['itil_code','name','category'];
-// maintenance_interval_days 0 = borrar el intervalo (como retailer_device_lifecycle_update).
-export function ciArgs(a){const {request_key,...rest}=a;if(rest.lifecycle&&rest.lifecycle.maintenance_interval_days===0)rest.lifecycle={...rest.lifecycle,maintenance_interval_days:null};return rest;}
+// maintenance_interval_days 0 = borrar el intervalo (como retailer_device_lifecycle_update); warranty_months 0 = borrar los meses.
+export function ciArgs(a){const {request_key,...rest}=a;if(rest.lifecycle){const l={...rest.lifecycle};if(l.maintenance_interval_days===0)l.maintenance_interval_days=null;if(l.warranty_months===0)l.warranty_months=null;rest.lifecycle=l;}return rest;}
+
+// ── Equipo de una incidencia → CI del inventario (01-oct-2026 · ficha de inventario desde la incidencia Yokup).
+// Los gemelos de XpaceOS abren incidencias con resource 'demo:<establecimiento del gemelo>:<equipo>[:manual:<uuid>]'
+// (admira-xp/scripts/starbucks-incidents.mjs). El slug del gemelo no siempre es el admira_store_id del Xpacio:
+// esta tabla los une SOLO cuando el gemelo replica un Xpacio real. No es un dato de equipo; es la correspondencia
+// gemelo → Xpacio (Starbucks Paseo de Gracia 103 = alsea-sbux-021, cuyo twin_url es ese gemelo).
+export const XPACEOS_TWIN_ALIASES=Object.freeze({'starbucks-alsea-paseo-de-gracia':'alsea-sbux-021'});
+// Equipo genérico del gemelo → categoría ITIL (para casar por categoría cuando no hay superficie ni código).
+const EQUIPO_CATEGORY=[[/^pantalla(?:-\d+)?$|^screen(?:-\d+)?$|^menu-?board/,'pantalla'],[/^tpv(?:-\d+)?$|^pos(?:-\d+)?$/,'tpv'],[/^player(?:-\d+)?$/,'player'],
+ [/^(?:audio|altavoz|altavoces|speaker)(?:-\d+)?$/,'audio'],[/^(?:sensor|camara|cámara|camera|iot)(?:-\d+)?$/,'iot'],[/^(?:router|red|switch|wifi)(?:-\d+)?$/,'red'],[/^(?:kiosko?|kiosk)(?:-\d+)?$/,'kiosk']];
+export const equipoCategory=e=>{const k=String(e||'').toLowerCase();for(const [re,c] of EQUIPO_CATEGORY)if(re.test(k))return c;return null;};
+const EQUIPO_LABEL={pantalla:'Pantalla',tpv:'TPV',player:'Player',audio:'Audio',iot:'Sensor IoT',red:'Red',kiosk:'Kiosco'};
+// Nombre propuesto para el alta (sale del propio id del equipo, nunca se inventa): 'pantalla-3' → 'Pantalla 3', 'tpv' → 'TPV'.
+export function equipoLabel(e){const k=String(e||'').toLowerCase(),c=equipoCategory(k),n=/-(\d+)$/.exec(k)?.[1];return c?EQUIPO_LABEL[c]+(n?' '+n:''):String(e||'').slice(0,60);}
+// 'demo:<store>:<equipo>[:manual:<uuid>]' | '<store>:<equipo>' → {store, equipo, twin}. null si no tiene esa forma.
+export function parseEquipoRef(ref){
+ const s=String(ref||'').trim();if(!s||s.length>200)return null;
+ const parts=s.split(':'),twin=parts[0]==='demo';if(twin)parts.shift();
+ if(parts.length<2||!/^[A-Za-z0-9][\w.-]{0,159}$/.test(parts[0])||!/^[A-Za-z0-9][\w.-]{0,59}$/.test(parts[1]))return null;
+ const store=parts[0];return {store,admira_store_id:XPACEOS_TWIN_ALIASES[store]||store,equipo:parts[1],twin,manual:parts[2]==='manual'};
+}

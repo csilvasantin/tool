@@ -2,6 +2,7 @@ import { runIncidentSensors } from './incident-sensors.js';
 import { ensureEstablishmentProject } from './incident-project.js';
 import { FLEET_INCIDENTS_PREFIX, handleFleetIncidents } from './fleet-incidents.js';
 import { PORTAL_INTERNAL_PREFIX, PORTAL_LINKS_SQL, handlePortalInternal, pushPortalChanges, portalAssigned, portalLinksFor } from './portal-bridge.js';
+import { EQUIPO_PATH, handleEquipoInventario } from './equipo-inventario.js';
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, zonasCalientes, paradas, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
@@ -139,7 +140,7 @@ var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@adm
 var WL_FETCH_TIMEOUT_MS = 2500;
 var WL_CACHE_MS = 3e5;
 var WL_FALLBACK_CACHE_MS = 15e3;
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/equipo", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, ttl: 0, directory: null };
 function emergencyAccessDirectory() {
   // La lista de emergencia sólo mantiene abierta la verja básica. A propósito no
@@ -12602,6 +12603,15 @@ var worker_app = {
         return json({ tasks: await listAllMissionTasks(env, scope, filters) });
       } catch (e) {
         return json({ error: String(e) }, 500);
+      }
+    }
+    // Ficha de inventario ITIL del equipo de la incidencia (01-oct-2026). Protegida (PROTECTED) y por binding a yokup-api.
+    if (url.pathname === EQUIPO_PATH) {
+      try {
+        await ensureSchema(env);
+        return await handleEquipoInventario(req, env, { json, portalLinksFor });
+      } catch (e) {
+        return json({ ok:false, error:"inventory_failed" }, 500);
       }
     }
     if (url.pathname === "/ticket") {
