@@ -30,7 +30,9 @@ for (const [name, src] of [['objetivos.html', () => objetivos], ['ideas.html', (
     // El botón «→ misión» se oculta cuando pend; en su lugar va el chip a /decisiones.
     assert.match(s, /const pend=hasDecision\(i\);/);
     assert.match(s, /!isMis&&!pend\?'<button class="mis"/);
-    assert.match(s, /\.flt\.pend\{color:#e0a63a/);
+    // /ideas es clara desde FLT-101338 («todo claro»): el ámbar es el token AA de la
+    // paleta del portal; /objetivos (mudada a admira.live) conserva el suyo.
+    assert.match(s, name === 'ideas.html' ? /\.flt\.pend\{color:var\(--accent\)/ : /\.flt\.pend\{color:#e0a63a/);
   });
   test(name + ': promote() legado se enruta por la decisión canónica', () => {
     const s = src();

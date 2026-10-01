@@ -7,7 +7,7 @@
 <meta name="description" content="Yokup explicado para personas: qué es cada pantalla, cómo se lee el marcador, qué se puede pedir y a quién se avisa cuando algo se rompe.">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
-:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+:root{--bg:#ffffff;--card:#ffffff;--card2:#ffffff;--ink:#173632;--mut:#667a75;--dim:#86958f;--brand:#4f6e4c;--accent:#9a6a00;--good:#3f6b2f;--warn:#ac3838;--line:#dbe3d9;--line2:#c9d5c4;--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
 .wrap{max-width:900px;margin:0 auto;padding:26px 22px 70px}
@@ -34,8 +34,10 @@ ol,ul{margin:0 0 12px 22px;color:var(--mut)}li{margin-bottom:8px}
 footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:11px}
 @media(max-width:560px){.p{grid-template-columns:1fr;gap:4px}}
 </style>
+<meta name="theme-color" content="#f6f8f3">
+<link rel="stylesheet" href="/yk-frame.css?v=r35">
 </head>
-<body>
+<body class="yk-claro" data-yk-title="AYUDA">
 <div class="wrap">
 
   <div class="top">
@@ -115,7 +117,7 @@ footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:v
   rellenan con la factura o el albarán. El informe de la incidencia incluye el número de serie y el
   estado de la garantía.</p>
 
-<section id="inventory-frame"><h2>Inventario · marco cuadrático / Inventory · quadratic frame</h2><p>Marco cuadrático Admira: por defecto solo se ve la barra horizontal superior. Opciones a la izquierda, Avanzados a la derecha y Experto/CLI abajo empiezan replegados; las vistas del inventario están dentro de Opciones. ☰ y ◨ muestran u ocultan paneles; ⌘ abre el CLI y Escape los cierra. En móvil se usan los mismos botones. Opciones reúne vistas, búsqueda y filtros; Avanzados reúne cámara, malla, descargas, ayuda y conexiones.</p><p>Admira quadratic frame: only the horizontal top bar is visible by default. Options on the left, Advanced on the right and Expert/CLI at the bottom start collapsed; inventory views live inside Options. ☰ and ◨ toggle panels; ⌘ opens the CLI and Escape closes them. Mobile uses the same buttons. Options contains views, search and filters; Advanced contains camera, wireframe, downloads, help and connections.</p><p>En las páginas del inventario, /inventario sin argumentos abre el catálogo; /inventario con argumentos conserva la ejecución en el gemelo de XpaceOS. Desde Yokup se indica abrir el gemelo. Navegación: /inventario, /starbucks, /referencias, /ref PG103-001, /equipo PDG103-BOT-01, /xpaceos, /yokup y /ayuda. La unidad seleccionada conserva su código ITIL al abrir Yokup o volver a XpaceOS. Los candidatos enlazan el portal sin inventar fichas ITIL. Añadir, eliminar o mover muebles se realiza en la Xperience; las fichas patrimoniales se editan en Yokup con sus permisos existentes.</p><p>On inventory pages, /inventario without arguments opens the catalogue; arguments retain execution in the XpaceOS twin. From Yokup it prompts opening the twin. Navigation: /inventory, /starbucks, /references, /ref PG103-001, /equipment PDG103-BOT-01, /xpaceos, /yokup and /help. A selected unit retains its ITIL code when opening Yokup or returning to XpaceOS. Candidates link to the portal without inventing ITIL records. Add, remove or move furniture in the Xperience; edit lifecycle records in Yokup with existing permissions.</p><p><a href="https://www.xpaceos.com/inventario/">Catálogo / Catalogue</a> · <a href="https://www.xpaceos.com/inventario/starbucks/?view=references">Referencias / References</a> · <a href="https://www.yokup.com/retailer#itil">Yokup ITIL</a> · <a href="https://www.xpaceos.com/admira-xp/docs/inventory-frame.md">Contrato / Contract</a></p></section>
+<section id="inventory-frame"><h2>Inventario · marco cuadrático / Inventory · quadratic frame</h2><p>Marco cuadrático Admira (en Yokup, el marco común de todas sus páginas): por defecto solo se ve la barra horizontal superior. Opciones a la izquierda, Avanzados a la derecha y Experto/CLI abajo empiezan replegados; las vistas del inventario están dentro de Opciones. ☰ y ▤ muestran u ocultan paneles; ⌘ abre el CLI y Escape los cierra. En móvil se usan los mismos botones. Opciones reúne vistas, búsqueda y filtros; Avanzados reúne cámara, malla, descargas, ayuda y conexiones.</p><p>Admira quadratic frame: only the horizontal top bar is visible by default. Options on the left, Advanced on the right and Expert/CLI at the bottom start collapsed; inventory views live inside Options. ☰ and ▤ toggle panels; ⌘ opens the CLI and Escape closes them. Mobile uses the same buttons. Options contains views, search and filters; Advanced contains camera, wireframe, downloads, help and connections.</p><p>En las páginas del inventario, /inventario sin argumentos abre el catálogo; /inventario con argumentos conserva la ejecución en el gemelo de XpaceOS. Desde Yokup se indica abrir el gemelo. Navegación: /inventario, /starbucks, /referencias, /ref PG103-001, /equipo PDG103-BOT-01, /xpaceos, /yokup y /ayuda. La unidad seleccionada conserva su código ITIL al abrir Yokup o volver a XpaceOS. Los candidatos enlazan el portal sin inventar fichas ITIL. Añadir, eliminar o mover muebles se realiza en la Xperience; las fichas patrimoniales se editan en Yokup con sus permisos existentes.</p><p>On inventory pages, /inventario without arguments opens the catalogue; arguments retain execution in the XpaceOS twin. From Yokup it prompts opening the twin. Navigation: /inventory, /starbucks, /references, /ref PG103-001, /equipment PDG103-BOT-01, /xpaceos, /yokup and /help. A selected unit retains its ITIL code when opening Yokup or returning to XpaceOS. Candidates link to the portal without inventing ITIL records. Add, remove or move furniture in the Xperience; edit lifecycle records in Yokup with existing permissions.</p><p><a href="https://www.xpaceos.com/inventario/">Catálogo / Catalogue</a> · <a href="https://www.xpaceos.com/inventario/starbucks/?view=references">Referencias / References</a> · <a href="https://www.yokup.com/retailer#itil">Yokup ITIL</a> · <a href="https://www.xpaceos.com/admira-xp/docs/inventory-frame.md">Contrato / Contract</a></p></section>
   <h3 id="running-man">Mi agente trabaja, pero el Running Man parece parado</h3>
   <p><b>Ámbar</b> significa que el trabajo sigue registrado y falta confirmar su actividad actual.
   <b>Gris</b> significa que muestra un trabajo finalizado. El nombre de la misión y su estado
@@ -206,6 +208,24 @@ footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:v
   del acceso con Google: sólo entran las cuentas de la casa. Si te pide identificarte y no te deja
   pasar, no es un fallo tuyo — hay que añadir tu correo a la lista.</div>
 
+  <h2 id="barra">La barra de arriba: ☰ ▤ ⌘ y la marca blanca</h2>
+  <p>Todas las páginas de Yokup llevan la misma barra que admira.app, Pixeria y XpaceOS:
+  <b>☰ Opciones</b> a la izquierda (a dónde ir), el logo <b>yokup●</b> y la sección, y a la
+  derecha <b>▤ Avanzado</b> (lo que puedes hacer en esa página) y <b>⌘ Experto</b> (la consola).
+  Esc cierra el panel en el que estás. Todo en el tema claro del Portal del comercio.</p>
+  <p><b>Marca blanca.</b> Yokup puede vestirse con la marca de un cliente del catálogo de
+  <a href="https://www.admiranext.com/marcablanca">admiranext.com/marcablanca</a>: añade
+  <code>?marca=starbucks</code> a la dirección o escribe <code>/marca starbucks</code> en ⌘ Experto.
+  La barra pasa a «logo del cliente │ powered by Yokup» y la marca se mantiene mientras navegas en
+  esa pestaña. Para volver: <code>/marca off</code> o «Volver a Admira» arriba de ☰ Opciones.
+  <code>/marca</code> sola dice cuál está activa y lista las disponibles; <code>/marca &lt;web&gt;</code>
+  abre el analizador para crear una marca nueva. Una propuesta automática (como Starbucks) no es la
+  marca oficial y el logo lo avisa.</p>
+  <p>La <b>consola local</b> de ⌘ Experto (<code>/help</code>, <code>/marca</code>, <code>/limpiar</code>) se
+  ejecuta en tu navegador y nunca llega a un agente. Con sesión de la flota, debajo está la consola
+  de los CLIs: lo que escribes en la caja de un agente sí va a su terminal (salvo <code>/marca</code>,
+  que siempre se resuelve aquí).</p>
+
   <h2>Si algo se rompe</h2>
   <p>Avísalo en el grupo <b>AgoraMatrix</b> de Telegram, que es la única bandeja del equipo. Di
   qué pantalla era y qué esperabas ver: con eso basta. Los agentes leen ese grupo y el que tenga
@@ -221,5 +241,5 @@ footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:v
   </footer>
 
 </div>
-</body>
+<script src="/yk-frame.js?v=r35"></script></body>
 </html>

@@ -7,7 +7,7 @@
 <meta name="description" content="Todo lo que un agente necesita para trabajar con yokup.com sin preguntarle a nadie: endpoints, identidades, el ciclo de una misión, cupos y las trampas ya pagadas.">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
-:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+:root{--bg:#ffffff;--card:#ffffff;--card2:#ffffff;--ink:#173632;--mut:#667a75;--dim:#86958f;--brand:#4f6e4c;--accent:#9a6a00;--good:#3f6b2f;--warn:#ac3838;--line:#dbe3d9;--line2:#c9d5c4;--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
 .wrap{max-width:960px;margin:0 auto;padding:26px 22px 70px}
@@ -33,17 +33,19 @@ th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:upp
 td code{font-size:12px}
 td.d{color:var(--mut)}
 .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:999px;border:1px solid var(--line2);color:var(--good);white-space:nowrap}
-.tag.cerrada{color:var(--accent);border-color:rgba(255,216,102,.4)}
-.tag.mal{color:var(--warn);border-color:rgba(255,136,102,.4)}
+.tag.cerrada{color:var(--accent);border-color:#e6d29a}
+.tag.mal{color:var(--warn);border-color:var(--yk-err-line)}
 .galaxia table{font-size:12.5px}.galaxia td{vertical-align:top}.galaxia-pie{font-family:var(--mono);font-size:11px}
-.aviso{margin:16px 0;padding:14px 16px;border:1px solid rgba(255,136,102,.35);border-radius:12px;background:rgba(255,136,102,.06)}
+.aviso{margin:16px 0;padding:14px 16px;border:1px solid var(--yk-err-line);border-radius:12px;background:var(--yk-err-soft)}
 .aviso b{color:var(--warn)}
 ul{margin:0 0 10px 20px;color:var(--mut)}li{margin-bottom:7px}
 li b{color:var(--ink)}
 footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:11px}
 </style>
+<meta name="theme-color" content="#f6f8f3">
+<link rel="stylesheet" href="/yk-frame.css?v=r35">
 </head>
-<body>
+<body class="yk-claro" data-yk-title="MCP">
 <div class="wrap">
 
   <div class="top">
@@ -201,6 +203,17 @@ curl -s -X POST https://api.yokup.com/fleet/informe -H 'content-type: applicatio
       (<code>yokup</code>, <code>admira-academy</code>), no la web.</li>
   </ul>
 
+  <h2 id="marca"><span class="n">07</span>La web: barra cuadrática y marca blanca</h2>
+  <p>Funcionalidad del site, no del MCP: el servidor no tiene herramienta de marca porque la marca
+  se aplica en el navegador que abre la página. Todas las páginas llevan el marco común
+  (<code>yk-frame.js</code>): ☰ Opciones, logo yokup● y sección; ▤ Avanzado y ⌘ Experto. Con
+  <code>?marca=&lt;id&gt;</code> o el verbo <code>/marca &lt;id|off|web&gt;</code> (alias <code>/brand</code>)
+  en ⌘ Experto se viste con una marca del catálogo de admiranext.com/marcablanca (plataforma
+  <code>yokup</code>), igual que admira.app, Pixeria y XpaceOS. Un agente que quiera enseñar Yokup con
+  marca entrega el enlace: <code>https://www.yokup.com/retailer?marca=starbucks</code>;
+  <code>?marca=admira</code> vuelve al aspecto propio. La consola local de ⌘ Experto ejecuta
+  <code>/help</code> y <code>/marca</code> en el navegador; nunca se envían al tmux de un agente.</p>
+
   <h2><span class="n">08</span>La Galaxia, medida: las dos puertas de cada solución</h2>
   <p>Un sitio por dominio del <a href="https://api.yokup.com/projects">censo de proyectos</a>; los
   proyectos que son una sección de otro sitio <b>heredan</b> sus puertas. Esto ya no es una tabla
@@ -290,5 +303,5 @@ curl -s -X POST https://api.yokup.com/fleet/informe -H 'content-type: applicatio
   </footer>
 
 </div>
-<section style="max-width:1100px;margin:24px auto;padding:24px;border:1px solid #d7e2c8;border-radius:12px"><h2>Smith · 20 instaladores de prueba</h2><p>Guía de alta REST y conexión MCP por cuenta, con 20 perfiles ficticios de España y Portugal.</p><p><a href="/mcp/smith-instaladores.html">Abrir guía para Smith ↗</a> · <a href="/mcp/smith-instaladores.txt">Texto para agentes</a> · <a href="/mcp/smith-installers-iberia.json">Descargar los 20 perfiles</a></p></section></body>
+<section style="max-width:1100px;margin:24px auto;padding:24px;border:1px solid #d7e2c8;border-radius:12px"><h2>Smith · 20 instaladores de prueba</h2><p>Guía de alta REST y conexión MCP por cuenta, con 20 perfiles ficticios de España y Portugal.</p><p><a href="/mcp/smith-instaladores.html">Abrir guía para Smith ↗</a> · <a href="/mcp/smith-instaladores.txt">Texto para agentes</a> · <a href="/mcp/smith-installers-iberia.json">Descargar los 20 perfiles</a></p></section><script src="/yk-frame.js?v=r35"></script></body>
 </html>

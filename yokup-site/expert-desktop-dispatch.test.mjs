@@ -45,7 +45,7 @@ test("el panel conserva feedback visible de envío y de encendido",()=>{
   assert.match(frame,/\/\/ "\+label\.toLowerCase\(\)\+" entregada a "/);
   assert.match(frame,/FLEET\.expertAppStatus/);
   assert.match(frame,/\[FLEET\.appStatus,FLEET\.cliStatus,FLEET\.cliBulkStatus,FLEET\.expertAppStatus\]/);
-  assert.match(css,/\.yk-app-dispatch-status\.error\{color:#ff7f87\}/);
+  assert.match(css,/\.yk-app-dispatch-status\.error\{color:var\(--yk-err\)\}/);
 });
 
 test("la vista Desktop captura ahora y después serializa cada 10 s con lifecycle seguro",()=>{
@@ -96,7 +96,7 @@ test("el interruptor de DesktopApp pinta progreso hasta verificar el proceso rea
   assert.match(css,/@property --yk-app-progress/);
   assert.match(css,/conic-gradient\(from -90deg,var\(--yk-app-progress-color\) var\(--yk-app-progress\)/);
   assert.match(css,/@keyframes yk-app-border-progress\{to\{--yk-app-progress:360deg\}\}/);
-  assert.match(css,/\.is-pending\.is-stop\{--yk-app-progress-color:#ff8a83\}/);
+  assert.match(css,/\.is-pending\.is-stop\{--yk-app-progress-color:var\(--yk-err\)\}/);
   assert.match(css,/prefers-reduced-motion:reduce/);
 });
 

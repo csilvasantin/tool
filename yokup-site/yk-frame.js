@@ -184,6 +184,40 @@
     catch (e) { return "versión pendiente"; }
   })();
 
+  // ── MODO DEL MARCO (FLT-101338) ─────────────────────────────────────────────
+  // «flota»: la página carga acceso.js (la verja de Google de la flota Admira), así
+  // que nada se ve sin sesión. El marco monta entonces lo operativo: menú de
+  // secciones con contadores, selector de proyecto, DesktopAPP, AJUSTES y la
+  // consola de CLIs de la flota en ⌘ Experto.
+  // «público»: sin acceso.js (portada, portales del comercio y del instalador con
+  // su propio login, ayuda, MCP, contacto…) o con body[data-yk-public]. La barra
+  // es la canónica pura (☰ · yokup● · sección · ▤ · ⌘): nada empuja al login de la
+  // flota ni pide datos al API, y ⌘ Experto sólo trae la consola LOCAL (/help,
+  // /marca). La consola de la flota NUNCA se monta para un anónimo.
+  function fleetMode() {
+    var body = document.body;
+    if (body && body.hasAttribute("data-yk-public")) return false;
+    return !!(window.YkAccess && window.YkAccess.ready);
+  }
+
+  // Rutas que el guardián de www.yokup.com redirige con 301 a www.admira.live
+  // (MUDADAS_A_ADMIRA_LIVE en yokup-site-gate/src/index.js; shell-cuadratico.test
+  // vigila que esta copia no se desfase). En yokup.com el menú de la barra sólo
+  // enseña lo que se sirve aquí y lleva lo mudado a ☰ Opciones como enlaces ↗ a
+  // admira.live; en el espejo de Pages (otro host) todo sigue como siempre.
+  var MUDADAS_A_LIVE = {
+    "/highscore":"/highscore", "/highscoreDetail":"/highscoreDetail", "/consumos":"/consumos",
+    "/decisiones":"/decisiones", "/tareas":"/tareas", "/misiones":"/misiones",
+    "/notificaciones":"/notificaciones", "/objetivos":"/objetivos", "/normativa":"/normativa",
+    "/asignaciones":"/asignaciones/", "/admira-live":"/admira-live", "/dashboard":"/dashboard",
+    "/equipo":"/equipo", "/asistencia":"/asistencia", "/informes":"/informes-flota", "/status":"/status"
+  };
+  function onYokupHost() { return /(^|\.)yokup\.com$/i.test(location.hostname || ""); }
+  function liveTarget(href) {
+    var path = String(href || "").split(/[?#]/)[0].replace(/\.html$/, "").replace(/\/+$/, "") || "/";
+    return MUDADAS_A_LIVE[path] ? "https://www.admira.live" + MUDADAS_A_LIVE[path] : "";
+  }
+
   // fetch con red de seguridad: intenta api.yokup.com y, si el fetch RECHAZA
   // (fallo de red/DNS/bloqueo, no un 4xx/5xx que sí llega), reintenta una vez
   // contra el host de respaldo (rtc.yokup.com). Solo se usa en los puntos críticos
@@ -302,16 +336,28 @@
     catch (e) { return ""; }
   }
 
-  // Referencias de la home (los 4 primeros son anclas de la landing)
+  // Secciones de www.yokup.com (FLT-101338). Con sesión de flota y sin zona app
+  // (ficha /ticket, /intervencion) son el menú de la barra. Antes eran anclas de
+  // una portada que ya no existe (/#plataforma, /#xaas…) y rutas mudadas.
   var NAV = [
-    ["Plataforma",   "/#plataforma"],
-    ["Agentes IoT",  "/#como"],
-    ["as a Service", "/#xaas"],
-    ["Equipo",       "/#equipo"],
-    ["Incidencias",  "/incidencias"],
-    ["admira.live",  "/admira-live"],
-    ["Asistencia",   "/asistencia"],
-    ["App",          "/app"]
+    ["Incidencias",   "/incidencias"],
+    ["Mi comercio",   "/retailer"],
+    ["Instaladores",  "/instalador"],
+    ["Llamadas",      "/llamadas"],
+    ["Entrenamiento", "/entrenamiento"],
+    ["Ayuda",         "/help"]
+  ];
+  // Enlaces comunes de ☰ Opciones en las páginas públicas (sin sesión de flota).
+  // /incidencias va tras la verja de la flota: no se ofrece a un anónimo.
+  var PUBLIC_NAV = [
+    ["Inicio",             "/"],
+    ["Mi comercio",        "/retailer"],
+    ["Instaladores",       "/instalador"],
+    ["Llamadas",           "/llamadas"],
+    ["Entrenamiento",      "/entrenamiento"],
+    ["Ayuda",              "/help"],
+    ["Para agentes · MCP", "/mcp"],
+    ["Contáctanos",        "/contactanos"]
   ];
 
   function el(tag, cls, html) {
@@ -847,8 +893,13 @@
          APP_NAV y no necesitan copiarlo ni falsificar enlaces propios. */
       var parentPath = document.body.getAttribute("data-yk-parent");
       var path = (parentPath || location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+      // En www.yokup.com lo mudado a admira.live se marca (live) y sale de la
+      // barra hacia ☰ Opciones: ver MUDADAS_A_LIVE.
+      var yokupHost = onYokupHost();
       return APP_NAV.map(function (r) {
-        return { label: r[0], href: r[1], active: (path === r[1] || path === r[1] + ".html") };
+        var item = { label: r[0], href: r[1], active: (path === r[1] || path === r[1] + ".html") };
+        if (yokupHost && liveTarget(r[1])) item.live = liveTarget(r[1]);
+        return item;
       });
     }
     var raw = document.body.getAttribute("data-yk-nav");
@@ -1768,37 +1819,275 @@
     var form=el("form","yk-cli-terminal-form");
     FLEET.cliInput=el("textarea","yk-cli-terminal-input");FLEET.cliInput.rows=2;FLEET.cliInput.maxLength=4000;FLEET.cliInput.disabled=true;FLEET.cliInput.setAttribute("aria-label","Mensaje para el agente CLI seleccionado");form.appendChild(FLEET.cliInput);
     FLEET.cliSend=fleetText("button","yk-cli-terminal-send","Enviar ⌘↵");FLEET.cliSend.type="submit";FLEET.cliSend.disabled=true;form.appendChild(FLEET.cliSend);
-    function submitCliEditor(){var text=FLEET.cliInput.value;if(!text.trim()||FLEET.busy)return;terminalAction("write",text);}
+    // /marca y /brand nunca viajan al tmux del agente: los resuelve la consola
+    // LOCAL de este navegador (FLT-101338). El resto del texto, /help incluido
+    // (que es la ayuda del propio CLI remoto), se envía como siempre.
+    function submitCliEditor(){var text=FLEET.cliInput.value;if(!text.trim()||FLEET.busy)return;if(LOCAL_CLI.isLocalOnly(text)){FLEET.cliInput.value="";LOCAL_CLI.run(text.trim());return;}terminalAction("write",text);}
     form.addEventListener("submit",function(event){event.preventDefault();submitCliEditor();});
     FLEET.cliInput.addEventListener("keydown",function(event){var enter=event.key==="Enter"||event.code==="Enter"||event.code==="NumpadEnter";if(enter&&(event.metaKey||event.ctrlKey)&&!event.isComposing){event.preventDefault();event.stopPropagation();submitCliEditor();}});
     terminal.appendChild(form);
     section.appendChild(terminal);return section;
   }
 
+  // ── MARCA BLANCA (FLT-101338): el único enganche ─────────────────────────────
+  // Yokup (la pata «Yokup mantiene») se viste con una marca del catálogo único de
+  // https://www.admiranext.com/marcablanca (plataforma «yokup»), igual que admira.app,
+  // Pixeria y XpaceOS. Este marco inserta /yk-marca.js —con su MISMO sello ?v=— sólo
+  // si la pestaña pide marca (?marca=<id> o la recordada en sessionStorage mb:marca)
+  // o si se usa /marca. Sin marca no se carga nada ni se habla con admiranext.com.
+  // Ver docs/marca-blanca-yokup.md.
+  var MB_SESSION_KEY = "mb:marca";
+  var MARCA_VERB = /^\/?(?:marca|brand|marcablanca)$/i;
+  var BRAND_SEED = ["admira", "lumbre", "brumelle", "frescaria"];
+  function wantsBrand(search, storage) {
+    var q = null;
+    try { q = new URLSearchParams(search || "").get("marca"); } catch (e) {}
+    if (q != null) return true;
+    try { return !!(storage && storage.getItem(MB_SESSION_KEY)); } catch (e) { return false; }
+  }
+  var _marcaPromise = null;
+  function cargarMarca() {
+    if (window.AdmiraMarca) return Promise.resolve(window.AdmiraMarca);
+    if (!_marcaPromise) {
+      _marcaPromise = new Promise(function (resolve) {
+        var src = "/yk-marca.js";
+        try { var u = new URL("/yk-marca.js", FRAME_SRC || location.href); u.search = new URL(FRAME_SRC || location.href).search; src = u.pathname + u.search; } catch (e) {}
+        var s = document.createElement("script");
+        s.src = src; s.async = true; s.setAttribute("data-yk-marca", "");
+        // La URL con la que se pidió la marca: una página puede reescribirla antes de
+        // que el cargador llegue (p. ej. /contactanos añade ?room=).
+        s.setAttribute("data-search", location.search || "");
+        s.onload = function () { resolve(window.AdmiraMarca || null); };
+        s.onerror = function () { if (s.parentNode) s.parentNode.removeChild(s); _marcaPromise = null; resolve(null); };
+        (document.head || document.documentElement).appendChild(s);
+      });
+    }
+    return _marcaPromise;
+  }
+  // /marca <id|off|web> (alias /brand). M es window.AdmiraMarca (yk-marca.js);
+  // write pinta una línea en la consola. Mismos textos que admira.app, Pixeria y XpaceOS.
+  function runMarca(arg, M, en, write) {
+    function t(es, english) { return en ? english : es; }
+    function tag(b) { return b && b.propuesta ? t(" · propuesta automática, no es la marca oficial", " · automatic proposal, not the official brand") : b && b.ejemplo ? t(" · marca ficticia de ejemplo", " · fictional sample brand") : ""; }
+    function list(items) { return items.map(function (b) { return b.id + (b.propuesta ? t(" (propuesta)", " (proposal)") : b.ejemplo ? t(" (ejemplo)", " (sample)") : ""); }).join(", "); }
+    if (!M) { write(t("La marca blanca aún no está lista en esta página. Vuelve a intentarlo en un momento.", "White label is not ready on this page yet. Try again in a moment.")); return Promise.resolve({ok:false}); }
+    var p = M.parseArg(arg);
+    if (p.kind === "invalid") {
+      write(t("Marca no válida: «" + p.input + "».", "Invalid brand: “" + p.input + "”.") + "\n" +
+        t("Usa un id del catálogo (" + M.conocidas().map(function (b) { return b.id; }).join(", ") + "), off para volver a Admira o una web (starbucks.es) para analizarla.",
+          "Use a catalogue id (" + M.conocidas().map(function (b) { return b.id; }).join(", ") + "), off to return to Admira or a website (starbucks.es) to analyse it."));
+      return Promise.resolve({ok:false});
+    }
+    if (p.kind === "status") {
+      var now = M.actual();
+      write(now
+        ? t("Marca activa: " + now.nombre + " (" + now.id + ")" + tag(now) + ". /marca off vuelve a Admira.", "Active brand: " + now.nombre + " (" + now.id + ")" + tag(now) + ". /marca off returns to Admira.")
+        : t("Sin marca blanca: ves el aspecto de Admira.", "No white label: you see the Admira look."));
+      return M.listar().then(function (items) { write(t("Disponibles: ", "Available: ") + list(items) + "."); return {ok:true}; },
+        function () { write(t("No se pudo leer el catálogo de admiranext.com. Conocidas: ", "Could not read the admiranext.com catalogue. Known: ") + list(M.conocidas()) + "."); return {ok:false}; });
+    }
+    if (p.kind === "off") {
+      var r = M.desactivar();
+      write(r.changed && r.previous
+        ? t("Marca " + r.previous.nombre + " desactivada: vuelve Admira.", r.previous.nombre + " brand turned off: back to Admira.")
+        : t("No había ninguna marca blanca activa: ya ves Admira.", "No white label was active: you already see Admira."));
+      return Promise.resolve({ok:true});
+    }
+    if (p.kind === "web") {
+      var w = M.analizar(p.url);
+      write(t("Abriendo el analizador de marca blanca en otra pestaña: " + w.href, "Opening the white-label analyser in a new tab: " + w.href) + "\n" +
+        t("Allí se analiza la web y se guarda en el catálogo; después actívala aquí con /marca <id>.", "There the site is analysed and saved to the catalogue; then turn it on here with /marca <id>."));
+      return Promise.resolve({ok:!!w.ok});
+    }
+    write(t("Aplicando la marca " + p.id + "…", "Applying the " + p.id + " brand…"));
+    return M.activar(p.id).then(function (res) {
+      if (res.ok) { write(t("Marca " + res.nombre + " (" + res.id + ") activa" + tag(res) + ". Se mantiene al navegar en esta pestaña; /marca off vuelve a Admira.", res.nombre + " (" + res.id + ") brand on" + tag(res) + ". It stays while you browse in this tab; /marca off returns to Admira.")); return {ok:true}; }
+      if (res.reason === "unknown") {
+        write(t("La marca «" + p.id + "» no está en el catálogo de admiranext.com. No se ha aplicado nada.", "The brand “" + p.id + "” is not in the admiranext.com catalogue. Nothing was applied.") + "\n" +
+          t("Disponibles: ", "Available: ") + list(M.conocidas()) + t(". Para crearla: /marca <web de la marca>.", ". To create it: /marca <brand website>."));
+        return {ok:false};
+      }
+      write(t("No se pudo contactar con admiranext.com. No se ha aplicado nada; vuelve a intentarlo.", "Could not reach admiranext.com. Nothing was applied; try again."));
+      return {ok:false};
+    });
+  }
+  // Arranque: sólo si esta pestaña pide marca (nunca en una visita normal).
+  (function () { var ss = null; try { ss = window.sessionStorage; } catch (e) {} if (wantsBrand(location.search, ss)) cargarMarca(); })();
+
+  // ── CONSOLA LOCAL de ⌘ Experto (FLT-101338) ──────────────────────────────────
+  // El Experto de Yokup escribe en el tmux REMOTO del agente seleccionado. Los
+  // verbos con barra del sitio (/help, /marca…) son otra cosa: se ejecutan en ESTE
+  // navegador y nunca llegan a un agente. Esta consola es su intérprete mínimo, y
+  // la única consola que ve quien entra sin sesión de flota.
+  var LOCAL_HISTORY_KEY = "yk_local_cli_history_v1";
+  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand"];
+  // Verbos propios de una página (p. ej. el inventario ITIL: /inventario, /equipo…),
+  // registrados con YkFrame.registerVerb({id, aliases, es, run(args, ctx)}). Sólo
+  // valen en esa página y, como el resto de la consola local, nunca llegan a un agente.
+  var PAGE_VERBS = {}, PAGE_VERB_DEFS = [];
+  function registerVerb(def) {
+    if (!def || typeof def.run !== "function" || !/^[a-z0-9-]+$/i.test(def.id || "")) throw new Error("yk-frame: verbo no válido");
+    if (PAGE_VERB_DEFS.indexOf(def) < 0) PAGE_VERB_DEFS.push(def);
+    [def.id].concat(def.aliases || []).forEach(function (name) {
+      name = String(name).toLowerCase();
+      PAGE_VERBS[name] = def;
+      if (LOCAL_VERBS.indexOf(name) < 0) LOCAL_VERBS.push(name);
+    });
+  }
+  var LOCAL_CLI = {
+    log: null, input: null,
+    isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")); },
+    print: function (text, cls) {
+      var ol = LOCAL_CLI.log; if (!ol) return;
+      String(text == null ? "" : text).split("\n").forEach(function (line) {
+        var li = document.createElement("li"); li.className = cls || "yk-lcli-out"; li.textContent = line; ol.appendChild(li);
+      });
+      while (ol.children.length > 200) ol.removeChild(ol.firstElementChild);
+      ol.scrollTop = ol.scrollHeight;
+    },
+    run: function (text) { return runLocal(text); }
+  };
+  function localEn() { return String(document.documentElement.lang || "").toLowerCase().indexOf("en") === 0; }
+  function localHelp(fleet) {
+    var en = localEn(), t = function (es, english) { return en ? english : es; }, L = [];
+    L.push(t("Yokup · consola local. Se ejecuta en este navegador; nunca llega a un agente.", "Yokup · local console. It runs in this browser and never reaches an agent."));
+    L.push(t("  /help (/ayuda) — esta ayuda", "  /help (/ayuda) — this help"));
+    L.push(t("  /limpiar (/clear) — vacía la consola", "  /limpiar (/clear) — clear the console"));
+    L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
+      "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
+    PAGE_VERB_DEFS.forEach(function (def) {
+      L.push("  /" + def.id + (def.aliases && def.aliases.length ? " (/" + def.aliases.join(", /") + ")" : "") + " — " + (en ? (def.en || def.es || "") : (def.es || def.en || "")));
+    });
+    if (fleet) L.push(t("Para hablar con un agente, elige su CLI abajo y escribe en su caja: ese texto sí va a su tmux. /marca escrito allí también se resuelve aquí.", "To talk to an agent, pick its CLI below and type in its box: that text goes to its tmux. /marca typed there is also handled here."));
+    L.push(t("Ayuda completa: yokup.com/help · MCP de flota: yokup.com/mcp", "Full help: yokup.com/help · Fleet MCP: yokup.com/mcp"));
+    return L.join("\n");
+  }
+  function runLocal(text) {
+    var raw = String(text == null ? "" : text).trim();
+    if (!raw) return Promise.resolve();
+    LOCAL_CLI.print("› " + raw, "yk-lcli-in");
+    var m = raw.match(/^\/?(\S+)\s*([\s\S]*)$/), verb = (m ? m[1] : "").toLowerCase(), args = m ? m[2].trim() : "";
+    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand)$/i.test(verb)) {
+      LOCAL_CLI.print(localEn() ? "This console only runs slash verbs. /help lists them." : "Esta consola sólo ejecuta verbos con barra. /help los lista.");
+      return Promise.resolve();
+    }
+    if (verb === "help" || verb === "ayuda" || verb === "?") { LOCAL_CLI.print(localHelp(fleetMode())); return Promise.resolve(); }
+    if (verb === "limpiar" || verb === "clear" || verb === "cls") { if (LOCAL_CLI.log) LOCAL_CLI.log.textContent = ""; return Promise.resolve(); }
+    if (MARCA_VERB.test(verb)) {
+      if (!isOpen("bottom")) setOpen("bottom", true);
+      return cargarMarca().then(function (M) { return runMarca(args, M, localEn(), LOCAL_CLI.print); });
+    }
+    if (PAGE_VERBS[verb]) {
+      return Promise.resolve().then(function () { return PAGE_VERBS[verb].run(args, {print:LOCAL_CLI.print, lang:localEn() ? "en" : "es"}); })
+        .then(function (out) { if (out != null && out !== "") LOCAL_CLI.print(typeof out === "string" ? out : JSON.stringify(out)); },
+          function (error) { LOCAL_CLI.print("Error: " + ((error && error.message) || error)); });
+    }
+    LOCAL_CLI.print(localEn() ? "Unknown verb: /" + verb + ". /help lists the verbs of this console." : "Verbo desconocido: /" + verb + ". /help lista los verbos de esta consola.");
+    return Promise.resolve();
+  }
+  function localComplete(value, brandIds) {
+    var text = String(value == null ? "" : value), m = text.match(/^(\s*)(\/?)(\S*)$/);
+    function prefix(list) { return list.reduce(function (a, b) { var i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); }, list[0] || ""); }
+    if (m) {
+      var pool = LOCAL_VERBS.filter(function (v) { return v.indexOf(m[3].toLowerCase()) === 0; });
+      if (!pool.length) return {value:text, options:[]};
+      return pool.length === 1 ? {value:m[1] + "/" + pool[0] + " ", options:pool} : {value:m[1] + "/" + prefix(pool), options:pool};
+    }
+    var a = text.match(/^(\s*\/?(\S+)\s+)(\S*)$/);
+    if (!a || !/^(marca|brand|marcablanca)$/i.test(a[2])) return {value:text, options:[]};
+    var ids = (brandIds || []).concat(["off"]).filter(function (o, i, all) { return all.indexOf(o) === i && o.indexOf(a[3].toLowerCase()) === 0; });
+    if (!ids.length) return {value:text, options:[]};
+    return ids.length === 1 ? {value:a[1] + ids[0], options:ids} : {value:a[1] + prefix(ids), options:ids};
+  }
+  function buildLocalCli(fleet) {
+    var section = el("section", "yk-local-cli" + (fleet ? " is-compact" : ""));
+    section.setAttribute("aria-label", "Consola local");
+    var ol = el("ol", "yk-lcli-log"); ol.setAttribute("role", "log"); ol.setAttribute("aria-live", "polite");
+    var form = el("form", "yk-lcli-form"); form.setAttribute("autocomplete", "off");
+    var prompt = el("span", "yk-lcli-prompt", "›"); prompt.setAttribute("aria-hidden", "true");
+    var input = document.createElement("input");
+    input.type = "text"; input.className = "yk-lcli-input"; input.placeholder = "/help · /marca starbucks";
+    input.setAttribute("aria-label", "Orden de la consola local"); input.spellcheck = false; input.setAttribute("autocapitalize", "off");
+    var run = el("button", "yk-lcli-run", "Ejecutar"); run.type = "submit";
+    form.appendChild(prompt); form.appendChild(input); form.appendChild(run);
+    var hint = el("p", "yk-lcli-hint", "Consola local: /help y /marca se ejecutan en este navegador, nunca en un agente · Tab completa · ↑/↓ historial");
+    // Con la consola de la flota debajo, la local es una sola fila (la orden y,
+    // sólo si hay respuesta, sus últimas líneas): no le roba alto a los CLIs.
+    if (fleet) { section.appendChild(form); section.appendChild(ol); }
+    else { section.appendChild(ol); section.appendChild(form); section.appendChild(hint); }
+    LOCAL_CLI.log = ol; LOCAL_CLI.input = input;
+    var history = [];
+    try { history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || "[]").filter(function (x) { return typeof x === "string"; }).slice(-50); } catch (e) {}
+    var cursor = history.length, draft = "";
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var value = input.value.trim(); if (!value) return;
+      input.value = "";
+      if (history[history.length - 1] !== value) history.push(value);
+      history = history.slice(-50); cursor = history.length;
+      try { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history)); } catch (e) {}
+      runLocal(value);
+    });
+    input.addEventListener("keydown", function (ev) {
+      if (ev.key === "Tab" && !ev.shiftKey) {
+        var brands = window.AdmiraMarca ? window.AdmiraMarca.conocidas().map(function (b) { return b.id; }) : BRAND_SEED;
+        var c = localComplete(input.value, brands);
+        if (c.options.length) { ev.preventDefault(); input.value = c.value; if (c.options.length > 1) LOCAL_CLI.print(c.options.join("  ")); }
+        // Con /marca se trae el catálogo real para el siguiente Tab (sólo al usar /marca).
+        if (/^\s*\/?(?:marca|brand|marcablanca)\s/i.test(input.value)) cargarMarca().then(function (M) { if (M) M.listar().catch(function () {}); });
+        return;
+      }
+      if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+      ev.preventDefault();
+      if (cursor === history.length) draft = input.value;
+      cursor = Math.max(0, Math.min(history.length, cursor + (ev.key === "ArrowUp" ? -1 : 1)));
+      input.value = cursor === history.length ? draft : history[cursor];
+    });
+    if (!fleet) LOCAL_CLI.print("Yokup · consola lista. Escribe /help.");
+    else input.placeholder = "Consola local: /help, /marca (se ejecutan aquí, no en un agente)";
+    return section;
+  }
+  window.YkFrame = window.YkFrame || {};
+  window.YkFrame.marca = function (arg, write) { return cargarMarca().then(function (M) { return runMarca(arg, M, localEn(), write || LOCAL_CLI.print); }); };
+  window.YkFrame.cargarMarca = cargarMarca;
+  window.YkFrame.run = function (text) { return runLocal(text); };
+  window.YkFrame.registerVerb = registerVerb;
+  window.YkFrame._test = {wantsBrand:wantsBrand, runMarca:runMarca, localComplete:localComplete, liveTarget:liveTarget};
+
   function build() {
     if (document.getElementById("yk-frame")) return;
+    // Una vista que no debe llevar barra (la sala de /llamadas?room=…, que se abre
+    // a terceros) lo declara con <html data-yk-no-frame>: el marco no pinta nada.
+    if (document.documentElement.hasAttribute("data-yk-no-frame")) return;
+    var FLEET_MODE = fleetMode();
     document.documentElement.classList.add("yk-framed"); // aplica padding-top al body
+    document.documentElement.classList.toggle("yk-public", !FLEET_MODE);
 
     var root = el("div", "yk-frame");
     root.id = "yk-frame";
+    root.setAttribute("data-yk-mode", FLEET_MODE ? "flota" : "publico");
 
     // ------------------------- BARRA SUPERIOR ------------------------------
+    // Canon de la Galaxia (admira.app · Pixeria · XpaceOS): ☰ Opciones + marca +
+    // sección a la izquierda; ▤ Avanzado y ⌘ Experto a la derecha.
     var bar = el("header", "yk-bar");
     bar.setAttribute("role", "banner");
 
-    // [icono OPCIONES] al extremo izquierdo
-    var icoL = icon("yk-ico yk-ico-left", "left", "▤", "Opciones");
+    // [☰ OPCIONES] al extremo izquierdo
+    var icoL = icon("yk-ico yk-ico-left", "left", "☰", "Opciones");
 
-    // logotipo YO KUP (→ /)
-    // El logo es el de Admira pixelado estilo retro (Carlos, 17-09-2026), el mismo
-    // que la barra nativa admira-bar.js: /admira-logo-retro.svg.
+    // logotipo yokup● (→ /) — el wordmark del Portal del comercio (FLT-101338)
     var logo = el("a", "yk-logo",
-      '<img class="yk-logo-img" src="/admira-logo-retro.svg" alt="admira" width="119" height="25">');
+      '<span class="yk-logo-word">yokup</span><span class="yk-logo-dot" aria-hidden="true">●</span>');
     logo.href = "/";
-    logo.setAttribute("aria-label", "admira.live · inicio");
+    logo.setAttribute("aria-label", "Yokup · volver al inicio");
+    logo.title = "Yokup · volver al inicio";
 
-    // menú de la barra (se calcula ya para deducir el ítem activo)
-    var navItems = pageNav();
+    // menú de la barra (se calcula ya para deducir el ítem activo). Sólo con
+    // sesión de flota; en www.yokup.com lo mudado a admira.live va a Opciones.
+    var allNav = FLEET_MODE ? pageNav() : [];
+    var navItems = allNav.filter(function (it) { return !it.live; });
+    var liveItems = allNav.filter(function (it) { return !!it.live; });
     var activeLbl = "";
     for (var _i = 0; _i < navItems.length; _i++) { if (navItems[_i].active) { activeLbl = navItems[_i].label; break; } }
 
@@ -1809,42 +2098,44 @@
     var page = el("span", "yk-page", pt);
     if (!pt || (activeLbl && pt === activeLbl)) page.style.display = "none";
 
-    // menú de la barra: por página (body[data-yk-nav]) o el global por defecto
-    var nav = el("nav", "yk-nav");
-    nav.setAttribute("aria-label", "Secciones de Yokup");
-    navItems.forEach(function (it) {
-      var a = el("a", it.active ? "on" : null, it.label);
-      a.href = it.href || "#";
-      if (it.active) a.setAttribute("aria-current", "page");
-      if (it.panel) {
-        // MISIONES/TAREAS: abre/enfoca el raíl izquierdo/derecho en vez de navegar
-        a.setAttribute("data-yk-open", it.panel);
-        a.addEventListener("click", function (e) { e.preventDefault(); setOpen(it.panel, true); });
-      }
-      var c = counterSpan(it.label, "yk-nav-c");
-      if (c) a.appendChild(c);
-      // Sólo las secciones con cifras entran en la referencia lumínica;
-      // DASHBOARD no cuenta nada, así que ni se enciende ni saca tarjeta.
-      // HIGHSCORE tampoco tiene contador pero SÍ entra: su hover abre el
-      // submenú de vistas (FLT-1426), no el tooltip de cifras.
-      if (COUNTER_KEY[it.label] || it.label === "DECISIONES" || it.label === "HIGHSCORE") wireNavPop(a, it.label);
-      nav.appendChild(a);
-    });
-
-    // [PROYECTO ACTIVO ▾] — desplegable que absorbe el antiguo rótulo de flota
-    var proj = buildProjMenu();
-
-    // (el reloj de la barra se retiró — canon 2026-07-13, Carlos)
-
-    // [icono AVANZADO] [icono EXPERTO] al extremo derecho
-    var icoR = icon("yk-ico yk-ico-adv", "right", "◨", "Avanzado");
-    var icoB = icon("yk-ico yk-ico-exp", "bottom", "▦", "Experto");
-
     bar.appendChild(icoL);
     bar.appendChild(logo);
     bar.appendChild(page);
-    bar.appendChild(nav);
-    bar.appendChild(proj);
+
+    if (FLEET_MODE) {
+      // menú de la barra: zona app, por página (body[data-yk-nav]) o el global
+      var nav = el("nav", "yk-nav");
+      nav.setAttribute("aria-label", "Secciones de Yokup");
+      navItems.forEach(function (it) {
+        var a = el("a", it.active ? "on" : null, it.label);
+        a.href = it.href || "#";
+        if (it.active) a.setAttribute("aria-current", "page");
+        if (it.panel) {
+          // MISIONES/TAREAS: abre/enfoca el raíl izquierdo/derecho en vez de navegar
+          a.setAttribute("data-yk-open", it.panel);
+          a.addEventListener("click", function (e) { e.preventDefault(); setOpen(it.panel, true); });
+        }
+        var c = counterSpan(it.label, "yk-nav-c");
+        if (c) a.appendChild(c);
+        // Sólo las secciones con cifras entran en la referencia lumínica;
+        // DASHBOARD no cuenta nada, así que ni se enciende ni saca tarjeta.
+        // HIGHSCORE tampoco tiene contador pero SÍ entra: su hover abre el
+        // submenú de vistas (FLT-1426), no el tooltip de cifras.
+        if (COUNTER_KEY[it.label] || it.label === "DECISIONES" || it.label === "HIGHSCORE") wireNavPop(a, it.label);
+        nav.appendChild(a);
+      });
+      bar.appendChild(nav);
+      // [PROYECTO ACTIVO ▾] — desplegable que absorbe el antiguo rótulo de flota
+      bar.appendChild(buildProjMenu());
+    } else {
+      bar.appendChild(el("div", "yk-spacer"));
+    }
+
+    // (el reloj de la barra se retiró — canon 2026-07-13, Carlos)
+
+    // [▤ AVANZADO] [⌘ EXPERTO] al extremo derecho
+    var icoR = icon("yk-ico yk-ico-adv", "right", "▤", "Avanzado");
+    var icoB = icon("yk-ico yk-ico-exp", "bottom", "⌘", "Modo experto");
     bar.appendChild(icoR);
     bar.appendChild(icoB);
 
@@ -1856,36 +2147,56 @@
     var railRightLabel = document.body.getAttribute("data-yk-rail-right") || "AVANZADO";
 
     var railL = el("aside", "yk-rail yk-rail-left");
+    railL.id = "yk-rail-left";
+    railL.setAttribute("aria-label", "Opciones");
     railL.appendChild(el("div", "yk-hd", railLeftLabel));
-    // MÓVIL (≤520px): la barra esconde .yk-nav y las secciones quedaban
-    // inalcanzables desde el teléfono (FLT-983). El MISMO menú, sin inventar
-    // patrón nuevo, se replica dentro del cajón OPCIONES que ya existía; el CSS
-    // solo lo muestra por debajo de 520px, así el escritorio no cambia.
-    // Orden dentro del cajón: si la página NO trae panel de trabajo propio, las
-    // secciones van delante (es lo único que hay). Si lo trae —misiones e
-    // incidencias, que además rotulan el cajón MISIONES—, las secciones van
-    // DETRÁS: medido a 320px, el bloque empujaba los filtros 387px hacia abajo y
-    // obligaba a desplazar el cajón entero para llegar a ellos.
     var hasOwnPanel = !!document.querySelector('[data-yk-slot="left"]');
-    var railNav = buildRailNav(navItems);
-    if (!hasOwnPanel) railL.appendChild(railNav);
-    var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
-    if (hasOwnPanel) railL.appendChild(railNav);
+    var slotL = el("div", "yk-slot");
+    if (FLEET_MODE) {
+      // MÓVIL (≤520px): la barra esconde .yk-nav y las secciones quedaban
+      // inalcanzables desde el teléfono (FLT-983). El MISMO menú, sin inventar
+      // patrón nuevo, se replica dentro del cajón OPCIONES que ya existía; el CSS
+      // solo lo muestra por debajo de 520px, así el escritorio no cambia.
+      // Orden dentro del cajón: si la página NO trae panel de trabajo propio, las
+      // secciones van delante (es lo único que hay). Si lo trae —misiones e
+      // incidencias, que además rotulan el cajón MISIONES—, las secciones van
+      // DETRÁS: medido a 320px, el bloque empujaba los filtros 387px hacia abajo y
+      // obligaba a desplazar el cajón entero para llegar a ellos.
+      var railNav = buildRailNav(navItems);
+      if (!hasOwnPanel) railL.appendChild(railNav);
+      railL.appendChild(slotL);
+      if (hasOwnPanel) railL.appendChild(railNav);
+      if (liveItems.length) railL.appendChild(buildLiveNav(liveItems));
+    } else {
+      // Público: lo que la página trae (su navegación movida) y, debajo, los
+      // enlaces comunes de Yokup sin repetir un destino que la página ya trae.
+      railL.appendChild(slotL);
+    }
     // pie del raíl OPCIONES: AJUSTES + versión, abajo del todo (Carlos, 2026-07-19).
-    // Vive en el marco, no en las páginas → idéntico en toda la zona-app.
-    railL.appendChild(buildRailFoot());
+    // Vive en el marco, no en las páginas → idéntico en toda la zona-app. Sin
+    // sesión de flota sólo queda el sello de versión.
+    railL.appendChild(buildRailFoot(FLEET_MODE));
 
     var railR = el("aside", "yk-rail yk-rail-right");
+    railR.id = "yk-rail-right";
+    railR.setAttribute("aria-label", "Avanzado");
     railR.appendChild(el("div", "yk-hd", railRightLabel));
-    // Navegación canónica de producto. Highscore sigue siendo accesible desde
-    // cualquier otra página sin duplicarse en su propia vista; si no hay ningún
-    // enlace no se monta un <nav> vacío ni queda su hueco ante lectores de pantalla.
-    var advancedNav = buildAdvancedNav();
-    if (advancedNav.childNodes.length) railR.appendChild(advancedNav);
-    var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
-    slotR.appendChild(buildDesktopControl());
+    var slotR = el("div", "yk-slot");
+    if (FLEET_MODE) {
+      // Navegación canónica de producto. Highscore sigue siendo accesible desde
+      // cualquier otra página sin duplicarse en su propia vista; si no hay ningún
+      // enlace no se monta un <nav> vacío ni queda su hueco ante lectores de pantalla.
+      var advancedNav = buildAdvancedNav();
+      if (advancedNav.childNodes.length) railR.appendChild(advancedNav);
+      railR.appendChild(slotR);
+      slotR.appendChild(buildDesktopControl());
+    } else {
+      railR.appendChild(slotR);
+    }
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
+    railB.id = "yk-rail-bottom";
+    railB.setAttribute("aria-label", "Modo experto");
     var expertResize = el("div", "yk-expert-resizer");
     expertResize.setAttribute("role", "separator");
     expertResize.setAttribute("aria-label", "Redimensionar modo Experto");
@@ -1893,26 +2204,42 @@
     expertResize.setAttribute("tabindex", "0");
     var expert = el("div", "yk-expert");
     var expertHead = el("div", "yk-hd yk-expert-hd");
-    expertHead.appendChild(el("span", "yk-expert-title", "EXPERTO"));
+    expertHead.appendChild(el("span", "yk-expert-title", FLEET_MODE ? "EXPERTO" : "EXPERTO · CLI"));
     var expertVer = el("span", "yk-ver yk-expert-ver",
       'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
     expertVer.setAttribute("data-yk-version", "1");
     expertHead.appendChild(expertVer);
     expert.appendChild(expertHead);
     var slotB = el("div", "yk-slot"); expert.appendChild(slotB);
-    slotB.appendChild(buildCliConsole());
+    // Consola LOCAL (/help, /marca…): se ejecuta en este navegador y nunca llega a
+    // un agente. Con sesión de flota va encima de la consola de CLIs remota.
+    slotB.appendChild(buildLocalCli(FLEET_MODE));
+    if (FLEET_MODE) slotB.appendChild(buildCliConsole());
     railB.appendChild(expertResize);
     railB.appendChild(expert);
     wireExpertResize(railB, expertResize);
+
+    icoL.setAttribute("aria-controls", railL.id);
+    icoR.setAttribute("aria-controls", railR.id);
+    icoB.setAttribute("aria-controls", railB.id);
 
     root.appendChild(bar);
     root.appendChild(railL); root.appendChild(railR); root.appendChild(railB);
     document.body.appendChild(root);
 
     // --- MOVER los nodos marcados a su slot ---
-    fillSlot(slotL, "left");
-    fillSlot(slotR, "right");
-    fillSlot(slotB, "bottom");
+    fillSlot(slotL, "left", !FLEET_MODE);
+    fillSlot(slotR, "right", !FLEET_MODE);
+    fillSlot(slotB, "bottom", !FLEET_MODE);
+    if (!FLEET_MODE) {
+      var common = buildPublicNav(slotL);
+      if (common) railL.insertBefore(common, slotL.nextSibling);
+    }
+    // La cabecera propia de la página deja paso a la barra común: se retira
+    // DESPUÉS de mover lo marcado (los nodos movidos conservan sus manejadores).
+    Array.prototype.forEach.call(document.querySelectorAll("[data-yk-replace]"), function (n) {
+      if (!root.contains(n) && n.parentNode) n.parentNode.removeChild(n);
+    });
     FLEET.appBulk=document.getElementById("desktopAppBulk");
 
     // --- estado abierto/plegado por panel ---
@@ -1923,16 +2250,32 @@
     closeRailOnNavigation(railR, "right");
     refreshPublicVersion();
 
-    // --- cerrar cualquier panel abierto con Escape ---
+    // --- Esc: cierra el panel que tiene el foco y devuelve el foco a su icono
+    // (el mismo teclado que responsive-shell de admira.app y el shell de XpaceOS).
+    // Un diálogo propio de la página que ya atendió el Esc (defaultPrevented) gana.
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        ["left", "right", "bottom"].forEach(function (p) { if (isOpen(p)) setOpen(p, false); });
-      }
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      var rails = { left: railL, right: railR, bottom: railB }, icons = { left: icoL, right: icoR, bottom: icoB };
+      var panel = ["left", "right", "bottom"].filter(function (p) { return isOpen(p) && e.target && rails[p].contains(e.target); })[0];
+      // Desde un icono de la barra, Esc cierra el panel de ese icono.
+      if (!panel && e.target && e.target.getAttribute && isOpen(e.target.getAttribute("data-yk-panel") || "")) panel = e.target.getAttribute("data-yk-panel");
+      if (!panel) return;
+      setOpen(panel, false);
+      try { icons[panel].focus(); } catch (_) {}
     });
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
-    wireExpertFetch(root);
+    if (FLEET_MODE) wireExpertFetch(root);
 
+    // Adaptadores de página (p. ej. inventory-frame.mjs) montan lo suyo en los raíles
+    // canónicos cuando el marco existe: YkFrame.ready + evento yk:frame-ready.
+    window.YkFrame.ready = true;
+    window.YkFrame.open = function (p) { setOpen(p, true); };
+    window.YkFrame.close = function (p) { setOpen(p, false); };
+    window.YkFrame.isOpen = isOpen;
+    try { document.dispatchEvent(new CustomEvent("yk:frame-ready", {detail:{mode:FLEET_MODE ? "flota" : "publico"}})); } catch (e) {}
+
+    if (!FLEET_MODE) return;
     // --- contadores reales «curso/pend» del menú (un fetch, degradación silenciosa) ---
     fetchCounters();
     loadFleet();
@@ -1943,10 +2286,63 @@
     // foco con lecturas temporizadas mientras alguien escribe en xterm.
   }
 
+  // ☰ Opciones de una página pública: los enlaces comunes de Yokup, sin repetir
+  // un destino que la página ya ha movido a su panel (canon de XpaceOS).
+  function buildPublicNav(slot) {
+    var have = {};
+    Array.prototype.forEach.call(slot.querySelectorAll("a[href]"), function (a) {
+      try { have[new URL(a.getAttribute("href"), location.href).pathname.replace(/\.html$/, "").replace(/\/+$/, "") || "/"] = true; } catch (e) {}
+    });
+    var here = (location.pathname.replace(/\.html$/, "").replace(/\/+$/, "") || "/").toLowerCase();
+    if (here === "/index") here = "/";
+    var nav = el("nav", "yk-pub-nav");
+    nav.setAttribute("aria-label", "Yokup");
+    nav.appendChild(el("div", "yk-rail-navhd", "YOKUP"));
+    PUBLIC_NAV.forEach(function (r) {
+      if (have[r[1]]) return;
+      var on = here === r[1].toLowerCase() || (r[1] === "/retailer" && here === "/comercio") || (r[1] === "/instalador" && here === "/portal");
+      var a = el("a", "yk-pub-link" + (on ? " on" : ""));
+      a.textContent = r[0];
+      a.href = r[1];
+      if (on) a.setAttribute("aria-current", "page");
+      nav.appendChild(a);
+    });
+    return nav.querySelectorAll("a").length ? nav : null;
+  }
+
+  // ☰ Opciones en www.yokup.com: las secciones de la flota mudadas a admira.live
+  // (el guardián las redirige con 301). Enlace directo, sin el salto del 301.
+  function buildLiveNav(items) {
+    // Plegado: son atajos a otra web; no deben empujar los filtros del raíl.
+    var box = el("details", "yk-pub-nav yk-live-nav");
+    var sum = el("summary", "yk-rail-navhd");
+    sum.textContent = "EN ADMIRA.LIVE ↗ (" + items.length + ")";
+    box.appendChild(sum);
+    var nav = el("nav");
+    nav.setAttribute("aria-label", "Secciones en admira.live");
+    items.forEach(function (it) {
+      var a = el("a", "yk-pub-link");
+      a.textContent = it.label.charAt(0) + it.label.slice(1).toLowerCase() + " ↗";
+      a.href = it.live;
+      nav.appendChild(a);
+    });
+    box.appendChild(nav);
+    return box;
+  }
+
   // Pie fijo del raíl OPCIONES: AJUSTES (plegado por defecto, contenido REAL de
   // la sesión de acceso.js) y la versión del perímetro debajo, abajo del todo.
-  function buildRailFoot() {
+  function buildRailFoot(fleet) {
     var foot = el("div", "yk-rail-foot");
+    if (fleet === false) {
+      // Sin sesión de flota no hay AJUSTES, ni alta de proyectos, ni gestión:
+      // sólo el sello de la versión publicada.
+      var pubVer = el("div", "yk-ver",
+        'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
+      pubVer.setAttribute("data-yk-version", "1");
+      foot.appendChild(pubVer);
+      return foot;
+    }
 
     var set = el("div", "yk-set");
     var btn = el("button", "yk-set-btn",
@@ -2012,11 +2408,14 @@
     // ahora aquí, en el raíl OPCIONES, como navegación de gestión. Orden del pie:
     // EQUIPO · STATUS · Panel de control · sello de versión.
     var _path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+    // En www.yokup.com EQUIPO, STATUS y Panel de control viven en admira.live
+    // (el guardián los redirige): enlace directo y marcado ↗.
+    var _live = onYokupHost();
     [["◫", "EQUIPO", "/equipo"], ["◈", "STATUS", "/status"]].forEach(function (r) {
       var on = (_path === r[2] || _path === r[2] + ".html");
       var a = el("a", "yk-set-btn" + (on ? " on" : ""),
-        '<span aria-hidden="true">' + r[0] + '</span> ' + r[1]);
-      a.href = r[2];
+        '<span aria-hidden="true">' + r[0] + '</span> ' + r[1] + (_live && liveTarget(r[2]) ? " ↗" : ""));
+      a.href = (_live && liveTarget(r[2])) || r[2];
       if (on) a.setAttribute("aria-current", "page");
       foot.appendChild(a);
     });
@@ -2024,8 +2423,8 @@
     // OPCIONES, justo ENCIMA del sello de versión. La personalización de flota
     // (antes «Panel de control») vive ahora dentro de AJUSTES como «Personalización».
     var pc = el("a", "yk-set-btn",
-      '<span aria-hidden="true">▣</span> Panel de control');
-    pc.href = "/asignaciones";
+      '<span aria-hidden="true">▣</span> Panel de control' + (_live ? " ↗" : ""));
+    pc.href = (_live && liveTarget("/asignaciones")) || "/asignaciones";
     foot.appendChild(pc);
     var ver = el("div", "yk-ver",
       'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
@@ -2044,9 +2443,12 @@
     // acción operativa del raíl: su espejo documental sigue existiendo, pero no
     // ocupa espacio ni queda anunciado como control de la aplicación.
     if (!active) {
+      // En www.yokup.com /highscore vive en admira.live (301 del guardián).
+      var live = /(^|\.)yokup\.com$/i.test(location.hostname || "");
       var highscore = el("a", "yk-set-btn yk-adv-link",
-        '<span aria-hidden="true">🏃</span> HIGHSCORE');
+        '<span aria-hidden="true">🏃</span> HIGHSCORE' + (live ? " ↗" : ""));
       highscore.href = "/highscore";
+      if (live) highscore.href = "https://www.admira.live/highscore";
       nav.appendChild(highscore);
     }
     return nav;
@@ -2651,7 +3053,8 @@
     return nav;
   }
 
-  // botón-icono cuadrático de la barra
+  // botón-icono cuadrático de la barra: ☰ Opciones · ▤ Avanzado · ⌘ Experto
+  // (FLT-101338, los glifos de admira.app, Pixeria y XpaceOS).
   function icon(cls, panel, glyph, label) {
     // canon 2026-07-12: el botón es SOLO el glifo; el rótulo vive en el tooltip
     var b = el("button", cls,
@@ -2663,18 +3066,24 @@
     return b;
   }
 
-  function fillSlot(slot, name) {
+  function fillSlot(slot, name, publico) {
     var nodes = document.querySelectorAll('[data-yk-slot="' + name + '"]');
     if (!nodes.length) {
       // Avanzado siempre tiene su navegación canónica montada fuera del slot.
       // El mensaje de vacío sería falso y fue exactamente lo que vio Carlos.
-      if (name !== "right" && !slot.children.length) slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
+      // En una página pública Opciones siempre trae los enlaces comunes de Yokup
+      // y Avanzado, si la página no aporta nada, lo dice como el canon.
+      if (publico) { if (name === "right") slot.appendChild(el("p", "yk-empty", "Esta página no tiene acciones avanzadas.")); }
+      else if (name !== "right" && !slot.children.length) slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
     } else {
       // mover (no clonar): preserva los event listeners ya enlazados
       Array.prototype.forEach.call(nodes, function (n) {
         n.removeAttribute("data-yk-slot");
         slot.appendChild(n);
       });
+      // Público: si todo lo movido está oculto (p. ej. «Salir» sin sesión), el
+      // aviso de vacío aparece; el CSS lo esconde en cuanto hay algo visible.
+      if (publico && name === "right") slot.appendChild(el("p", "yk-empty", "Esta página no tiene acciones avanzadas."));
     }
     // El sello del panel inferior vive en su cabecera: nunca ocupa una fila
     // operativa bajo la consola ni se solapa con el formulario de mensajes.

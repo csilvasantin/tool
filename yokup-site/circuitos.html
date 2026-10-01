@@ -6,13 +6,13 @@
 <script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Circuitos de Cartelería Digital · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r20">
 <style>
-:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.3)}
+:root{--bg:#ffffff;--card:#ffffff;--card2:#ffffff;--ink:#173632;--mut:#667a75;--dim:#86958f;--brand:#4f6e4c;--accent:#9a6a00;--good:#3f6b2f;--warn:#ac3838;--line:#dbe3d9;--line2:#c9d5c4}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 .wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
@@ -23,7 +23,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .create label{display:grid;gap:5px;color:var(--dim);font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase}
 .create :is(input,select){min-height:42px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--ink);font:14px var(--sans);padding:9px 11px;min-width:0}
 .create :is(input,select):focus{outline:2px solid var(--brand);outline-offset:1px}
-.create button{min-height:42px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#02080d;font:12px var(--mono);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;padding:0 16px}
+.create button{min-height:42px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#fff;font:12px var(--mono);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;padding:0 16px}
 .create button:disabled{opacity:.55;cursor:wait}
 .create .hint{grid-column:1/-1;color:var(--dim);font:11px var(--mono)}
 .msg{grid-column:1/-1;min-height:16px;font:12px var(--mono);color:var(--dim)}.msg.ok{color:var(--good)}.msg.err{color:var(--warn)}
@@ -31,18 +31,18 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .newcanal[hidden]{display:none!important}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .circ{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:15px;display:grid;gap:8px;min-width:0}
-.circ.nocanal{border-color:rgba(255,216,102,.35)}
+.circ.nocanal{border-color:#e6d29a}
 .circ h3{font-size:16px;overflow-wrap:anywhere}
 .circ .id{font:12px var(--mono);color:var(--mut)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{font:11px var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--mut)}
-.chip.warn{border-color:rgba(255,216,102,.4);color:var(--accent)}
-.chip.src{color:var(--good);border-color:rgba(136,255,170,.35)}
+.chip.warn{border-color:#e6d29a;color:var(--accent)}
+.chip.src{color:var(--good);border-color:var(--yk-ok-line)}
 .state{color:var(--mut);font:12px var(--mono);margin:6px 0 12px}
 .foot{margin-top:24px;font:10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot a{color:var(--brand)}
 </style>
 </head>
-<body data-yk-title="CIRCUITOS" data-yk-zone="app">
+<body class="yk-claro" data-yk-title="CIRCUITOS" data-yk-zone="app">
 <div class="wrap">
   <h1>Circuitos de Cartelería Digital</h1>
   <p class="sub">Un circuito agrupa pantallas de la red. Los que des de alta aquí se guardan en el registro único de Admira y aparecen en <a href="https://admira.tv/digitalsignage/#circuitos" target="_blank" rel="noopener">admira.tv · Cartelería Digital</a>. Si eliges canal, entra en él; si no, se ve como «sin canal» hasta que alguien lo asigne.</p>

@@ -51,9 +51,9 @@ test("el CSS del submenú existe, sus filas son enlaces y solo se toca cuando es
   assert.match(css, /\.yk-submenu\.on\{[\s\S]*?pointer-events:auto/);
   assert.match(css, /\.yk-submenu a\{/);
   assert.match(css, /\.yk-submenu a:hover, \.yk-submenu a:focus-visible\{/);
-  assert.match(css, /\.yk-submenu \.yk-sub-score\.sube\{ color:#88ffaa/);
-  assert.match(css, /\.yk-submenu \.yk-sub-score\.baja\{ color:#ff7f87/);
-  assert.match(css, /\.yk-submenu \.yk-sub-score\.igual\{ color:#ffd45e/);
+  assert.match(css, /\.yk-submenu \.yk-sub-score\.sube\{ color:var\(--yk-ok\)/);
+  assert.match(css, /\.yk-submenu \.yk-sub-score\.baja\{ color:var\(--yk-err\)/);
+  assert.match(css, /\.yk-submenu \.yk-sub-score\.igual\{ color:var\(--yk-warn\)/);
   assert.match(frame, /simbolo = estado === "sube" \? "▲" : estado === "baja" \? "▼" : "="/,
     "la comparación no depende solamente del color");
 });

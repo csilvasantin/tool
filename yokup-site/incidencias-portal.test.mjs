@@ -29,11 +29,16 @@ test("todas las reglas cuelgan de body.inc-portal (no contamina yk-frame/yk-misi
 });
 
 test("tokens del portal y barra yk-frame clara con activo subrayado verde", () => {
-  for (const tok of ["--p-ink:#173632", "--p-muted:#667a75", "--p-paper:#f6f8f3", "--p-line:#dbe3d9", "--p-lime:#d8f36a", "--p-dark:#133d32", "--p-red:#ac3838", "--p-soft:#eaf0df"]) assert.ok(css.includes(tok), tok);
-  assert.match(css, /family=DM\+Sans[\s\S]*family=Manrope/);
-  assert.match(css, /body\.inc-portal \.yk-bar\{background:#fff/);
-  assert.match(css, /body\.inc-portal \.yk-nav a\.on\{[^}]*box-shadow:inset 0 -2px 0 var\(--p-live\)/);
-  assert.match(css, /--yk-bg:#fff;/);
+  // FLT-101338 («todo claro»): paleta y barra clara en yk-frame.css, una sola vez.
+  const frameCss = readFileSync(new URL("./yk-frame.css", import.meta.url), "utf8");
+  for (const tok of ["--p-ink:#173632", "--p-muted:#667a75", "--p-paper:#f6f8f3", "--p-line:#dbe3d9", "--p-lime:#d8f36a", "--p-dark:#133d32", "--p-red:#ac3838", "--p-soft:#eaf0df"]) assert.ok(frameCss.includes(tok), tok);
+  assert.match(frameCss, /family=DM\+Sans[\s\S]*family=Manrope/);
+  assert.match(frameCss, /\.yk-bar\{[^}]*background: #fff;/);
+  assert.match(frameCss, /\.yk-nav a\.on\{[^}]*box-shadow: inset 0 -2px 0 var\(--yk-live\)/);
+  assert.match(frameCss, /--yk-bg: #fff;/);
+  assert.match(frameCss, /:is\(body\.yk-claro, body\.yk-light, body\.inc-portal\)\{/);
+  assert.doesNotMatch(css, /--p-ink:/);
+  assert.doesNotMatch(css, /\.yk-(bar|nav|ico|rail|hd)\b/);
 });
 
 test("cabecera estilo portal, KPIs-filtro, alta en form-card y KB en tarjeta suave", () => {

@@ -6,13 +6,13 @@
 <script src="/acceso.js?v=20260811-r4-538c0e1f5ae0"></script>
 <title>Equipo de carbono · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#02080d">
+<meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r20">
 <style>
-:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+:root{--bg:#ffffff;--card:#ffffff;--card2:#ffffff;--ink:#173632;--mut:#667a75;--dim:#86958f;--brand:#4f6e4c;--accent:#9a6a00;--good:#3f6b2f;--warn:#ac3838;--violet:#5d4b9a;--line:#dbe3d9;--line2:#c9d5c4;--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 .wrap{max-width:1100px;margin:0 auto;padding:22px 24px 64px}
@@ -25,7 +25,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cuenta{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 18px}
 .chip{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:9px;padding:7px 11px;color:var(--mut);background:var(--card);cursor:pointer}
 .chip b{color:var(--ink);font-size:13px;margin-right:5px}
-.chip[aria-pressed="true"]{border-color:var(--line2);color:var(--ink);box-shadow:0 0 0 1px rgba(120,243,255,.14) inset}
+.chip[aria-pressed="true"]{border-color:var(--line2);color:var(--ink);box-shadow:0 0 0 1px var(--yk-shadow-c) inset}
 .chip.t b{color:var(--good)}.chip.a b{color:var(--accent)}.chip.s b{color:var(--dim)}.chip.b b{color:var(--warn)}
 .barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 button{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line2);border-radius:9px;padding:9px 14px;background:var(--card2);color:var(--brand);cursor:pointer}
@@ -33,10 +33,10 @@ button:hover{border-color:var(--brand)}
 button.plano{border-color:var(--line);color:var(--mut);background:transparent}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
 .p{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px 20px 16px;display:flex;flex-direction:column;gap:12px}
-.p.en-turno{border-color:rgba(136,255,170,.34)}
+.p.en-turno{border-color:var(--yk-ok-line)}
 .p.baja{opacity:.5}
 .top{display:flex;align-items:center;gap:13px}
-.av{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,rgba(120,243,255,.22),rgba(255,216,102,.14));display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--brand);flex:0 0 auto}
+.av{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--yk-tint),var(--yk-warn-soft));display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--brand);flex:0 0 auto}
 .who{min-width:0;flex:1}
 .who b{font-size:16px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who span{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
@@ -44,7 +44,7 @@ button.plano{border-color:var(--line);color:var(--mut);background:transparent}
    en daltonismo ni en una tablet al sol, y este panel se mira desde la calle. */
 .est{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
 .est i{width:8px;height:8px;border-radius:50%;background:var(--dim);display:block;flex:0 0 auto}
-.est.en-turno{color:var(--good)}.est.en-turno i{background:var(--good);box-shadow:0 0 10px rgba(136,255,170,.7)}
+.est.en-turno{color:var(--good)}.est.en-turno i{background:var(--good);box-shadow:none}
 .est.ausente{color:var(--accent)}.est.ausente i{background:var(--accent)}
 .est.sin-latido i{background:transparent;border:1px solid var(--dim)}
 .est.baja{color:var(--warn)}.est.baja i{background:var(--warn)}
@@ -63,7 +63,7 @@ button.plano{border-color:var(--line);color:var(--mut);background:transparent}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.7}.foot b{color:var(--brand)}
 /* MODAL de ficha. Mismo patrón que /equipo: caja centrada, campos declarados en
    un array para que el formulario y lo que se manda al worker no puedan divergir. */
-.mod{position:fixed;inset:0;background:rgba(2,8,13,.78);backdrop-filter:blur(3px);display:none;place-items:center;padding:20px;z-index:60}
+.mod{position:fixed;inset:0;background:var(--yk-overlay);backdrop-filter:blur(3px);display:none;place-items:center;padding:20px;z-index:60}
 .mod.on{display:grid}
 .box{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:22px 24px;width:min(460px,100%);max-height:88vh;overflow:auto}
 .box h3{font-size:18px;margin-bottom:14px}
@@ -77,7 +77,7 @@ button.plano{border-color:var(--line);color:var(--mut);background:transparent}
 @media(max-width:560px){.wrap{padding:16px 14px 48px}.grid{grid-template-columns:1fr}}
 </style>
 </head>
-<body data-yk-title="CARBONO" data-yk-zone="app">
+<body class="yk-claro" data-yk-title="CARBONO" data-yk-zone="app">
 <div class="wrap">
   <h1>Equipo de carbono</h1>
   <p class="sub">Las <b>personas</b> de la flota, con las mismas primitivas que los agentes de silicio: identidad, latido y foco. Con una diferencia que es real y no capricho — una persona <b>no tiene máquina</b> y <b>no late cada cinco minutos</b>: su ventana es un turno.</p>

@@ -10,18 +10,22 @@
   <link rel="stylesheet" href="/home.css">
   <script defer src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
   <script type="module" src="/home-globe.mjs"></script>
+  <link rel="stylesheet" href="/yk-frame.css?v=r35">
+  <meta name="theme-color" content="#ffffff">
 </head>
-<body>
+<body data-yk-title="INICIO">
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
-  <header class="topbar">
+  <!-- FLT-101338: la cabecera de la portada deja paso al marco común. Sus enlaces
+       van a ☰ Opciones y «Entrar» a ▤ Avanzado. El globo sigue siendo el héroe. -->
+  <header class="topbar" data-yk-replace>
     <a class="brand" href="/" aria-label="Yokup, inicio">yokup<span>●</span></a>
-    <nav aria-label="Navegación principal">
+    <nav aria-label="Navegación principal" data-yk-slot="left" data-yk-links>
       <a class="how-link" href="/llamadas">Llamadas</a>
       <a class="how-link" href="/entrenamiento">Entrenamiento</a>
       <a href="/instalador">Instaladores</a>
       <a href="/retailer">Comercios</a>
     </nav>
-    <a href="/retailer#access" class="login-link">Entrar <span aria-hidden="true">↗</span></a>
+    <a href="/retailer#access" class="login-link" data-yk-slot="right">Entrar <span aria-hidden="true">↗</span></a>
   </header>
   <main id="contenido">
     <section class="hero" aria-labelledby="hero-title">
@@ -76,5 +80,6 @@
     </section>
   </main>
   <footer class="footer"><a class="brand" href="/">yokup<span>●</span></a><p>Conectamos tecnología y personas.</p><nav aria-label="Más sobre Yokup"><a href="/mcp">Para agentes</a><a href="/dashboard" class="btn access">Plataforma</a><a href="/asistencia">Asistencia</a><a href="https://admira.app/">Admira ↗</a></nav></footer>
+  <script src="/yk-frame.js?v=r35"></script>
 </body>
 </html>

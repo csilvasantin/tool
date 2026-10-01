@@ -1,27 +1,10 @@
-/* Inventory-specific content inside the shared XpaceOS quadratic shell. */
-html.inventory-frame[data-xpace-shell="on"]{--xs-bar-h:46px;scroll-padding-top:58px}
-html.inventory-frame #topBar.xs-bar{height:46px}
-.inventory-frame .inventory-subnav{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:0;margin:12px 0;font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
-.inventory-frame .inventory-subnav a{color:#78f3ff;text-decoration:none;padding:6px 0}
-.inventory-frame .inventory-subnav a[aria-current=page]{color:white;border-bottom:2px solid #78f3ff}
-.inventory-frame .inventory-subnav .inventory-languages{display:flex;gap:10px;margin-left:0}
-.inventory-frame body.xs-page{padding-bottom:var(--xs-bottom)}
-.inventory-frame :is(.detail,.blender-pilot){scroll-margin-top:58px}
-.inventory-frame .detail{top:58px}
-.inventory-frame .xs-panel :is(.toolbar,.spacebar,.controls,.pilot-controls,.pilot-downloads,.show-toolbar,.downloads){display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:0;margin:12px 0;font-size:12px}
-.inventory-frame .xs-panel .view-switch,.inventory-frame .xs-panel .tabs{display:grid;gap:5px;margin:10px 0}
-.inventory-frame .xs-panel .search{width:100%}
-.inventory-frame .xs-panel .search input{width:100%}
-.inventory-frame .xs-panel .spacebar a{margin:0}
-.inventory-frame .xs-panel label{display:block;max-width:100%}
-.inventory-frame .xs-panel select{max-width:100%;margin:6px 0}
-.inventory-frame .xs-panel .pilot-controls label{margin:0}
-.inventory-frame .xs-panel [hidden]{display:none!important}
-.inventory-frame .inventory-accountbar,.inventory-frame .bar{position:relative;top:auto;z-index:1;backdrop-filter:none}
-.inventory-frame :is(dialog,#access-gate){z-index:9200}
-.inventory-frame .inventory-bridge{display:grid;gap:7px;margin-bottom:12px}
-@media(max-width:1100px){.inventory-frame .grid,.inventory-frame .catalog{grid-template-columns:1fr}.inventory-frame .detail{position:static}}
-@media(max-width:600px){.inventory-frame .inventory-subnav{gap:14px}.inventory-frame .inventory-bottom span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-@media print{.inventory-subnav,.inventory-bottom{display:none!important}}
-/* A focusable descendant must scroll its own panel, never the fixed layer. */
-.inventory-frame .xs-layer{overflow:clip}
+/* Inventario ITIL dentro del marco cuadrático común de Yokup (yk-frame). FLT-101338:
+   sin segundo shell; las vistas, el puente y los verbos los monta inventory-frame.mjs en
+   los raíles canónicos. Tema claro del portal (tokens --yk-* / --p-* de yk-frame.css). */
+html.inventory-frame .inventory-subnav .inventory-languages{display:flex;gap:12px;padding:10px 10px 4px}
+html.inventory-frame .inventory-subnav .inventory-languages a{color:var(--yk-brand);font:700 12px/1 var(--yk-sans);letter-spacing:.08em;text-decoration:none}
+html.inventory-frame .inventory-subnav .inventory-languages a:hover{text-decoration:underline}
+html.inventory-frame .inventory-bridge{margin-bottom:12px}
+html.inventory-frame .inventory-bridge .inventory-note{margin:4px 0 0}
+html.inventory-frame :is(dialog,#access-gate){z-index:calc(var(--yk-z) + 20)}
+@media print{.inventory-subnav,.inventory-bridge{display:none!important}}

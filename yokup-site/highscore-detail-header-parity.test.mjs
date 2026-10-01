@@ -14,7 +14,7 @@ test("HighscoreDetail hereda la ruta Highscore del frame canónico sin copiar el
   assert.match(frame,/var path = \(parentPath \|\| location\.pathname/);
 });
 
-test("el único APP_NAV conserva YO KUP + Dashboard…Highscore y activa Highscore",()=>{
+test("el único APP_NAV conserva yokup● + Dashboard…Highscore y activa Highscore",()=>{
   const nav=frame.match(/var APP_NAV = \[([\s\S]*?)\n  \];/);
   assert.ok(nav);const labels=Array.from(nav[1].matchAll(/\["([A-Z]+)",\s+"([^"]+)"\]/g),match=>[match[1],match[2]]);
   assert.deepEqual(labels,[
@@ -23,6 +23,9 @@ test("el único APP_NAV conserva YO KUP + Dashboard…Highscore y activa Highsco
     ["SUPERVISOR","/supervisor"],["INFORMES","/informes"],["NOTIFICACIONES","/notificaciones"],["HIGHSCORE","/highscore"]
   ]);
   assert.match(frame,/if \(it\.active\) a\.setAttribute\("aria-current", "page"\)/);
-  // Logo: el de Admira pixelado (Carlos, 17-09-2026), no ya el wordmark Yokup.
-  assert.match(frame,/var logo = el\("a", "yk-logo",[\s\S]*admira-logo-retro\.svg/);
+  // Logo: el wordmark yokup● del Portal del comercio (FLT-101338, canon de la
+  // Galaxia: cada web lleva su marca). Antes, el de Admira pixelado (17-09-2026).
+  assert.match(frame,/var logo = el\("a", "yk-logo",\s*'<span class="yk-logo-word">yokup<\/span><span class="yk-logo-dot" aria-hidden="true">●<\/span>'\)/);
+  assert.match(frame,/logo\.setAttribute\("aria-label", "Yokup · volver al inicio"\)/);
+  assert.doesNotMatch(frame,/admira-logo-retro\.svg/);
 });
