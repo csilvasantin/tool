@@ -29,6 +29,6 @@ function install() {
  verb('ref',[],'Abrir /ref PG103-001','Open /ref PG103-001',args=>{if(!/^PG103-\d{3}$/i.test(args))return tr('Usa /ref PG103-001.','Use /ref PG103-001.');go(X+'/inventario/starbucks/?view=references&ref='+args.toUpperCase());});
  verb('equipo',['equipment'],'Abrir /equipo PDG103-BOT-01 en Yokup','Open /equipment PDG103-BOT-01 in Yokup',args=>{if(!/^[A-Z0-9_-]{1,80}$/i.test(args))return tr('Usa /equipo seguido del código ITIL.','Use /equipment followed by the ITIL code.');go(Y+'/equipo-inventario?code='+encodeURIComponent(args.toUpperCase()));});
  verb('xpaceos',[],'Modelo de la unidad seleccionada','Selected unit model',()=>go(xpaceURL()));verb('yokup',[],'Ficha ITIL de la unidad seleccionada','Selected unit ITIL record',()=>go(yokupURL()));
- if(yokup){const brand=document.querySelector('.xs-brand-name');brand.textContent='yokup●';document.querySelector('.xs-brand').setAttribute('title','Yokup');}
+ if(yokup){const brand=document.querySelector('.xs-brand-name');brand.textContent='yokup●';const brandLink=document.querySelector('.xs-brand');brandLink.dataset.shellLabelEs='Yokup · inicio';brandLink.dataset.shellLabelEn='Yokup · home';brandLink.setAttribute('aria-label',tr('Yokup · inicio','Yokup · home'));brandLink.setAttribute('title',tr('Yokup · inicio','Yokup · home')); }
 }
 if(window.XpaceShell?.registerVerb)install();else document.addEventListener('xpace:shell-ready',install,{once:true});
