@@ -128,6 +128,12 @@ devuelve `not_an_incident`, porque su cierre exige pantallazo, aceptación y
 | `yokup_incident_update` | `incidents:write` | `{id, status, note?}`; `resolved` y `cancelled` exigen `note`. Evento `Estado → x: nota`. |
 | `yokup_incidents_close_bulk` | `incidents:write` | `{ids[≤100], status: resolved\|cancelled, note}`. Todo o nada: un id inexistente o que sea misión rechaza el lote (`invalid_batch`). |
 
+**Duración e informe (01-10-2026).** Duración = `resolved_at` (o `closed_at` si se eliminó) −
+`created_at`; abierta, el transcurrido hasta ahora. El informe para personas vive en
+`https://www.yokup.com/informe-incidencia?id=<INC-…>` (sesión Google; `&print=1` abre la
+impresión). Ninguna herramienta MCP cambia ni envía correos: para compartir un informe, pasa
+ese enlace. Detalle: `docs/informe-incidencia.md`.
+
 **Autoría y auditoría.** El autor de cada evento es `Persona · Máquina` de la credencial
 (p. ej. `OraculoMacMini · MacMini`); el cliente no puede enviarlo (el esquema lo rechaza).
 Cada escritura deja además una fila en `mcp_incident_audit` (ts, actor, machine, action,

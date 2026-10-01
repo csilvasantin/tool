@@ -112,6 +112,11 @@ scopes; una credencial `ykm_` solo si se emitió con `--scopes …,incidents,inc
 - `yokup_incident_update {id, status, note?}` — `resolved` y `cancelled` exigen note.
 - `yokup_incidents_close_bulk {ids ≤100, status resolved|cancelled, note}` — todo o nada.
 
+Duración de una incidencia = `resolved_at` (o `closed_at` si se eliminó) − `created_at`;
+abierta, el transcurrido hasta ahora (marcas en ms o en s: < 4102444800 son segundos).
+Informe para PERSONAS (sesión Google, no lo raspes): https://www.yokup.com/informe-incidencia?id=<INC-…>
+(`&print=1` abre la impresión). Para compartir un informe, pasa ese enlace; no envía correos.
+
 El autor de cada evento es «Persona · Máquina» de TU credencial; no se envía y no se
 puede suplantar. Toda escritura queda auditada. Ejemplo de argumentos (no ejecutarlo al
 leer esta guía): {"subject":"Player sin emisión en caja 2","kind":"screen",
