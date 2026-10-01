@@ -2,6 +2,7 @@
 // Yokup es el maestro de los equipos de cada Xpacio. Solo textContent; la API aplica el perímetro del titular.
 (() => {
 const API='https://data.yokup.com/api/retailer';
+const PHOTOS=window.YkPhotoReferences;
 const $=s=>document.querySelector(s);
 const el=(tag,content,cls)=>{const node=document.createElement(tag);if(content!==undefined&&content!==null)node.textContent=content;if(cls)node.className=cls;return node;};
 const CATEGORY={pantalla:'Pantalla',player:'Player',tpv:'TPV',audio:'Audio',iot:'IoT / sensor',red:'Red',kiosk:'Kiosco',mobiliario:'Mobiliario',iluminacion:'Iluminación',otro:'Otro'};
@@ -45,7 +46,17 @@ function chips(ci){
 }
 function card(ci){
  const retired=ci.lifecycle?.status==='retired',c=el('article',undefined,'device-card itil-card'+(retired?' retired':''));
- c.append(el('span',(CATEGORY[ci.category]||ci.category)+(ci.role?' · '+ci.role:''),'device-type'),el('p',ci.itil_code||'Sin código ITIL','itil-code'),el('h3',ci.name));
+ const identity=el('div',undefined,'itil-identity'),copy=el('div',undefined,'itil-identity-copy');copy.append(el('h3',ci.name));identity.append(copy);
+ c.append(el('span',(CATEGORY[ci.category]||ci.category)+(ci.role?' · '+ci.role:''),'device-type'),el('p',ci.itil_code||'Sin código ITIL','itil-code'),identity);
+ const inventory=inv,site={site_id:inventory?.site?.id,admira_store_id:inventory?.xpacio?.admira_store_id};
+ if(PHOTOS?.siteMatches(site))PHOTOS.load().then(manifest=>{
+  if(inv!==inventory||!identity.isConnected)return;
+  const ref=PHOTOS.resolve(manifest,site,ci);if(!ref)return;
+  const a=el('a',undefined,'itil-photo'),img=el('img');a.href=ref.href;a.target='_blank';a.rel='noopener';a.setAttribute('aria-label','Abrir referencia '+ref.id+' · '+ci.name);
+  img.src=ref.photo;img.alt='Foto real · '+ci.name+' · '+ref.scopeLabel;img.loading='lazy';img.width=88;img.height=88;img.referrerPolicy='no-referrer';
+  img.onerror=()=>a.replaceChildren(el('span','Foto no disponible','itil-photo-missing'));
+  a.append(img);identity.prepend(a);copy.append(el('span',ref.id,'itil-photo-ref'),el('p',ref.scopeLabel,'small itil-photo-scope'));
+ });
  const where=[ci.position,ci.orientation==='vertical'?'Vertical':ci.orientation==='horizontal'?'Horizontal':''].filter(Boolean).join(' · ');if(where)c.append(el('p',where));
  if(ci.parent_itil_code)c.append(el('p','Depende de '+ci.parent_itil_code,'small'));
  const lc=ci.lifecycle||{},facts=el('p',undefined,'small itil-facts'),until=lc.warranty_end||lc.warranty_until;

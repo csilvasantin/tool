@@ -17,4 +17,12 @@
 .retailer #itil-dialog legend{font-size:13px;font-weight:700;padding:0 6px}
 .itil-facts{margin:6px 0 0;color:var(--muted);overflow-wrap:anywhere}
 .itil-card.itil-focus{outline:3px solid #b9d86a;outline-offset:2px}
+.itil-identity{display:flex;align-items:center;gap:12px;min-width:0}
+.itil-identity-copy{min-width:0;flex:1}
+.itil-identity-copy h3{overflow-wrap:anywhere}
+.itil-photo{display:flex;flex:0 0 88px;width:88px;height:88px;border:1px solid var(--line);border-radius:9px;overflow:hidden;align-items:center;justify-content:center;background:var(--paper,#f6f8f3)}
+.itil-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.itil-photo-ref{display:inline-block;margin-top:5px;font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--green,#4f6e4c)}
+.itil-photo-scope{margin:4px 0 0;line-height:1.3}
+.itil-photo-missing{padding:5px;font-size:11px;text-align:center;color:var(--muted)}
 @media(max-width:650px){.itil-cards{grid-template-columns:1fr}}

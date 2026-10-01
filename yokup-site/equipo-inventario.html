@@ -38,6 +38,12 @@ a{color:var(--green)}
 .eyebrow{font:700 11px/1.3 var(--sans);letter-spacing:2.2px;color:var(--lime);text-transform:uppercase}
 .hero h1{margin:12px 0 8px;font:700 clamp(28px,4vw,44px)/1.08 var(--head);letter-spacing:-1.6px;overflow-wrap:anywhere}
 .hero .sub{font:500 16px/1.45 var(--sans);color:#d6e8dc;overflow-wrap:anywhere}
+.hero-identity{display:flex;align-items:center;gap:22px;min-width:0}
+.hero-copy{min-width:0;flex:1}
+.hero-photo{display:flex;flex:0 0 148px;width:148px;height:148px;border:1px solid #ffffff70;border-radius:12px;overflow:hidden;align-items:center;justify-content:center;background:#ffffff14;color:#fff;text-align:center;font-size:13px}
+.hero-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.hero-photo-ref{display:block;margin-top:12px;color:var(--lime);font:700 13px ui-monospace,SFMono-Regular,Menlo,monospace}
+.hero-photo-scope{margin-top:4px;color:#d6e8dc;font-size:12px;line-height:1.4}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:#ffffff14;border:1px solid #ffffff2e;font:700 12px/1.2 var(--sans);color:#fff}
 .chip.code{background:var(--lime);border-color:var(--lime);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -65,6 +71,7 @@ a{color:var(--green)}
 .err{border:1px dashed #b8c8a5;border-radius:14px;background:#eaf0e1}
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{padding:24px 22px}.body,.miss{padding:20px}}
 @media(max-width:460px){.grid{grid-template-columns:minmax(0,1fr)}.btn{flex:1 1 auto;justify-content:center}}
+@media(max-width:560px){.hero-identity{align-items:flex-start;gap:14px}.hero-photo{flex-basis:88px;width:88px;height:88px}.hero h1{font-size:26px;letter-spacing:-.8px}}
 @page{size:A4;margin:12mm}
 @media print{.bar{display:none}.wrap{padding:0;max-width:none}.sheet{border:0;box-shadow:none;border-radius:0}.hero,.war,.chip,.f.key{-webkit-print-color-adjust:exact;print-color-adjust:exact}.f,.grp{break-inside:avoid}}
 </style>
@@ -78,12 +85,13 @@ a{color:var(--green)}
 </header>
 <main class="wrap" id="root"><div class="loading" role="status">🗂 Buscando el equipo en el inventario…</div></main>
 <script src="/yk-equipo.js?v=r1"></script>
+<script src="/yk-photo-references.js?v=20261001"></script>
 <script>
 (function(){
 "use strict";
 const WORKER="https://api.yokup.com";
 const qs=new URLSearchParams(location.search), ticket=qs.get("ticket")||"", code=qs.get("code")||"";
-const $=x=>document.getElementById(x), E=window.YkEquipo;
+const $=x=>document.getElementById(x), E=window.YkEquipo, PHOTOS=window.YkPhotoReferences;
 function el(tag,cls,text){ const n=document.createElement(tag); if(cls)n.className=cls; if(text!=null)n.textContent=text; return n; }
 function link(cls,href,text){ const a=el("a",cls,text); a.href=href; return a; }
 const KEY=new Set(["Modelo","Nº de serie","Fecha de compra","Estado de la garantía","Fin de garantía","Estado"]);
@@ -92,8 +100,10 @@ function ficha(r){
   document.title=(ci.itil_code||"Equipo")+" · "+(ci.name||"")+" · Inventario · Yokup";
   const sheet=el("article","sheet"); sheet.setAttribute("aria-label","Ficha de inventario del equipo");
   const hero=el("header","hero");
-  hero.append(el("p","eyebrow","Inventario ITIL · ficha del equipo"),el("h1",null,ci.name||"Equipo"),
+  const identity=el("div","hero-identity"),copy=el("div","hero-copy");
+  copy.append(el("p","eyebrow","Inventario ITIL · ficha del equipo"),el("h1",null,ci.name||"Equipo"),
     el("p","sub",[E.CATEGORIA[ci.category]||ci.category,x.name,x.city,x.admira_store_id?"Xpacio "+x.admira_store_id:""].filter(Boolean).join(" · ")));
+  identity.append(copy);hero.append(identity);
   const chips=el("div","chips");
   if(ci.itil_code) chips.append(el("span","chip code",ci.itil_code));
   const w=el("span","war"); w.dataset.w=g.estado; w.id="fWar"; w.append("🛡 "+(g.estado==="sin_dato"?"Garantía: sin dato":g.label)); if(g.estado!=="sin_dato"){ w.append(" "); w.append(el("small",null,"· "+g.detalle)); } chips.append(w);
@@ -114,6 +124,13 @@ function ficha(r){
   sheet.append(foot);
   $("root").replaceChildren(sheet);
   const edit=$("fEdit"); edit.href=E.inventarioUrl(r); edit.hidden=false;
+  if(PHOTOS?.siteMatches(x))PHOTOS.load().then(manifest=>{
+    if(!identity.isConnected)return;const ref=PHOTOS.resolve(manifest,x,ci);if(!ref)return;
+    const a=link("hero-photo",ref.href,null),img=el("img");a.target="_blank";a.rel="noopener";a.setAttribute("aria-label","Abrir referencia "+ref.id+" · "+ci.name);
+    img.src=ref.photo;img.alt="Foto real · "+ci.name+" · "+ref.scopeLabel;img.width=148;img.height=148;img.referrerPolicy="no-referrer";
+    img.onerror=()=>a.replaceChildren(el("span",null,"Foto no disponible"));a.append(img);identity.prepend(a);
+    copy.append(el("span","hero-photo-ref",ref.id),el("p","hero-photo-scope",ref.scopeLabel));
+  });
 }
 function falta(r){
   const sheet=el("article","sheet"), box=el("div","miss");
@@ -128,7 +145,7 @@ function falta(r){
 async function main(){
   $("fPrint").onclick=()=>window.print();
   if(ticket){ $("fBack").href="/ticket?id="+encodeURIComponent(ticket); $("fBack").textContent="← Incidencia "+ticket; }
-  if(!ticket&&!code){ $("root").innerHTML='<div class="err">Falta la incidencia o el código: /equipo-inventario?ticket=INC-… o ?code=PDG103-PAN-01</div>'; return; }
+  if(!ticket&&!code){ $("root").replaceChildren(el("div","err","Falta la incidencia o el código: /equipo-inventario?ticket=INC-… o ?code=PDG103-PAN-01")); return; }
   let r=null;
   try{ const res=await fetch(WORKER+"/ticket/equipo?"+(ticket?"id="+encodeURIComponent(ticket):"code="+encodeURIComponent(code)),{cache:"no-store"}); r=await res.json(); }catch(e){}
   if(!r||!r.ok){ $("root").replaceChildren(el("div","err",r&&r.error==="not-found"?"Incidencia no encontrada.":"El inventario no está disponible ahora. Inténtalo en unos segundos.")); return; }
