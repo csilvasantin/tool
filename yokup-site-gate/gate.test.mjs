@@ -9,6 +9,23 @@ const signed = {
 };
 const env = (assetFetch = async () => new Response("asset")) => ({RELEASE_JSON:JSON.stringify(signed), ASSETS:{fetch:assetFetch}});
 
+test("la pregunta del avatar sale a la función de Pages y no a un asset", async () => {
+  let asset = false;
+  const response = await handleRequest(new Request("https://www.yokup.com/avatar-ask", {
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({question:"¿Qué es Yokup?", lang:"es"})
+  }), env(async () => { asset = true; return new Response("no"); }), {}, async (request) => {
+    assert.equal(new URL(request.url).hostname, "yokup.pages.dev");
+    assert.equal(new URL(request.url).pathname, "/avatar-ask");
+    assert.equal(request.method, "POST");
+    return Response.json({text:"Yokup es la bandeja."});
+  });
+  assert.equal(asset, false);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).text, "Yokup es la bandeja.");
+});
+
 test("el adaptador Cloudflare no confunde env con la función fetch", () => {
   assert.notEqual(worker.fetch, handleRequest);
   assert.equal(worker.fetch.length, 3);

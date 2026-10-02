@@ -88,6 +88,17 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   }
   if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
   if (incoming.pathname === "/mcp/galaxia.json") return galaxia(request, ctx, fetchImpl, release.version);
+  // www.yokup.com lo sirve este worker, no Pages. Un POST a un asset tira 1101
+  // y la pregunta del avatar no llega a la función. La función vive en el mismo
+  // proyecto, en yokup.pages.dev.
+  if (incoming.pathname === "/avatar-ask") {
+    if (request.method === "OPTIONS") return new Response(null, {status:204, headers:{"cache-control":"no-store"}});
+    if (request.method !== "POST") return Response.json({text:"POST {question, lang}"}, {status:405, headers:{"cache-control":"no-store"}});
+    const upstream = new URL(request.url);
+    upstream.hostname = "yokup.pages.dev";
+    upstream.protocol = "https:";
+    return fetchImpl(new Request(upstream, request));
+  }
   // ── REDIRECCIONES A admira.live (Carlos, 17-09-2026 · FLT-100557) ───────────────
   // La plataforma de EMPRESA/SCORE se mudó a admira.live. yokup redirige a su casa nueva.
   // FLT-100883: yokup.com se queda con el gestor agentic de incidencias (/incidencias,
