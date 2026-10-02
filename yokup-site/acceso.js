@@ -8,8 +8,20 @@
  */
 (function () {
   var CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
-  var WORKER = "https://api.yokup.com";
-  var LOGIN_URI = "https://www.yokup.com/auth/callback";
+  // CASAS (2-oct-2026): admira.biz es el espejo de yokup.com. Allí la API es
+  // api.admira.biz (el mismo worker en su dominio), para que la cookie de sesión sea
+  // «mismo sitio» y el login no salga de admira.biz. El resto de páginas siguen
+  // escribiendo https://api.yokup.com: en el espejo, este fichero lo traduce.
+  var YOKUP_API = "https://api.yokup.com";
+  var ESPEJO = /(^|\.)admira\.biz$/i.test(location.hostname || "");
+  // Las cookies __Host- son del host exacto: el espejo vive en www.
+  if (ESPEJO && location.hostname !== "www.admira.biz") {
+    location.replace("https://www.admira.biz" + location.pathname + location.search + location.hash);
+    return;
+  }
+  var WORKER = ESPEJO ? "https://api.admira.biz" : YOKUP_API;
+  var LOGIN_URI = (ESPEJO ? "https://www.admira.biz" : "https://www.yokup.com") + "/auth/callback";
+  var COOKIE_DOMAIN = ESPEJO ? "admira.biz" : "yokup.com";
   // Red de seguridad: rtc.yokup.com es el FALLBACK que usa yk-frame.js/ykFetch
   // cuando api.yokup.com falla por red. (28-jul-2026: antes apuntaba al host
   // workers.dev, que devolvía 404 y encima está bloqueado por ISPs españoles.)
@@ -30,7 +42,16 @@
     return c === "" || c === "/" || c === "?" || c === "#";
   }
   function signable(u) {
-    return isWorkerOrigin(u, WORKER) || isWorkerOrigin(u, WORKER_FALLBACK);
+    // En el espejo no hay fallback: rtc.yokup.com es otro sitio y allí no hay sesión.
+    return isWorkerOrigin(u, WORKER) || (!ESPEJO && isWorkerOrigin(u, WORKER_FALLBACK));
+  }
+  // En el espejo, lo que las páginas piden a api.yokup.com (o a su fallback) se sirve
+  // desde api.admira.biz: mismo worker, pero donde está la sesión de esta casa.
+  function toHouse(u) {
+    if (!ESPEJO) return u;
+    if (isWorkerOrigin(u, YOKUP_API)) return WORKER + u.slice(YOKUP_API.length);
+    if (isWorkerOrigin(u, WORKER_FALLBACK)) return WORKER + u.slice(WORKER_FALLBACK.length);
+    return u;
   }
 
   // Ocultar el contenido de inmediato.
@@ -88,7 +109,7 @@
     get:function () { return accessSession; }
   };
   window.fetch = function (input, init) {
-    var u = typeof input === "string" ? input : (input && input.url) || "";
+    var u = toHouse(typeof input === "string" ? input : (input && input.url) || "");
     if (!signable(u)) return rawFetch(input, init);
     return sessionReady.then(function () {
       init = init || {};
@@ -175,7 +196,7 @@
         google.accounts.id.initialize({
           client_id: CLIENT_ID,
           nonce: challenge.nonce,
-          state_cookie_domain: "yokup.com",
+          state_cookie_domain: COOKIE_DOMAIN,
           ux_mode: "redirect",
           login_uri: LOGIN_URI,
           auto_select: false,
@@ -218,5 +239,5 @@
 
   // Gancho de pruebas (mismo patrón que YkDecisions._test): expone SÓLO el
   // predicado firmable para el harness. No altera el comportamiento en runtime.
-  try { window.__ykAccesoTest = { signable: signable, WORKER: WORKER, WORKER_FALLBACK: WORKER_FALLBACK }; } catch (e) {}
+  try { window.__ykAccesoTest = { signable: signable, toHouse: toHouse, WORKER: WORKER, WORKER_FALLBACK: WORKER_FALLBACK, ESPEJO: ESPEJO }; } catch (e) {}
 })();

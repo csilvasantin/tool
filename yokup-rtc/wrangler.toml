@@ -72,6 +72,12 @@ custom_domain = true
 pattern = "rtc.yokup.com"
 custom_domain = true
 
+# admira.biz es el espejo de yokup.com (2-oct-2026): su API es este mismo worker, en su
+# propio dominio, para que la cookie de sesión sea «mismo sitio» también allí.
+[[routes]]
+pattern = "api.admira.biz"
+custom_domain = true
+
 [observability]
 enabled = true
 

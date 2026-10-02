@@ -56,7 +56,7 @@ test("ficha /ticket: el Equipo enlaza el inventario con serie e insignia, o «no
 });
 
 test("ficha de inventario: protegida, por textContent, con «sin dato» y alta cuando no está", () => {
-  assert.match(ficha, /<script src="\/acceso\.js\?v=20260811-r4-538c0e1f5ae0"><\/script>/);
+  assert.match(ficha, /<script src="\/acceso\.js\?v=20260811-r4-09349d26f146"><\/script>/);
   assert.match(ficha, /<script src="\/yk-equipo\.js\?v=/);
   assert.match(ficha, /fetch\(WORKER\+"\/ticket\/equipo\?"/);
   assert.match(ficha, /<meta name="robots" content="noindex, nofollow">/);
