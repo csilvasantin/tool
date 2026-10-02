@@ -92,7 +92,7 @@
   function applyLift() {
     let h = 96;
     for (const id of ['xsExpert', 'telegramDock', 'expert-panel', 'yk-rail-bottom']) h = Math.max(h, barHeight(doc.getElementById(id)));
-    doc.querySelectorAll('.xs-expert, .yk-rail-bottom').forEach(el => { h = Math.max(h, barHeight(el)); });
+    doc.querySelectorAll('.xs-expert, .yk-rail-bottom, .pf-cli').forEach(el => { h = Math.max(h, barHeight(el)); });
     doc.documentElement.style.setProperty('--da-lift', h + 'px');
   }
 
