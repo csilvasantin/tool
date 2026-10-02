@@ -129,7 +129,7 @@
     mounting = (async () => {
       const lang = pageLang();
       try {
-        const mod = await import('https://digitalavatar.ai/embed.js');
+        const mod = await import('https://digitalavatar.ai/embed.js?v=9675f09');
         face = await mod.mount({
           brainUrl: (root.location && root.location.origin ? root.location.origin : '') + '/avatar-ask',
           lang: lang === 'en' ? 'en-US' : 'es-ES',
