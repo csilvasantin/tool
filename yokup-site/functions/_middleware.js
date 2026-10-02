@@ -22,7 +22,7 @@ export async function onRequest(context) {
   const texto = { text(chunk) { const next = marcaDeCasa(chunk.text); if (next !== chunk.text) chunk.replace(next); } };
   return new HTMLRewriter()
     .on('html', { element(el) { el.setAttribute('data-casa', CASA_ESPEJO.id); } })
-    .on('head', { element(el) { el.prepend(`<script src="/yk-casa.js${v ? '?v=' + v : ''}"></script>`, { html:true }); } })
+    .on('head', { element(el) { el.append('<script defer src="https://www.admiranext.com/assets/live-presence.js?v=1"></script>', {html:true}); el.prepend(`<script src="/yk-casa.js${v ? '?v=' + v : ''}"></script>`, { html:true }); } })
     .on('title', texto)
     .on('meta[content]', { element(el) {
       const content = el.getAttribute('content'), next = marcaDeCasa(enlaceDeCasa(content));
