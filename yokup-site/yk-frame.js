@@ -1936,7 +1936,7 @@
   }
   var LOCAL_CLI = {
     log: null, input: null,
-    isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")); },
+    isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")) || /^\s*\/(?:avatarDigital|digitalAvatar)\b/i.test(String(text || "")) || /^\s*\/cli\s+(?:ayudante|helper)\b/i.test(String(text || "")); },
     print: function (text, cls) {
       var ol = LOCAL_CLI.log; if (!ol) return;
       String(text == null ? "" : text).split("\n").forEach(function (line) {
@@ -2052,6 +2052,38 @@
   window.YkFrame.cargarMarca = cargarMarca;
   window.YkFrame.run = function (text) { return runLocal(text); };
   window.YkFrame.registerVerb = registerVerb;
+  function cargarAvatar() {
+    if (window.AvatarDigital) return Promise.resolve(window.AvatarDigital);
+    return new Promise(function (resolve) {
+      var s = document.createElement("script");
+      s.src = "/avatar-digital.js";
+      s.async = true;
+      s.onload = function () { resolve(window.AvatarDigital || null); };
+      s.onerror = function () { resolve(null); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+  window.YkFrame.avatar = function (text) {
+    return cargarAvatar().then(function (A) { return A ? A.handle(text) : (localEn() ? "Digital avatar unavailable" : "Avatar digital no disponible"); });
+  };
+  registerVerb({
+    id: "avatardigital",
+    aliases: ["digitalavatar"],
+    es: "Muestra u oculta el avatar digital. Sin argumento alterna; on/off lo fija.",
+    en: "Show or hide the digital avatar. No argument toggles; on/off pins it.",
+    run: function (args) { return window.YkFrame.avatar("/avatardigital" + (args ? " " + args : "")); }
+  });
+  registerVerb({
+    id: "cli",
+    es: "Interruptor del avatar: /cli ayudante [on|off]. No se envía a un agente.",
+    en: "Avatar switch: /cli helper [on|off]. It is not sent to an agent.",
+    run: function (args) {
+      var first = String(args || "").trim().split(/\s+/)[0].toLowerCase();
+      if (first === "ayudante" || first === "helper") return window.YkFrame.avatar("/cli " + String(args || "").trim());
+      return localEn() ? "On this console, /cli helper toggles the digital avatar." : "En esta consola, /cli ayudante alterna el avatar digital.";
+    }
+  });
+  try { if (localStorage.getItem("da-avatar:" + location.host) === "1") cargarAvatar(); } catch (e) {}
   window.YkFrame._test = {wantsBrand:wantsBrand, runMarca:runMarca, localComplete:localComplete, liveTarget:liveTarget};
 
   function build() {
