@@ -1,1 +1,1 @@
-{"version":1,"include":["/api/fleet-census","/auth/challenge","/auth/callback"],"exclude":[]}
+{"version":1,"include":["/*"],"exclude":["/*.js","/*.mjs","/*.css","/*.map","/*.json","/*.png","/*.jpg","/*.jpeg","/*.webp","/*.gif","/*.svg","/*.ico","/*.woff","/*.woff2","/*.ttf","/*.mp3","/*.mp4","/*.webm","/*.wasm","/*.glb","/*.pdf","/*.txt","/*.xml","/*.webmanifest"]}

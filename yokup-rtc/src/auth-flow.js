@@ -2,22 +2,42 @@
 // está mudando allí (orden de Carlos): sus páginas necesitan la MISMA sesión, no otra.
 // La lista de QUIÉN entra no cambia —sigue siendo por correo, en la whitelist—; esto sólo
 // dice desde qué casas nuestras se puede pedir.
-const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com", "https://www.admira.live", "https://admira.live"]);
+const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com", "https://www.admira.live", "https://admira.live", "https://www.admira.biz", "https://admira.biz"]);
 // El flujo de REDIRECCIÓN de Google aterriza en una página concreta (AUTH_CALLBACK_URI) y
 // vuelve a una casa concreta (PUBLIC_ORIGIN), las dos de yokup. Mientras eso sea así, ese
 // flujo sólo se le ofrece a yokup: desde admira.live se usa el de ventana (popup), que no
 // sale del sitio. Si se le diera a admira.live sin más, el usuario acabaría aterrizando en
 // yokup.com después de entrar — un viaje que nadie pidió.
-const REDIRECT_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com"]);
+//
+// CASAS (2-oct-2026, orden de Carlos): admira.biz es el espejo de yokup.com —la cuarta
+// pata con marca Admira, como admira.studio/pixeria, admira.store/xpaceos y
+// admira.app/clearchannel—. Un espejo no puede mandar a su gente a otra web al entrar,
+// así que el flujo de redirección deja de tener UNA casa fija: cada casa tiene su web
+// (donde aterriza Google y adonde se vuelve) y su API (donde nace la cookie de sesión).
+// La cookie es host-only del API de cada casa: api.admira.biz es «mismo sitio» para
+// www.admira.biz, y por eso funciona también donde se bloquean las cookies de terceros.
+// La sesión NO se comparte entre casas: quien entra en una, entra en esa.
+const HOUSES = [
+  { web:"https://www.yokup.com", api:"https://api.yokup.com", origins:["https://www.yokup.com", "https://yokup.com"] },
+  { web:"https://www.admira.biz", api:"https://api.admira.biz", origins:["https://www.admira.biz", "https://admira.biz"] }
+];
+const DEFAULT_HOUSE = HOUSES[0];
+export function houseForOrigin(origin) {
+  const value = String(origin || "").toLowerCase();
+  return HOUSES.find((house) => house.origins.includes(value)) || null;
+}
+function houseForWeb(web) {
+  return HOUSES.find((house) => house.web === String(web || "")) || DEFAULT_HOUSE;
+}
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const CHALLENGE_COOKIE = "__Host-yk_challenge";
 const SESSION_COOKIE = "__Host-yk_session";
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const MAX_GOOGLE_TOKEN_AGE_MS = 2 * 60 * 60 * 1000;
-export const AUTH_CALLBACK_URI = "https://www.yokup.com/auth/callback";
-export const AUTH_HANDOFF_URI = "https://api.yokup.com/auth/handoff";
-const PUBLIC_ORIGIN = "https://www.yokup.com";
+export const AUTH_CALLBACK_URI = DEFAULT_HOUSE.web + "/auth/callback";
+export const AUTH_HANDOFF_URI = DEFAULT_HOUSE.api + "/auth/handoff";
+const PUBLIC_ORIGIN = DEFAULT_HOUSE.web;
 const HANDOFF_TTL_MS = 60 * 1000;
 
 function randomToken(bytes = 24) {
@@ -108,19 +128,31 @@ export function sessionTokenFromRequest(request) {
 
 async function ensureChallengeSchema(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS auth_challenges (state TEXT PRIMARY KEY, nonce TEXT NOT NULL, return_path TEXT NOT NULL, flow TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)").run();
+  await ensureOriginColumn(env, "auth_challenges");
+}
+
+// La casa del login viaja con el reto y con el relevo. Columna añadida el 2-oct-2026:
+// las tablas ya existen en producción, así que se amplían; si la columna ya está, D1
+// responde «duplicate column» y se ignora. Las filas viejas (sin casa) son de yokup.
+const ORIGIN_COLUMN_READY = new Set();
+async function ensureOriginColumn(env, table) {
+  if (ORIGIN_COLUMN_READY.has(table)) return;
+  try { await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN origin TEXT`).run(); } catch (_) {}
+  ORIGIN_COLUMN_READY.add(table);
 }
 
 async function ensureHandoffSchema(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS auth_handoffs (code TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT NOT NULL, return_path TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)").run();
+  await ensureOriginColumn(env, "auth_handoffs");
 }
 
-export async function issueChallenge(env, returnPath, flow = "popup", now = Date.now()) {
+export async function issueChallenge(env, returnPath, flow = "popup", now = Date.now(), house = DEFAULT_HOUSE) {
   await ensureChallengeSchema(env);
   const state = randomToken();
   const nonce = randomToken();
   const path = safeReturnPath(returnPath);
-  await env.DB.prepare("INSERT INTO auth_challenges(state,nonce,return_path,flow,expires_at,used_at) VALUES(?,?,?,?,?,NULL)")
-    .bind(state, nonce, path, flow, now + CHALLENGE_TTL_MS).run();
+  await env.DB.prepare("INSERT INTO auth_challenges(state,nonce,return_path,flow,expires_at,used_at,origin) VALUES(?,?,?,?,?,NULL,?)")
+    .bind(state, nonce, path, flow, now + CHALLENGE_TTL_MS, house.web).run();
   // SameSite=None también en el flujo de VENTANA (17-09-2026). Antes aquí ponía "Lax"
   // para popup, porque el popup era siempre de yokup.com y eso era mismo sitio. Desde
   // admira.live no lo es: la cookie salía Lax, el navegador no la devolvía en el POST de
@@ -141,12 +173,12 @@ export async function consumeChallenge(env, request, state, flow, now = Date.now
   if (cookieState && state !== cookieState) return null;
   if (flow !== "redirect" && (!cookieState || state !== cookieState)) return null;
   await ensureChallengeSchema(env);
-  const row = await env.DB.prepare("SELECT state,nonce,return_path,flow,expires_at,used_at FROM auth_challenges WHERE state=?").bind(state).first();
+  const row = await env.DB.prepare("SELECT state,nonce,return_path,flow,expires_at,used_at,origin FROM auth_challenges WHERE state=?").bind(state).first();
   if (!row || row.flow !== flow || row.used_at || Number(row.expires_at) < now) return null;
   const result = await env.DB.prepare("UPDATE auth_challenges SET used_at=? WHERE state=? AND used_at IS NULL AND expires_at>=?")
     .bind(now, state, now).run();
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return null;
-  return { nonce: String(row.nonce), returnPath: safeReturnPath(row.return_path) };
+  return { nonce: String(row.nonce), returnPath: safeReturnPath(row.return_path), house: houseForWeb(row.origin) };
 }
 
 export async function verifyGoogleCredential(credential, expectedNonce, clientId, fetchFn = fetch, now = Date.now()) {
@@ -206,9 +238,9 @@ export async function readGoogleCallbackForm(request) {
   };
 }
 
-function redirectResponse(path, token) {
+function redirectResponse(path, token, house = DEFAULT_HOUSE) {
   const headers = new Headers({
-    "location":PUBLIC_ORIGIN + safeReturnPath(path),
+    "location":house.web + safeReturnPath(path),
     "cache-control":"no-store",
     "Content-Security-Policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     "Referrer-Policy":"no-referrer"
@@ -218,27 +250,27 @@ function redirectResponse(path, token) {
   return new Response(null, { status:303, headers });
 }
 
-async function issueHandoff(env, email, name, returnPath, now = Date.now()) {
+async function issueHandoff(env, email, name, returnPath, now = Date.now(), house = DEFAULT_HOUSE) {
   await ensureHandoffSchema(env);
   const code = randomToken(32);
-  await env.DB.prepare("INSERT INTO auth_handoffs(code,email,name,return_path,expires_at,used_at) VALUES(?,?,?,?,?,NULL)")
-    .bind(code, email, String(name || ""), safeReturnPath(returnPath), now + HANDOFF_TTL_MS).run();
+  await env.DB.prepare("INSERT INTO auth_handoffs(code,email,name,return_path,expires_at,used_at,origin) VALUES(?,?,?,?,?,NULL,?)")
+    .bind(code, email, String(name || ""), safeReturnPath(returnPath), now + HANDOFF_TTL_MS, house.web).run();
   return code;
 }
 
 async function consumeHandoff(env, code, now = Date.now()) {
   await ensureHandoffSchema(env);
-  const row = await env.DB.prepare("SELECT code,email,name,return_path,expires_at,used_at FROM auth_handoffs WHERE code=?").bind(code).first();
+  const row = await env.DB.prepare("SELECT code,email,name,return_path,expires_at,used_at,origin FROM auth_handoffs WHERE code=?").bind(code).first();
   if (!row || row.used_at || Number(row.expires_at) < now) return null;
   const result = await env.DB.prepare("UPDATE auth_handoffs SET used_at=? WHERE code=? AND used_at IS NULL AND expires_at>=?")
     .bind(now, code, now).run();
   if (!result || !result.meta || Number(result.meta.changes) !== 1) return null;
-  return { email:String(row.email), name:String(row.name || ""), returnPath:safeReturnPath(row.return_path) };
+  return { email:String(row.email), name:String(row.name || ""), returnPath:safeReturnPath(row.return_path), house:houseForWeb(row.origin) };
 }
 
-export function handoffRedirect(code) {
+export function handoffRedirect(code, house = DEFAULT_HOUSE) {
   const headers = new Headers({
-    "location":AUTH_HANDOFF_URI + "?code=" + encodeURIComponent(code),
+    "location":house.api + "/auth/handoff?code=" + encodeURIComponent(code),
     "cache-control":"no-store",
     "Referrer-Policy":"no-referrer",
     "Content-Security-Policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
@@ -263,12 +295,13 @@ export async function handleAuthRequest(request, env, deps) {
     const flow = body.flow === "redirect" ? "redirect" : "popup";
     // El de redirección vuelve a PUBLIC_ORIGIN, que es yokup. Ofrecérselo a otra casa
     // sería mandar al usuario a un sitio que no es el suyo: se dice, no se disimula.
-    if (flow === "redirect" && !REDIRECT_ORIGINS.has(origen)) {
+    const house = houseForOrigin(origen);
+    if (flow === "redirect" && !house) {
       return authJson({ ok:false, error:"redirect_flow_solo_en_yokup" }, 400, request);
     }
     // return_to queda en D1, nunca viaja a Google ni comparte URL con el token.
-    const challenge = await issueChallenge(env, flow === "redirect" ? body.return_to : "/", flow);
-    return authJson({ ok:true, state:challenge.state, nonce:challenge.nonce, expires_at:challenge.expiresAt, login_uri:flow === "redirect" ? AUTH_CALLBACK_URI : undefined }, 200, request, { "Set-Cookie":challenge.cookie });
+    const challenge = await issueChallenge(env, flow === "redirect" ? body.return_to : "/", flow, Date.now(), house || DEFAULT_HOUSE);
+    return authJson({ ok:true, state:challenge.state, nonce:challenge.nonce, expires_at:challenge.expiresAt, login_uri:flow === "redirect" ? house.web + "/auth/callback" : undefined }, 200, request, { "Set-Cookie":challenge.cookie });
   }
   if (url.pathname === "/auth/session" && request.method === "GET") {
     if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
@@ -319,12 +352,12 @@ export async function handleAuthRequest(request, env, deps) {
     if (!google) return authJson({ ok:false, error:"credential_invalid" }, 401, request, { "Set-Cookie":clearChallengeCookie("None") });
     const email = String(google.email).toLowerCase();
     if (!(await deps.whitelist()).has(email)) return authJson({ ok:false, error:"not_allowed" }, 403, request, { "Set-Cookie":clearChallengeCookie("None") });
-    const code = await issueHandoff(env, email, google.name || "", challenge.returnPath);
+    const code = await issueHandoff(env, email, google.name || "", challenge.returnPath, Date.now(), challenge.house);
     // No interponemos HTML ni JavaScript entre el callback de Google y el
     // canje. Un formulario programático con target=_top puede ser bloqueado en
     // silencio por el contexto GIS; una redirección HTTP 303 es una navegación
     // del propio flujo y funciona sin script, formulario ni activación manual.
-    return handoffRedirect(code);
+    return handoffRedirect(code, challenge.house);
   }
   // Relevo por navegación. El callback same-origin redirige aquí tras validar
   // Google para que la cookie __Host- de sesión nazca en api.yokup.com.
@@ -339,8 +372,11 @@ export async function handleAuthRequest(request, env, deps) {
     if (!/^[A-Za-z0-9_-]{32,128}$/.test(code)) return authJson({ ok:false, error:"handoff_invalid" }, 401, request);
     const handoff = await consumeHandoff(env, code);
     if (!handoff) return authJson({ ok:false, error:"handoff_invalid" }, 401, request);
+    // La cookie es host-only: un relevo de una casa canjeado en el API de otra dejaría
+    // la sesión en el sitio equivocado. El código ya está gastado; se rechaza.
+    if (url.hostname !== new URL(handoff.house.api).hostname) return authJson({ ok:false, error:"handoff_wrong_house" }, 401, request);
     const token = await deps.makeSession(env, handoff.email, handoff.name);
-    return redirectResponse(handoff.returnPath, token);
+    return redirectResponse(handoff.returnPath, token, handoff.house);
   }
   if (url.pathname === "/auth/handoff" && request.method === "POST") {
     // El callback GIS puede vivir en un contexto sandboxed y enviar Origin:null.
@@ -355,8 +391,11 @@ export async function handleAuthRequest(request, env, deps) {
     if (!/^[A-Za-z0-9_-]{32,128}$/.test(code)) return authJson({ ok:false, error:"handoff_invalid" }, 401, request);
     const handoff = await consumeHandoff(env, code);
     if (!handoff) return authJson({ ok:false, error:"handoff_invalid" }, 401, request);
+    // La cookie es host-only: un relevo de una casa canjeado en el API de otra dejaría
+    // la sesión en el sitio equivocado. El código ya está gastado; se rechaza.
+    if (url.hostname !== new URL(handoff.house.api).hostname) return authJson({ ok:false, error:"handoff_wrong_house" }, 401, request);
     const token = await deps.makeSession(env, handoff.email, handoff.name);
-    return redirectResponse(handoff.returnPath, token);
+    return redirectResponse(handoff.returnPath, token, handoff.house);
   }
   return authJson({ ok:false, error:"not_found" }, 404, request);
 }
