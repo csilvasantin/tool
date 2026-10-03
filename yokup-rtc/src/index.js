@@ -84,7 +84,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // el origen sigue siendo un badén —una cabecera se falsifica— y la cerradura de verdad
 // sigue siendo el cupo por IP, que no se toca. Cuando yokup.com se apague, se quitan sus
 // dos entradas y queda sólo admira.live.
-var TURN_ORIGENES = new Set(["https://yokup.com", "https://www.yokup.com", "https://admira.live", "https://www.admira.live"]);
+var TURN_ORIGENES = new Set(["https://yokup.com", "https://www.yokup.com", "https://admira.live", "https://www.admira.live", "https://admira.biz", "https://www.admira.biz", "https://admira.app", "https://www.admira.app"]);
 var TURN_TTL_S = 600;
 var TURN_CUPO_HORA = 10;
 

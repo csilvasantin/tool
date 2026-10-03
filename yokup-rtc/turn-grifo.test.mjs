@@ -73,6 +73,15 @@ test("y las de admira.live también, porque yokup.com se está mudando allí", a
   assert.equal(ctx.origen(pide({ Origin: "https://admira.live" })), "https://admira.live");
 });
 
+test("y las de las casas admira.biz y admira.app (intercambio de dominios, 4-oct-2026)", async () => {
+  for (const o of ["https://www.admira.biz", "https://admira.biz", "https://www.admira.app", "https://admira.app"]) {
+    assert.equal(ctx.origen(pide({ Origin: o })), o);
+  }
+  for (const o of ["https://admira.app.evil.net", "http://www.admira.app", "https://xadmira.biz"]) {
+    assert.equal(ctx.origen(pide({ Origin: o })), "", `${o} no debería pasar`);
+  }
+});
+
 test("un origen ajeno no vale, ni aunque se parezca", async () => {
   for (const o of ["https://yokup.com.evil.net", "http://yokup.com", "https://admira.live.evil.net",
                    "http://www.admira.live", "https://admiralive.com", "null"]) {

@@ -78,6 +78,13 @@ custom_domain = true
 pattern = "api.admira.biz"
 custom_domain = true
 
+# INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.app pasará a ser la casa de Yokup
+# (y admira.biz la de negocio). Su API es también este worker; se publica antes del corte
+# para que el login funcione desde el primer minuto. api.admira.biz se mantiene.
+[[routes]]
+pattern = "api.admira.app"
+custom_domain = true
+
 [observability]
 enabled = true
 
