@@ -54,3 +54,13 @@ test('superuser matches by specialty and distance; atomic assignment notifies on
  const winning=results[0].status===200?body:{...body,request_key:'assignment-two'};assert.equal((await req(env,'/admin/assign',winning,admin.cookie)).body.replayed,true);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM portal_admin_assignments WHERE status='assigned'").get().n,1);
 });
+
+test('admira.biz, espejo de yokup.com, puede iniciar «Continuar con Google» y recibe CORS; un parecido no',async()=>{
+ const {env}=fixture();
+ for(const casa of ['https://admira.biz','https://www.admira.biz']){
+  const pre=await handleAccess(new Request('https://data.admira.biz/api/portal-access/google/challenge',{method:'OPTIONS',headers:{Origin:casa,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}}),env);
+  assert.equal(pre.headers.get('access-control-allow-origin'),casa);assert.equal(pre.headers.get('access-control-allow-credentials'),'true');
+  const c=await req(env,'/google/challenge',{},undefined,casa);assert.equal(c.status,200);assert.equal(c.body.google_client_id,client);assert.match(c.cookie,/^__Host-yk_portal_google=/);
+ }
+ for(const ajeno of ['https://admira.biz.evil.example','https://xadmira.biz','http://admira.biz']){assert.equal((await req(env,'/google/challenge',{},undefined,ajeno)).status,403,ajeno);}
+});

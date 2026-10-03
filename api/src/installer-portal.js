@@ -3,7 +3,10 @@ import {demoLogin} from './demo-accounts.js';
 import {sendTelegramAlerts,linkTelegramChats,telegramBot} from './installer-telegram.js';
 import {channelOf,effectiveRadius,MAX_RADIUS_KM,sweepDesk,resolveWithEvidence,recordProgress,kbFor,sendPushAlerts,validPushEndpoint,logTimeline} from './incident-desk.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
-const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'http://localhost:8788', 'http://127.0.0.1:8788']);
+// admira.biz es el espejo de yokup.com (2-oct-2026): sus portales (comercio, instalador,
+// superusuario) hablan con este worker desde data.admira.biz. Sin estos orígenes el
+// preflight sale sin Access-Control-Allow-Origin y el navegador muestra «Failed to fetch».
+const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'https://www.admira.biz', 'https://admira.biz', 'http://localhost:8788', 'http://127.0.0.1:8788']);
 const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
 const COOKIE = '__Host-yk_installer';
 const encoder = new TextEncoder();
