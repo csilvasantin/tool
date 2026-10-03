@@ -1,48 +1,57 @@
-/* Yokup · yk-casa.js — la casa admira.biz (Carlos, 2-oct-2026).
- * admira.biz es el espejo de yokup.com con la marca global Admira, como admira.app lo es
- * de clearchannel.tv: mismo sitio, y donde ponía «Yokup» se lee «admira.biz».
- * Lo carga functions/_middleware.js SOLO en admira.biz, lo primero del <head>, y
+/* Yokup · yk-casa.js — la casa con marca Admira (Carlos, 2-oct-2026).
+ * El espejo de yokup.com con la marca global Admira: mismo sitio, y donde ponía «Yokup»
+ * se lee el nombre de la casa. Hoy es admira.biz; tras el intercambio de dominios
+ * (Carlos, 4-oct-2026) será admira.app. La casa se DERIVA del host: el mismo fichero
+ * sirve en los dos dominios sin cambiar una línea el día del corte.
+ * Lo carga functions/_middleware.js SOLO en la casa, lo primero del <head>, y
  * reescribe el texto según se pinta y cuando el marco o una página añaden contenido.
  * No toca correos, subdominios técnicos (api.yokup.com) ni identificadores.
  * La marca blanca (/marca starbucks) va encima y no cambia: yk-marca.js.
  */
 (function (root) {
   "use strict";
-  var ORIGIN = "https://www.admira.biz";
+  // admira.biz | admira.app | "" fuera de la casa (fuera del navegador, por defecto admira.biz).
+  function apexDe(hostname) {
+    var m = /(?:^|\.)(admira\.(?:biz|app))$/i.exec(String(hostname || ""));
+    return m ? m[1].toLowerCase() : "";
+  }
+  var APEX = (typeof location !== "undefined" && apexDe(location.hostname)) || "admira.biz";
+  var ORIGIN = "https://www." + APEX;
 
   // Idéntica a marcaDeCasa de functions/_shared/casas.mjs (casa-espejo.test.mjs las compara).
-  function marcaDeCasa(value) {
+  function marcaDeCasa(value, nombre) {
     if (value == null || value === "") return value;
+    var casa = String(nombre || APEX);
     return String(value)
-      .replace(/(^|[^@\w.-])www\.yokup\.com(?![\w-])/gi, "$1www.admira.biz")
-      .replace(/(^|[^@\w.-])yokup\.com(?![\w-])/gi, "$1admira.biz")
-      .replace(/(^|[^@\w.-])(yokup)(?![\w-]|\.[a-z])/gi, function (_, pre, word) { return pre + (word === "YOKUP" ? "ADMIRA.BIZ" : "admira.biz"); });
+      .replace(/(^|[^@\w.-])www\.yokup\.com(?![\w-])/gi, function (_, pre) { return pre + "www." + casa; })
+      .replace(/(^|[^@\w.-])yokup\.com(?![\w-])/gi, function (_, pre) { return pre + casa; })
+      .replace(/(^|[^@\w.-])(yokup)(?![\w-]|\.[a-z])/gi, function (_, pre, word) { return pre + (word === "YOKUP" ? casa.toUpperCase() : casa); });
   }
-  function enlaceDeCasa(href) {
+  function enlaceDeCasa(href, origin) {
     var m = /^https?:\/\/(?:www\.)?yokup\.com(?=$|[/?#])/i.exec(String(href || ""));
-    return m ? ORIGIN + String(href).slice(m[0].length) : href;
+    return m ? String(origin || ORIGIN) + String(href).slice(m[0].length) : href;
   }
   // El API de datos de los portales (comercio, instalador, superusuario) también vive en
-  // la casa: data.admira.biz es el MISMO worker yokup-api que data.yokup.com, pero «mismo
-  // sitio» que admira.biz, así que sus cookies __Host- (SameSite=Strict) viajan. Desde
-  // admira.biz, data.yokup.com es otro sitio: el navegador no guarda esas cookies y, sin
+  // la casa: data.<casa> es el MISMO worker yokup-api que data.yokup.com, pero «mismo
+  // sitio» que la casa, así que sus cookies __Host- (SameSite=Strict) viajan. Desde
+  // la casa, data.yokup.com es otro sitio: el navegador no guarda esas cookies y, sin
   // CORS para esta casa, «Continuar con Google» acababa en «Failed to fetch».
   // Prefijo ANCLADO al origen: data.yokup.com.evil no cuela.
-  var DATA_YOKUP = "https://data.yokup.com", DATA_CASA = "https://data.admira.biz";
-  function datosDeCasa(url) {
+  var DATA_YOKUP = "https://data.yokup.com";
+  function datosDeCasa(url, apex) {
     var u = String(url == null ? "" : url);
     if (u.slice(0, DATA_YOKUP.length).toLowerCase() !== DATA_YOKUP) return url;
     var c = u.charAt(DATA_YOKUP.length);
-    return c === "" || c === "/" || c === "?" || c === "#" ? DATA_CASA + u.slice(DATA_YOKUP.length) : url;
+    return c === "" || c === "/" || c === "?" || c === "#" ? "https://data." + (apex || APEX) + u.slice(DATA_YOKUP.length) : url;
   }
-  var api = { marcaDeCasa: marcaDeCasa, enlaceDeCasa: enlaceDeCasa, datosDeCasa: datosDeCasa };
+  var api = { apexDe: apexDe, marcaDeCasa: marcaDeCasa, enlaceDeCasa: enlaceDeCasa, datosDeCasa: datosDeCasa };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
-  if (!/(^|\.)admira\.biz$/i.test(location.hostname || "") || root.YkCasa) return;
-  root.YkCasa = Object.freeze({ id: "admira-biz", name: "admira.biz", origin: ORIGIN, marcaDeCasa: marcaDeCasa });
-  document.documentElement.setAttribute("data-casa", "admira-biz");
+  if (!apexDe(location.hostname) || root.YkCasa) return;
+  root.YkCasa = Object.freeze({ id: APEX.replace(".", "-"), name: APEX, origin: ORIGIN, marcaDeCasa: marcaDeCasa });
+  document.documentElement.setAttribute("data-casa", APEX.replace(".", "-"));
 
-  // Lo que las páginas piden a data.yokup.com se sirve desde data.admira.biz. yk-casa.js
+  // Lo que las páginas piden a data.yokup.com se sirve desde data.<casa>. yk-casa.js
   // es el primer script del <head> (functions/_middleware.js), antes que cualquier portal.
   if (typeof root.fetch === "function") {
     var rawFetch = root.fetch;

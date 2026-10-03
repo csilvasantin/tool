@@ -53,3 +53,54 @@ test("las funciones puente hablan al backend en nombre de la casa que las llama"
   assert.equal(publicOriginFor(new Request("https://yokup.pages.dev/auth/challenge")), "https://www.yokup.com");
   assert.equal(publicOriginFor(new Request("https://admira.biz.evil.example/auth/challenge")), "https://www.yokup.com");
 });
+
+// INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.app pasará a ser esta casa y admira.biz
+// la de negocio. El mismo acceso.js tiene que funcionar en las dos sin tocar nada el día del corte.
+test("en admira.app la casa se deriva del host: api, callback y cookie de admira.app", () => {
+  const { test:t, llamadas } = cargar("www.admira.app");
+  assert.equal(t.ESPEJO, true);
+  assert.equal(t.APEX, "admira.app");
+  assert.equal(t.WORKER, "https://api.admira.app");
+  assert.equal(t.LOGIN_URI, "https://www.admira.app/auth/callback");
+  assert.equal(t.COOKIE_DOMAIN, "admira.app");
+  assert.equal(llamadas[0][0], "https://api.admira.app/auth/session");
+  assert.equal(t.toHouse("https://api.yokup.com/tickets?x=1"), "https://api.admira.app/tickets?x=1");
+  assert.equal(t.toHouse("https://rtc.yokup.com/tickets"), "https://api.admira.app/tickets");
+  assert.equal(t.toHouse("https://api.admira.biz/x"), "https://api.admira.biz/x");
+  assert.ok(t.signable("https://api.admira.app/x"));
+  assert.ok(!t.signable("https://api.admira.biz/x"), "la sesión de una casa no viaja a la otra");
+  assert.ok(!t.signable("https://api.admira.app.evil/x"));
+  assert.ok(!t.signable("https://rtc.yokup.com/x"));
+});
+
+test("admira.biz conserva exactamente su casa de hoy (api, callback y cookie de admira.biz)", () => {
+  const { test:t } = cargar("www.admira.biz");
+  assert.equal(t.APEX, "admira.biz");
+  assert.equal(t.LOGIN_URI, "https://www.admira.biz/auth/callback");
+  assert.equal(t.COOKIE_DOMAIN, "admira.biz");
+  assert.ok(!t.signable("https://api.admira.app/x"));
+});
+
+test("la raíz admira.app salta a www.admira.app antes de pedir nada", () => {
+  const { replaced, llamadas } = cargar("admira.app");
+  assert.deepEqual(replaced, ["https://www.admira.app/incidencias?a=1"]);
+  assert.equal(llamadas.length, 0);
+});
+
+test("fuera de las casas nada cambia: yokup.pages.dev y parecidos se quedan en yokup.com", () => {
+  for (const host of ["yokup.pages.dev", "admira.app.evil.example", "xadmira.app", "admira.apps.example", "localhost"]) {
+    const { test:t, replaced, llamadas } = cargar(host);
+    assert.equal(t.ESPEJO, false, host);
+    assert.equal(t.WORKER, "https://api.yokup.com", host);
+    assert.equal(t.LOGIN_URI, "https://www.yokup.com/auth/callback", host);
+    assert.equal(t.COOKIE_DOMAIN, "yokup.com", host);
+    assert.deepEqual(replaced, [], host);
+    assert.equal(llamadas[0][0], "https://api.yokup.com/auth/session", host);
+  }
+});
+
+test("las funciones puente hablan en nombre de admira.app cuando la llamada llega allí", () => {
+  assert.equal(publicOriginFor(new Request("https://www.admira.app/auth/challenge")), "https://www.admira.app");
+  assert.equal(publicOriginFor(new Request("https://admira.app/auth/callback")), "https://www.admira.app");
+  assert.equal(publicOriginFor(new Request("https://admira.app.evil.example/auth/challenge")), "https://www.yokup.com");
+});
