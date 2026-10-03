@@ -66,3 +66,13 @@ test("yk-casa.js no hace nada fuera de admira.biz y no reescribe scripts ni camp
   assert.match(fuente, /if \(!\/\(\^\|\\\.\)admira\\\.biz\$\/i\.test\(location\.hostname \|\| ""\) \|\| root\.YkCasa\) return;/);
   assert.match(fuente, /SKIP = \/\^\(SCRIPT\|STYLE\|NOSCRIPT\|TEXTAREA\)\$\//);
 });
+
+test("en admira.biz los portales piden datos a data.admira.biz (mismo sitio), no a data.yokup.com", () => {
+  assert.equal(cliente.datosDeCasa("https://data.yokup.com/api/portal-access/google/challenge"), "https://data.admira.biz/api/portal-access/google/challenge");
+  assert.equal(cliente.datosDeCasa("https://data.yokup.com"), "https://data.admira.biz");
+  assert.equal(cliente.datosDeCasa("https://data.yokup.com?x=1"), "https://data.admira.biz?x=1");
+  for (const otra of ["https://data.yokup.com.evil/x", "https://data.yokup.comx/x", "https://api.yokup.com/x", "https://www.yokup.com/x", "/api/local", ""]) assert.equal(cliente.datosDeCasa(otra), otra, otra);
+  assert.match(fuente, /root\.fetch = function \(input, init\)/);
+  // El envoltorio de fetch va DESPUÉS del corte «solo en admira.biz»: en yokup.com nada cambia.
+  assert.ok(fuente.indexOf("root.fetch = function") > fuente.indexOf('if (!/(^|\\.)admira\\.biz$/i.test(location.hostname'));
+});

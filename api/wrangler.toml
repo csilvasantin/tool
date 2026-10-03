@@ -27,6 +27,14 @@ preview_urls = false
 pattern = "data.yokup.com"
 custom_domain = true
 
+# admira.biz es el espejo de yokup.com (2-oct-2026). Sus portales llaman a este mismo
+# worker en data.admira.biz para que las cookies de sesión (__Host-, SameSite=Strict)
+# sean «mismo sitio» que la página; desde admira.biz, data.yokup.com es OTRO sitio y el
+# navegador no guarda ni envía esas cookies. Mismo arreglo que api.admira.biz en yokup-rtc.
+[[routes]]
+pattern = "data.admira.biz"
+custom_domain = true
+
 # Backend de datos: Cloudflare D1 (SQLite). El binding se llama DB dentro del Worker.
 [[d1_databases]]
 binding = "DB"

@@ -22,12 +22,36 @@
     var m = /^https?:\/\/(?:www\.)?yokup\.com(?=$|[/?#])/i.exec(String(href || ""));
     return m ? ORIGIN + String(href).slice(m[0].length) : href;
   }
-  var api = { marcaDeCasa: marcaDeCasa, enlaceDeCasa: enlaceDeCasa };
+  // El API de datos de los portales (comercio, instalador, superusuario) también vive en
+  // la casa: data.admira.biz es el MISMO worker yokup-api que data.yokup.com, pero «mismo
+  // sitio» que admira.biz, así que sus cookies __Host- (SameSite=Strict) viajan. Desde
+  // admira.biz, data.yokup.com es otro sitio: el navegador no guarda esas cookies y, sin
+  // CORS para esta casa, «Continuar con Google» acababa en «Failed to fetch».
+  // Prefijo ANCLADO al origen: data.yokup.com.evil no cuela.
+  var DATA_YOKUP = "https://data.yokup.com", DATA_CASA = "https://data.admira.biz";
+  function datosDeCasa(url) {
+    var u = String(url == null ? "" : url);
+    if (u.slice(0, DATA_YOKUP.length).toLowerCase() !== DATA_YOKUP) return url;
+    var c = u.charAt(DATA_YOKUP.length);
+    return c === "" || c === "/" || c === "?" || c === "#" ? DATA_CASA + u.slice(DATA_YOKUP.length) : url;
+  }
+  var api = { marcaDeCasa: marcaDeCasa, enlaceDeCasa: enlaceDeCasa, datosDeCasa: datosDeCasa };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
   if (!/(^|\.)admira\.biz$/i.test(location.hostname || "") || root.YkCasa) return;
   root.YkCasa = Object.freeze({ id: "admira-biz", name: "admira.biz", origin: ORIGIN, marcaDeCasa: marcaDeCasa });
   document.documentElement.setAttribute("data-casa", "admira-biz");
+
+  // Lo que las páginas piden a data.yokup.com se sirve desde data.admira.biz. yk-casa.js
+  // es el primer script del <head> (functions/_middleware.js), antes que cualquier portal.
+  if (typeof root.fetch === "function") {
+    var rawFetch = root.fetch;
+    root.fetch = function (input, init) {
+      if (typeof input === "string" || (typeof URL !== "undefined" && input instanceof URL)) input = datosDeCasa(String(input));
+      else if (input && typeof input.url === "string") { var next = datosDeCasa(input.url); if (next !== input.url) input = new Request(next, input); }
+      return rawFetch.call(root, input, init);
+    };
+  }
 
   var ATTRS = ["title", "aria-label", "placeholder", "alt"];
   var SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/;

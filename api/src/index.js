@@ -44,6 +44,9 @@ const ALLOWED_ORIGINS = new Set([
   // Producción: la web vive en https://www.yokup.com/tool/ (el Origin es solo host).
   "https://www.yokup.com",
   "https://yokup.com",
+  // Espejo admira.biz (2-oct-2026): mismo sitio, marca Admira (/alta-punto, /alta-instalador).
+  "https://www.admira.biz",
+  "https://admira.biz",
   "https://csilvasantin.github.io",   // fallback github.io mientras se monta el DNS
   // Desarrollo local.
   "http://localhost:8788",
