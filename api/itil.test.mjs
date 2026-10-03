@@ -164,7 +164,8 @@ test('lectura de la Galaxia: sin clave solo el recuento; con clave los CIs SIN d
  assert.equal((await (await galaxy(env,'alsea-sbux-021',{'X-Yokup-Itil-Key':key})).json()).cis.length,2,'servidor a servidor sin Origin');
  assert.ok((await (await galaxy(env,'alsea-sbux-021',{'X-Yokup-Itil-Key':key},'GET')).json()).cis);
  assert.equal((await (await worker.fetch(new Request('https://data.yokup.com/api/itil/xpacios/alsea-sbux-021?include_retired=true',{headers:{'X-Yokup-Itil-Key':key}}),env,{waitUntil(){}})).json()).cis.length,5);
- for(const origin of ['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.clearchannel.tv','https://clearchannel.tv']){
+ // admira.biz: la solución de negocio tras el intercambio de dominios (Carlos, 4-oct-2026); admira.app se conserva en la transición.
+ for(const origin of ['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv']){
   assert.ok(GALAXY_ORIGINS.has(origin));const pre=await galaxy(env,'alsea-sbux-021',{Origin:origin,'Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'x-yokup-itil-key'},'OPTIONS');
   assert.equal(pre.status,204);assert.equal(pre.headers.get('Access-Control-Allow-Origin'),origin);assert.match(pre.headers.get('Access-Control-Allow-Headers'),/X-Yokup-Itil-Key/);assert.equal(pre.headers.get('Access-Control-Allow-Credentials'),null);
  }
@@ -254,4 +255,22 @@ test('herramienta de claves: el SQL que genera da de alta una clave válida solo
  db.exec(r.sql);assert.equal((await galaxy(env,'alsea-sbux-021',{'X-Yokup-Itil-Key':r.token,Origin:'https://www.xpaceos.com'})).status,200);
  db.exec(r.revoke);assert.equal((await galaxy(env,'alsea-sbux-021',{'X-Yokup-Itil-Key':r.token})).status,401);
  assert.throws(()=>readKeyRecord('otra'));assert.throws(()=>readKeyRecord('pixeria',{origins:['https://evil.example']}));assert.throws(()=>readKeyRecord('pixeria',{days:0}));
+ // Intercambio de dominios (4-oct-2026): la solución de negocio puede pedir desde admira.biz y desde admira.app.
+ for(const o of ['https://www.admira.biz','https://admira.biz','https://www.admira.app','https://admira.app'])assert.doesNotThrow(()=>readKeyRecord('admira-app',{origins:[o]}),o);
+ assert.throws(()=>readKeyRecord('admira-app',{origins:['https://admira.biz.evil.example']}));
+});
+
+// INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.app pasará a ser la casa de Yokup; sus
+// portales llamarán a data.admira.app (yk-casa.js deriva data.<casa> del host). El worker
+// tiene que estar publicado allí y aceptar el origen, igual que con data.admira.biz.
+test('data.admira.app: dominio propio del worker y CORS de la casa admira.app junto a admira.biz',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const toml=await readFile(new URL('./wrangler.toml',import.meta.url),'utf8');
+ for(const host of ['data.admira.biz','data.admira.app'])assert.match(toml,new RegExp('\\[\\[routes\\]\\]\\s*\\npattern = "'+host.replace(/\./g,'\\.')+'"\\s*\\ncustom_domain = true'),host);
+ const index=await readFile(new URL('./src/index.js',import.meta.url),'utf8');
+ const portal=await readFile(new URL('./src/installer-portal.js',import.meta.url),'utf8');
+ for(const origin of ['https://www.admira.biz','https://admira.biz','https://www.admira.app','https://admira.app']){
+  assert.ok(index.includes(JSON.stringify(origin)),'ALLOWED_ORIGINS '+origin);
+  assert.ok(portal.includes("'"+origin+"'"),'installer-portal ORIGINS '+origin);
+ }
 });

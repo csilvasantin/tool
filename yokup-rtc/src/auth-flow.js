@@ -2,7 +2,7 @@
 // está mudando allí (orden de Carlos): sus páginas necesitan la MISMA sesión, no otra.
 // La lista de QUIÉN entra no cambia —sigue siendo por correo, en la whitelist—; esto sólo
 // dice desde qué casas nuestras se puede pedir.
-const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com", "https://www.admira.live", "https://admira.live", "https://www.admira.biz", "https://admira.biz"]);
+const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com", "https://www.admira.live", "https://admira.live", "https://www.admira.biz", "https://admira.biz", "https://www.admira.app", "https://admira.app"]);
 // El flujo de REDIRECCIÓN de Google aterriza en una página concreta (AUTH_CALLBACK_URI) y
 // vuelve a una casa concreta (PUBLIC_ORIGIN), las dos de yokup. Mientras eso sea así, ese
 // flujo sólo se le ofrece a yokup: desde admira.live se usa el de ventana (popup), que no
@@ -19,7 +19,11 @@ const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com", "htt
 // La sesión NO se comparte entre casas: quien entra en una, entra en esa.
 const HOUSES = [
   { web:"https://www.yokup.com", api:"https://api.yokup.com", origins:["https://www.yokup.com", "https://yokup.com"] },
-  { web:"https://www.admira.biz", api:"https://api.admira.biz", origins:["https://www.admira.biz", "https://admira.biz"] }
+  { web:"https://www.admira.biz", api:"https://api.admira.biz", origins:["https://www.admira.biz", "https://admira.biz"] },
+  // INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.app pasará a ser esta casa y
+  // admira.biz la parte de negocio. Las dos conviven hasta el corte y después; cada una
+  // con su API (api.admira.app es este mismo worker) y su propia sesión.
+  { web:"https://www.admira.app", api:"https://api.admira.app", origins:["https://www.admira.app", "https://admira.app"] }
 ];
 const DEFAULT_HOUSE = HOUSES[0];
 export function houseForOrigin(origin) {

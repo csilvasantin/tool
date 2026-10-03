@@ -12,16 +12,23 @@
   // api.admira.biz (el mismo worker en su dominio), para que la cookie de sesión sea
   // «mismo sitio» y el login no salga de admira.biz. El resto de páginas siguen
   // escribiendo https://api.yokup.com: en el espejo, este fichero lo traduce.
+  // INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026; tocado con su OK explícito): admira.app
+  // pasará a ser esta casa y admira.biz la parte de negocio. El APEX se deriva del host
+  // (admira.biz o admira.app) y todo lo demás cuelga de él; cualquier otro host
+  // (yokup.com, yokup.pages.dev, vistas previas) se comporta exactamente igual que antes.
   var YOKUP_API = "https://api.yokup.com";
-  var ESPEJO = /(^|\.)admira\.biz$/i.test(location.hostname || "");
+  var HOST = String(location.hostname || "").toLowerCase();
+  var CASA = /(?:^|\.)(admira\.(?:biz|app))$/.exec(HOST);
+  var APEX = CASA ? CASA[1] : "";
+  var ESPEJO = !!APEX;
   // Las cookies __Host- son del host exacto: el espejo vive en www.
-  if (ESPEJO && location.hostname !== "www.admira.biz") {
-    location.replace("https://www.admira.biz" + location.pathname + location.search + location.hash);
+  if (ESPEJO && HOST !== "www." + APEX) {
+    location.replace("https://www." + APEX + location.pathname + location.search + location.hash);
     return;
   }
-  var WORKER = ESPEJO ? "https://api.admira.biz" : YOKUP_API;
-  var LOGIN_URI = (ESPEJO ? "https://www.admira.biz" : "https://www.yokup.com") + "/auth/callback";
-  var COOKIE_DOMAIN = ESPEJO ? "admira.biz" : "yokup.com";
+  var WORKER = ESPEJO ? "https://api." + APEX : YOKUP_API;
+  var LOGIN_URI = (ESPEJO ? "https://www." + APEX : "https://www.yokup.com") + "/auth/callback";
+  var COOKIE_DOMAIN = ESPEJO ? APEX : "yokup.com";
   // Red de seguridad: rtc.yokup.com es el FALLBACK que usa yk-frame.js/ykFetch
   // cuando api.yokup.com falla por red. (28-jul-2026: antes apuntaba al host
   // workers.dev, que devolvía 404 y encima está bloqueado por ISPs españoles.)
@@ -46,7 +53,7 @@
     return isWorkerOrigin(u, WORKER) || (!ESPEJO && isWorkerOrigin(u, WORKER_FALLBACK));
   }
   // En el espejo, lo que las páginas piden a api.yokup.com (o a su fallback) se sirve
-  // desde api.admira.biz: mismo worker, pero donde está la sesión de esta casa.
+  // desde api.<casa>: mismo worker, pero donde está la sesión de esta casa.
   function toHouse(u) {
     if (!ESPEJO) return u;
     if (isWorkerOrigin(u, YOKUP_API)) return WORKER + u.slice(YOKUP_API.length);
@@ -239,5 +246,5 @@
 
   // Gancho de pruebas (mismo patrón que YkDecisions._test): expone SÓLO el
   // predicado firmable para el harness. No altera el comportamiento en runtime.
-  try { window.__ykAccesoTest = { signable: signable, toHouse: toHouse, WORKER: WORKER, WORKER_FALLBACK: WORKER_FALLBACK, ESPEJO: ESPEJO }; } catch (e) {}
+  try { window.__ykAccesoTest = { signable: signable, toHouse: toHouse, WORKER: WORKER, WORKER_FALLBACK: WORKER_FALLBACK, ESPEJO: ESPEJO, APEX: APEX, LOGIN_URI: LOGIN_URI, COOKIE_DOMAIN: COOKIE_DOMAIN }; } catch (e) {}
 })();

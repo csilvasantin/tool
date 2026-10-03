@@ -104,3 +104,49 @@ test("sesión y CORS con credenciales desde admira.biz; un origen ajeno, no", as
   const no = await handleAuthRequest(new Request("https://api.admira.biz/auth/session", { headers:{ origin:"https://evil.example", cookie:"__Host-yk_session=session-for-x" } }), {}, deps({}));
   assert.equal(no.status, 403);
 });
+
+// INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.app pasará a ser la casa de Yokup y
+// admira.biz la de negocio. Las dos casas conviven: cada una con su web, su API y su sesión.
+test("admira.app es una casa más: su web y su API (api.admira.app); admira.biz no cambia", () => {
+  assert.deepEqual(houseForOrigin("https://www.admira.app"), { web:"https://www.admira.app", api:"https://api.admira.app", origins:["https://www.admira.app", "https://admira.app"] });
+  assert.equal(houseForOrigin("https://admira.app").api, "https://api.admira.app");
+  assert.equal(houseForOrigin("https://www.admira.biz").api, "https://api.admira.biz");
+  for (const o of ["https://admira.app.evil.example", "http://www.admira.app", "https://xadmira.app"]) assert.equal(houseForOrigin(o), null, o);
+});
+
+test("login desde admira.app: Google vuelve a admira.app, la cookie nace en api.admira.app y se aterriza en admira.app", async () => {
+  const env = { DB:new FakeDB() };
+  const { challenge, callback } = await loginRedirect(env, "https://www.admira.app", "https://api.yokup.com");
+  assert.equal(challenge.login_uri, "https://www.admira.app/auth/callback");
+  assert.equal(callback.status, 303);
+  const handoff = new URL(callback.headers.get("location"));
+  assert.equal(handoff.origin + handoff.pathname, "https://api.admira.app/auth/handoff");
+  const done = await handleAuthRequest(new Request(handoff, { method:"GET" }), env, deps({}));
+  assert.equal(done.status, 303);
+  assert.equal(done.headers.get("location"), "https://www.admira.app/incidencias?estado=abierta");
+  assert.match(done.headers.get("set-cookie"), /__Host-yk_session=/);
+});
+
+test("un relevo de admira.app no se canjea en el API de admira.biz (las casas no comparten sesión)", async () => {
+  const env = { DB:new FakeDB() };
+  const { callback } = await loginRedirect(env, "https://www.admira.app", "https://api.yokup.com");
+  const code = new URL(callback.headers.get("location")).searchParams.get("code");
+  const wrong = await handleAuthRequest(new Request("https://api.admira.biz/auth/handoff?code=" + code, { method:"GET" }), env, deps({}));
+  assert.equal(wrong.status, 401);
+  assert.doesNotMatch(wrong.headers.get("set-cookie") || "", /__Host-yk_session=[^;]/);
+});
+
+test("sesión y CORS con credenciales desde admira.app", async () => {
+  const ok = await handleAuthRequest(new Request("https://api.admira.app/auth/session", { headers:{ origin:"https://www.admira.app", cookie:"__Host-yk_session=session-for-x" } }), {}, deps({}));
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get("access-control-allow-origin"), "https://www.admira.app");
+  assert.equal(ok.headers.get("access-control-allow-credentials"), "true");
+});
+
+test("wrangler publica api.admira.app como dominio propio junto a api.admira.biz", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const toml = await readFile(new URL("./wrangler.toml", import.meta.url), "utf8");
+  for (const host of ["api.admira.biz", "api.admira.app"]) {
+    assert.match(toml, new RegExp(`\\[\\[routes\\]\\]\\s*\\npattern = "${host.replace(/\./g, "\\.")}"\\s*\\ncustom_domain = true`), host);
+  }
+});

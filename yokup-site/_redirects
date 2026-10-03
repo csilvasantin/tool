@@ -21,4 +21,20 @@
 /consumos/        /consumos.html     200
 /supervisor       /supervisor.html   200
 /supervisor/      /supervisor.html   200
+# INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.biz pasa a ser la parte de negocio
+# (Pages clearchannel-tv) y admira.app esta casa. Estáticos de negocio que _routes.json deja
+# FUERA de las Functions (por eso no los ve el middleware de mudanza) y que páginas viejas
+# en caché pueden seguir pidiendo a admira.app tras el corte: se van a su casa de siempre.
+# OJO: _redirects NO filtra por host, así que esto vale también en admira.biz y en
+# yokup.pages.dev. Solo están rutas que Yokup NO sirve (comprobado el 4-oct-2026: hoy
+# caían al catch-all y devolvían la portada con un 200) y cuyo destino responde 200.
+/locations.js                   https://www.clearchannel.tv/locations.js                   301
+/expert-commands.js             https://www.clearchannel.tv/expert-commands.js             301
+/assets/demo/*                  https://www.clearchannel.tv/assets/demo/:splat              301
+/assets/intro/*                 https://www.clearchannel.tv/assets/intro/:splat             301
+/assets/og-cover.jpg            https://www.clearchannel.tv/assets/og-cover.jpg            301
+/assets/admira-app-cockpit.webp https://www.clearchannel.tv/assets/admira-app-cockpit.webp 301
+/data/*                         https://www.clearchannel.tv/data/:splat                     301
+/target-assets/*                https://www.clearchannel.tv/target-assets/:splat            301
+/mcp/admira-app/*               https://www.clearchannel.tv/mcp/admira-app/:splat           301
 /*                /index.html   200

@@ -11,7 +11,9 @@ import {statement,rows,hash,rateLimit} from './installer-portal.js';
 import {isoDay,validDay,lifecycleView,LIFECYCLE_COLUMNS} from './device-lifecycle.js';
 import {viaBinding,INTERNAL_HOST} from './incident-links.js';
 import {ITIL_SCHEMA,ITIL_CATEGORIES,ITIL_ORIENTATIONS,ITIL_LIFECYCLE_TEXTS,ITIL_LIFECYCLE_DATES,ITIL_LIFECYCLE_FIELDS,ITIL_LIMITS,validItilCode,lifecycleCategory,skillForCategory,publicCi,parseEquipoRef,equipoCategory,equipoLabel} from './itil-model.js';
-export const GALAXY_ORIGINS=new Set(['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.clearchannel.tv','https://clearchannel.tv']);
+// Intercambio de dominios (Carlos, 4-oct-2026): admira.biz pasa a servir la solución de negocio
+// (Pages clearchannel-tv). admira.app se conserva mientras dure la transición.
+export const GALAXY_ORIGINS=new Set(['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv']);
 export const ITIL_DOCS='https://www.yokup.com/mcp/llms.txt';
 const bad=(status,code,message)=>{throw Object.assign(new Error(message),{status,code});};
 const CONTROL=/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;

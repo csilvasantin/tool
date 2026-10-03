@@ -16,9 +16,11 @@ test("Google Identity se inicializa con redirect top-level, challenge y sin FedC
   assert.equal(initializes.length, 1);
   assert.match(source, /\/auth\/challenge/);
   assert.match(source, /nonce:\s*challenge\.nonce/);
-  // El dominio de la cookie de estado depende de la casa: yokup.com, o admira.biz en el espejo.
+  // El dominio de la cookie de estado depende de la casa: yokup.com, o el APEX del espejo
+  // (admira.biz hoy, admira.app tras el intercambio de dominios del 4-oct-2026).
   assert.match(source, /state_cookie_domain:\s*COOKIE_DOMAIN/);
-  assert.match(source, /COOKIE_DOMAIN\s*=\s*ESPEJO\s*\?\s*"admira\.biz"\s*:\s*"yokup\.com"/);
+  assert.match(source, /COOKIE_DOMAIN\s*=\s*ESPEJO\s*\?\s*APEX\s*:\s*"yokup\.com"/);
+  assert.match(source, /admira\\\.\(\?:biz\|app\)/, "el APEX solo puede ser admira.biz o admira.app");
   assert.doesNotMatch(source, /state_cookie_domain:\s*["']\.yokup\.com["']/);
   assert.match(source, /ux_mode:\s*["']redirect["']/);
   assert.match(source, /login_uri:\s*LOGIN_URI/);

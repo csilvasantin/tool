@@ -247,3 +247,14 @@ test("la ayuda y el MCP explican la marca blanca y /marca como funcionalidad del
   assert.match(llms, /No es una herramienta MCP/);
   assert.match(gateMd, /no hay herramienta nueva ni cambia\s+`MCP_VERSION`/);
 });
+
+// INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): la casa con marca Admira será admira.biz o
+// admira.app según el host, pero la marca blanca va ENCIMA y no depende de la casa: ni
+// yk-marca.js mira el dominio, ni yk-casa.js toca nada de la marca blanca.
+test("la marca blanca no depende de la casa (admira.biz o admira.app)", () => {
+  const codigo = marcaJs.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  assert.doesNotMatch(codigo, /admira\.(?:biz|app)/, "yk-marca.js no fija ninguna casa");
+  const casa = read("yk-casa.js");
+  assert.doesNotMatch(casa, /mb:marca|marcablanca|YkMarca/, "yk-casa.js no toca la marca blanca");
+  assert.match(casa, /admira\\\.\(\?:biz\|app\)/, "yk-casa.js reconoce las dos casas");
+});

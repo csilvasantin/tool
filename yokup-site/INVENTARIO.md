@@ -54,7 +54,7 @@ que un host haya dejado de existir. Es lo que dejó esta avería 5 días invisib
 | `/agentes` | `agentes.html` | HTML | **Perímetro** · panel de agentes |
 | `/asistencia` | `asistencia.html` | HTML | **Perímetro** · videollamada WebRTC |
 | `/intervencion` | `intervencion.html` | HTML | **Perímetro** · ficha de intervención |
-| `/acceso.js` | `acceso.js` | JS | Gate Google + parche fetch (Bearer). NO SE TOCA. |
+| `/acceso.js` | `acceso.js` | JS | Gate Google + parche fetch (Bearer). NO SE TOCA. **Excepción: tocado con OK explícito de Carlos el 4-oct-2026 para el intercambio de dominios admira.biz ↔ admira.app** (la casa —API, callback, dominio de cookie y salto a www— se deriva del host; en yokup.com y demás hosts nada cambia). |
 | `/avatar-widget.js` | `avatar-widget.js` | JS (module) | Copiloto avatar. NO SE TOCA. |
 | `/sw.js` | `sw.js` | JS | Service worker (push de incidencias) |
 | `/manifest.webmanifest` | `manifest.webmanifest` | JSON | Manifest PWA |
