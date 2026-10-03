@@ -47,6 +47,9 @@ const ALLOWED_ORIGINS = new Set([
   // Espejo admira.biz (2-oct-2026): mismo sitio, marca Admira (/alta-punto, /alta-instalador).
   "https://www.admira.biz",
   "https://admira.biz",
+  // Intercambio de dominios (Carlos, 4-oct-2026): admira.app pasará a ser esta casa.
+  "https://www.admira.app",
+  "https://admira.app",
   "https://csilvasantin.github.io",   // fallback github.io mientras se monta el DNS
   // Desarrollo local.
   "http://localhost:8788",

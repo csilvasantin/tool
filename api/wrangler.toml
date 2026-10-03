@@ -35,6 +35,12 @@ custom_domain = true
 pattern = "data.admira.biz"
 custom_domain = true
 
+# INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.app pasará a ser la casa de Yokup.
+# yk-casa.js deriva data.<casa> del host, así que allí los portales llamarán a data.admira.app.
+[[routes]]
+pattern = "data.admira.app"
+custom_domain = true
+
 # Backend de datos: Cloudflare D1 (SQLite). El binding se llama DB dentro del Worker.
 [[d1_databases]]
 binding = "DB"

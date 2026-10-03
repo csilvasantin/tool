@@ -8,7 +8,8 @@ import {writeFile,mkdir} from 'node:fs/promises';
 import {dirname,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 export const SOLUTIONS=['xpaceos','pixeria','admira-app','clearchannel-tv'];
-export const KNOWN_ORIGINS=['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.clearchannel.tv','https://clearchannel.tv'];
+// admira.biz: la solución de negocio tras el intercambio de dominios (Carlos, 4-oct-2026).
+export const KNOWN_ORIGINS=['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv'];
 const quote=v=>v==null?'NULL':"'"+String(v).replaceAll("'","''")+"'";
 export function readKeyRecord(solution,{origins=[],brands=null,days=365,now=Date.now(),token='yki_'+randomBytes(32).toString('hex')}={}){
  if(!SOLUTIONS.includes(solution))throw new Error('Solución: '+SOLUTIONS.join(', '));
