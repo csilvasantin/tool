@@ -221,7 +221,8 @@ test("/marca y /brand: consola LOCAL con los textos del canon; nunca llegan al t
   assert.match(frame, /function submitCliEditor\(\)\{[^}]*if\(LOCAL_CLI\.isLocalOnly\(text\)\)\{FLEET\.cliInput\.value="";LOCAL_CLI\.run\(text\.trim\(\)\);return;\}terminalAction\("write",text\);\}/);
   const isLocalOnly = new Function("text", "return " + frame.match(/isLocalOnly: function \(text\) \{ return ([^}]+); \}/)[1] + ";");
   for (const t of ["/marca starbucks", " /brand off", "/marca"]) assert.equal(isLocalOnly(t), true, t);
-  for (const t of ["/avatarDigital", "/digitalAvatar off", "/cli ayudante", "/cli helper on"]) assert.equal(isLocalOnly(t), true, t);
+  for (const t of ["/avatarDigital", "/digitalAvatar off", "/cli ayudante", "/cli helper on", "/avatarON", "/avatarOFF", "/avatar reset", "/avatar"]) assert.equal(isLocalOnly(t), true, t);
+  for (const t of ["/avatar3d on", "/avatares"]) assert.equal(isLocalOnly(t), false, t);
   for (const t of ["/help", "marca", "hola /marca", "/marcas", "/cli", "/status"]) assert.equal(isLocalOnly(t), false, t);
   // Tab completa el verbo y, tras /marca, los ids conocidos y off.
   const complete = new Function(`var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand"]; ${functionSource(frame, "localComplete")}; return localComplete;`)();
