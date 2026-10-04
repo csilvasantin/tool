@@ -440,7 +440,7 @@ export async function handleAuthRequest(request, env, deps) {
     const house = HOUSES.find((h) => new URL(h.api).hostname === url.hostname)
       || HOUSES.find((h) => h.origins.includes((request.headers.get("origin") || "").toLowerCase()))
       || DEFAULT_HOUSE;
-    const siteName = house.web.includes("admira.biz") ? "admira.biz" : "yokup";
+    const siteName = house.web.includes("admira.app") ? "admira.app" : house.web.includes("admira.biz") ? "admira.biz" : "yokup";
     const accent = siteName === "admira.biz" ? "#67935c" : "#67935c";
     const background = "#f6f8f3";
     const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -474,8 +474,17 @@ export async function handleAuthRequest(request, env, deps) {
       }
     }
     const given = bearer ? bearer[1] : String(form.get("token") || "");
-    const who = String(request.headers.get("X-Agente") || form.get("agente") || "").replace(/[^\p{L}\p{N} ._·@-]/gu, "").slice(0, 80) || "sin nombre";
+    // #5073: el nombre real va en X-Agente / campo agente; sin él no hay sesión «sin nombre».
+    const who = String(request.headers.get("X-Agente") || form.get("agente") || "").replace(/[^\p{L}\p{N} ._·@-]/gu, "").slice(0, 80);
     const returnTo = safeReturnPath(request.headers.get("X-Return-To") || form.get("return_to") || "/");
+    if (!who) {
+      return bearer
+        ? authJson({ ok:false, error:"falta X-Agente" }, 400, request)
+        : new Response(agentPage(returnTo, "Indica el agente y la máquina."), { status:400, headers:{
+          "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
+          "content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self' " + house.api + "; frame-ancestors 'none'; base-uri 'none'"
+        }});
+    }
     const ok = given.length > 0 && given.length <= 512 && constantTimeTextEqual(given, expected);
     console.log(JSON.stringify({ evento:"perimetro_agente", site:siteName, host:url.hostname, agente:who, ok, at:new Date().toISOString() }));
     if (!ok) {
