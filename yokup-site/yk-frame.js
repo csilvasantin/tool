@@ -2057,7 +2057,7 @@
   // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
   // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
   // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
-  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261004-avatar-1";
+  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261004-avatar-2";
   var cargadorPromesa = null;
   function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
   function enIframe() { try { return window.self !== window.top; } catch (e) { return true; } }
@@ -2103,8 +2103,8 @@
   registerVerb({
     id: "avatardigital",
     aliases: ["digitalavatar"],
-    es: "Muestra u oculta el avatar digital. Sin argumento alterna; on/off lo fija.",
-    en: "Show or hide the digital avatar. No argument toggles; on/off pins it.",
+    es: "Alias de /avatar. Sin argumento dice el estado; good, better y best abren el calvo, la chica o Neo.",
+    en: "Alias of /avatar. No argument shows the status; good, better and best open the bald face, the girl or Neo.",
     run: function (args) { return window.YkFrame.avatar("/avatardigital" + (args ? " " + args : "")); }
   });
   registerVerb({
@@ -2121,8 +2121,8 @@
   });
   registerVerb({
     id: "avatar",
-    es: "Avatar digital: /avatar on|off lo fija; /avatar reset vuelve a lo que diga el proyecto; sin argumento alterna.",
-    en: "Digital avatar: /avatar on|off pins it; /avatar reset returns to the project setting; no argument toggles.",
+    es: "/avatar good abre el calvo (cara 3D, 52 blendshapes) · /avatar better abre la chica (Ready Player Me, gafas) · /avatar best abre a Neo (MetaHuman; si el host de render está apagado, cae a la chica). /avatar sin nivel dice el estado. /avatarON lo muestra y /avatarOFF lo oculta. /avatar reset vuelve al interruptor del proyecto.",
+    en: "/avatar good opens the bald 3D face (facecap, 52 blendshapes) · /avatar better opens the web girl (Ready Player Me, glasses) · /avatar best opens Neo (MetaHuman; if the render host is off, the girl takes over). /avatar alone shows the status. /avatarON shows it and /avatarOFF hides it. /avatar reset follows the project switch.",
     run: function (args) { return window.YkFrame.avatar("/avatar" + (args ? " " + args : "")); }
   });
   registerVerb({
