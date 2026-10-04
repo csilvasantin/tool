@@ -85,6 +85,11 @@ custom_domain = true
 pattern = "api.admira.app"
 custom_domain = true
 
+# admira.live (encargo #5063): misma casa de sesión, cookie en el propio sitio.
+[[routes]]
+pattern = "api.admira.live"
+custom_domain = true
+
 [observability]
 enabled = true
 

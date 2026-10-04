@@ -325,6 +325,34 @@ export async function handleAuthRequest(request, env, deps) {
       ok:true, email:session.email, name:session.name || ""
     }, 200, request, headers);
   }
+  // La home de admira.live ya comprobó a la persona (cookie de flota). Aquí sólo se
+  // canjea un ticket de un solo uso que el hub consume, y se deja la cookie de esta
+  // casa. No hay segundo login de Google: el ticket no vale sin esa sesión previa.
+  if (url.pathname === "/auth/from-fleet" && request.method === "POST") {
+    const origin = authOrigin(request);
+    if (origin !== "https://www.admira.live" && origin !== "https://admira.live") {
+      return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
+    }
+    const body = await request.json().catch(() => ({}));
+    const ticket = String(body.ticket || "");
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(ticket)) return authJson({ ok:false, error:"ticket_invalid" }, 401, request);
+    let email = "";
+    let name = "";
+    try {
+      const consume = await (deps.fetchFn || fetch)("https://fleet.admira.live/api/auth/yokup-ticket/consume", {
+        method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ ticket })
+      });
+      const data = consume.ok ? await consume.json() : null;
+      email = String(data && data.email || "").toLowerCase();
+      name = String(data && data.name || "");
+    } catch (_) {}
+    if (!email || !/^[^\s@]+@[^\s@]+$/.test(email)) return authJson({ ok:false, error:"ticket_invalid" }, 401, request);
+    if (!(await deps.whitelist()).has(email)) return authJson({ ok:false, error:"not_allowed" }, 403, request);
+    const token = await deps.makeSession(env, email, name);
+    const headers = new Headers({ "content-type":"application/json", "cache-control":"no-store" });
+    headers.append("Set-Cookie", sessionCookie(token));
+    return withCredentialCors(new Response(JSON.stringify({ ok:true, email }), { status:200, headers }), request);
+  }
   if (url.pathname === "/auth/logout" && request.method === "POST") {
     if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
     if (deps.revokeSession) await deps.revokeSession(env, sessionTokenFromRequest(request));

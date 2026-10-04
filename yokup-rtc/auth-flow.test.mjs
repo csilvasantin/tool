@@ -278,6 +278,38 @@ test("auth/session revalida la whitelist y expulsa una sesión cuyo usuario fue 
   assert.equal(infoCalls, 0, "no publica capacidades después de revocar el acceso");
 });
 
+test("la sesión de admira.live abre Misiones sin otro login de Google", async () => {
+  const calls = [];
+  const bridge = deps();
+  bridge.fetchFn = async (url) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify({ ok:true, email:"allowed@example.com", name:"Allowed" }), { status:200 });
+  };
+  const env = { DB:new FakeDB() };
+  const ticket = "a".repeat(43);
+  const response = await handleAuthRequest(request("/auth/from-fleet", {
+    method:"POST",
+    headers:{ origin:"https://www.admira.live", "content-type":"application/json" },
+    body: JSON.stringify({ ticket })
+  }), env, bridge);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).ok, true);
+  assert.match(response.headers.get("set-cookie") || "", /__Host-yk_session=/);
+  assert.equal(calls[0], "https://fleet.admira.live/api/auth/yokup-ticket/consume");
+  const evil = await handleAuthRequest(request("/auth/from-fleet", {
+    method:"POST",
+    headers:{ origin:"https://evil.example", "content-type":"application/json" },
+    body: JSON.stringify({ ticket })
+  }), env, bridge);
+  assert.equal(evil.status, 403);
+  const corto = await handleAuthRequest(request("/auth/from-fleet", {
+    method:"POST",
+    headers:{ origin:"https://www.admira.live", "content-type":"application/json" },
+    body: JSON.stringify({ ticket:"corto" })
+  }), env, bridge);
+  assert.equal(corto.status, 401);
+});
+
 test("cookie __Host- y CORS no conceden credenciales a orígenes ajenos", () => {
   assert.match(sessionCookie("abc"), /^__Host-yk_session=abc; Path=\/;/); assert.match(sessionCookie("abc"), /HttpOnly; Secure; SameSite=None/);
   const evil = new Request("https://api.yokup.com/x", {headers:{origin:"https://evil.example"}});
