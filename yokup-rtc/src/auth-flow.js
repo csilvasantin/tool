@@ -474,17 +474,10 @@ export async function handleAuthRequest(request, env, deps) {
       }
     }
     const given = bearer ? bearer[1] : String(form.get("token") || "");
-    // #5073: el nombre real va en X-Agente / campo agente; sin él no hay sesión «sin nombre».
-    const who = String(request.headers.get("X-Agente") || form.get("agente") || "").replace(/[^\p{L}\p{N} ._·@-]/gu, "").slice(0, 80);
+    // #5075: X-Agente es opcional. Sin cabecera (ni campo agente) se entra igual con
+    // nombre por defecto «agente» — nunca 400. Con cabecera/campo se usa ese nombre.
+    const who = String(request.headers.get("X-Agente") || form.get("agente") || "").replace(/[^\p{L}\p{N} ._·@-]/gu, "").slice(0, 80) || "agente";
     const returnTo = safeReturnPath(request.headers.get("X-Return-To") || form.get("return_to") || "/");
-    if (!who) {
-      return bearer
-        ? authJson({ ok:false, error:"falta X-Agente" }, 400, request)
-        : new Response(agentPage(returnTo, "Indica el agente y la máquina."), { status:400, headers:{
-          "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
-          "content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self' " + house.api + "; frame-ancestors 'none'; base-uri 'none'"
-        }});
-    }
     const ok = given.length > 0 && given.length <= 512 && constantTimeTextEqual(given, expected);
     console.log(JSON.stringify({ evento:"perimetro_agente", site:siteName, host:url.hostname, agente:who, ok, at:new Date().toISOString() }));
     if (!ok) {
