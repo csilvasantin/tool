@@ -14,7 +14,7 @@ export const PROJECT_BOTH_RESPONSIBLES_CAS_SQL =
 // un conflicto sólo edita metadatos. Ni un body malicioso ni una carrera entre
 // pestañas pueden reescribir el gobierno de un proyecto ya existente.
 export const PROJECT_METADATA_UPSERT_SQL =
-  "INSERT INTO projects (id,name,blurb,web,status,color,owner,carbon_responsible,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)" +
+  "INSERT INTO projects (id,name,blurb,web,status,color,owner,carbon_responsible,created_at,updated_at,updated_by,number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)" +
   " ON CONFLICT(id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, web=excluded.web, status=excluded.status, color=excluded.color, updated_at=excluded.updated_at, updated_by=excluded.updated_by";
 
 export function projectCarbonResponsible(raw) {

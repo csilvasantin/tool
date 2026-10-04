@@ -13,6 +13,8 @@
 // (no creado por esta convención) se reutiliza tal cual y jamás se renombra.
 // Sin loc ni locName no se inventa nada: la incidencia conserva el comportamiento
 // previo (sin proyecto).
+import { assignMissingProjectNumber } from "./project-number.js";
+
 export const ESTABLISHMENT_BLURB_PREFIX = 'Establecimiento';
 export const ESTABLISHMENT_UPDATED_BY = 'yokup·establecimientos';
 
@@ -49,6 +51,7 @@ export async function ensureEstablishmentProject(env, loc, locName, now = Date.n
       "ON CONFLICT(id) DO UPDATE SET name=excluded.name,updated_at=excluded.updated_at " +
       "WHERE projects.blurb LIKE '" + ESTABLISHMENT_BLURB_PREFIX + " · %' AND COALESCE(projects.name,'')!=excluded.name"
     ).bind(ref.id, ref.name, ref.blurb, now, now, ESTABLISHMENT_UPDATED_BY).run();
+    try { await assignMissingProjectNumber(env, ref.id); } catch { /* el alta del establecimiento no depende del número */ }
     const row = await env.DB.prepare('SELECT id,name FROM projects WHERE id=?').bind(ref.id).first();
     return row ? { id: row.id, name: row.name || row.id } : { id: ref.id, name: ref.name };
   } catch (e) {

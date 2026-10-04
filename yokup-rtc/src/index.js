@@ -60,6 +60,7 @@ import {
   aggregateConsumoByProject, normalizeHostingMapItem,
 } from "./consumo-proyectos.js";
 import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_METADATA_UPSERT_SQL, PROJECT_SILICON_CAS_SQL, projectCarbonResponsible, validateProjectResponsibleTypes } from "./project-responsibles.js";
+import { PROJECT_NUMBER_COLUMN_SQL, PROJECT_NUMBER_INDEX_SQL, allocateProjectNumber, backfillProjectNumbers, publishedProjectNumber, syncProjectNumberHighWater } from "./project-number.js";
 import { PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_IF_CURRENT_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_SQL, projectCarbonKey } from "./project-carbon-assignments.js";
 import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
@@ -623,6 +624,12 @@ async function applySchema(env) {
   // una preferencia local del navegador: 0 = sin priorizar y 5 = importancia
   // maxima. El DEFAULT hace que todo el historico nazca de forma honesta en 0.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5)").catch(() => {});
+  // Número único del censo (Carlos, 4-oct-2026). Se rellena una vez por orden
+  // de alta y el contador no baja aunque un proyecto se retire.
+  await env.DB.exec(PROJECT_NUMBER_COLUMN_SQL).catch(() => {});
+  await backfillProjectNumbers(env);
+  await syncProjectNumberHighWater(env);
+  await env.DB.exec(PROJECT_NUMBER_INDEX_SQL);
   // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
   // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});
@@ -2968,7 +2975,8 @@ async function listProjects(env) {
       })),
       missions: misBy[String(p.id).toLowerCase()] || 0,               // vivas = en curso
       missions_pending: pendBy[String(p.id).toLowerCase()] || 0,      // encargadas y sin empezar
-      created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || ""
+      created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || "",
+      number: publishedProjectNumber(p.number)
     };
   });
 }
@@ -3038,8 +3046,10 @@ async function upsertProject(env, b) {
     created_at: prev ? prev.created_at : now, updated_at: versionChanged ? now : prev.updated_at,
     updated_by: versionChanged ? String((b && b.by) || "").slice(0, 60) : String(prev.updated_by || "")
   };
+  const keptNumber = publishedProjectNumber(prev && prev.number);
+  const projectNumber = keptNumber || await allocateProjectNumber(env);
   const saveProject = env.DB.prepare(PROJECT_METADATA_UPSERT_SQL)
-    .bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.carbon_responsible, row.created_at, row.updated_at, row.updated_by);
+    .bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.carbon_responsible, row.created_at, row.updated_at, row.updated_by, projectNumber);
   if (!prev) {
     // D1 ejecuta el batch como transacción: el proyecto y su cursor aparecen
     // juntos. event_key UNIQUE hace inocuo repetir la misma alta tras un timeout.
@@ -3054,7 +3064,12 @@ async function upsertProject(env, b) {
     await env.DB.batch(initialStatements);
   } else {
     // Editar metadatos, responsable o estado no es una nueva alta.
+    // El número no entra en el UPDATE del conflicto: si la fila antigua aún
+    // no lo tenía, se escribe aquí una sola vez.
     await saveProject.run();
+    if (keptNumber == null) {
+      await env.DB.prepare("UPDATE projects SET number=? WHERE id=? AND number IS NULL").bind(projectNumber, id).run();
+    }
   }
   for (const kind of ["machine", "agent"]) {
     if (!requestedMembers.has(kind)) continue;
@@ -11847,6 +11862,15 @@ var worker_app = {
         if (!p) return json({ ok: false, error: "el proyecto «" + raw + "» no está dado de alta; créalo en /equipo" }, 404);
         await env.DB.prepare("UPDATE tickets SET project=?,project_id=?,project_inherited=0,project_inherited_from=NULL,updated_at=? WHERE id=?").bind(p.id,p.id,Date.now(),mid).run();
         return json({ ok: true, mission: mid, project: p.id, project_name: p.name || p.id });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    const projectOne = url.pathname.match(/^\/projects\/([^/]+)$/);
+    if (projectOne && req.method === "GET") {
+      try {
+        const id = decodeURIComponent(projectOne[1]);
+        const project = (await listProjects(env)).find((row) => row.id === id);
+        if (!project) return json({ ok: false, error: "no encontrado" }, 404);
+        return json({ ok: true, project });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     // CONTADORES DEL MENÚ SUPERIOR — PÚBLICO (agregados, sin dato sensible) para

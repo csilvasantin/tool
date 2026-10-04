@@ -51,11 +51,11 @@ test("Mallory no puede reescribir responsables mediante el POST histórico", () 
   const db = casDb();
   const result = db.prepare(PROJECT_METADATA_UPSERT_SQL).run(
     "yokup", "Yokup comprometido", "nuevo blurb", "www.yokup.com", "activo", "#fff",
-    "MalloryMacMini", "Mallory", 1, 2, "mallory@example.com"
+    "MalloryMacMini", "Mallory", 1, 2, "mallory@example.com", 99
   );
   assert.equal(result.changes, 1);
-  assert.deepEqual({ ...db.prepare("SELECT name,blurb,owner,carbon_responsible FROM projects WHERE id='yokup'").get() }, {
-    name: "Yokup comprometido", blurb: "nuevo blurb", owner: "NiobeMacMini", carbon_responsible: "Carlos"
+  assert.deepEqual({ ...db.prepare("SELECT name,blurb,owner,carbon_responsible,number FROM projects WHERE id='yokup'").get() }, {
+    name: "Yokup comprometido", blurb: "nuevo blurb", owner: "NiobeMacMini", carbon_responsible: "Carlos", number: 7
   });
   db.close();
 });
@@ -63,10 +63,10 @@ test("Mallory no puede reescribir responsables mediante el POST histórico", () 
 test("un alta nueva sí puede inicializar ambos responsables", () => {
   const db = casDb();
   db.prepare(PROJECT_METADATA_UPSERT_SQL).run(
-    "nuevo", "Nuevo", "", "", "activo", "", "NiobeMacMini", "Carlos", 10, 10, "creator@example.com"
+    "nuevo", "Nuevo", "", "", "activo", "", "NiobeMacMini", "Carlos", 10, 10, "creator@example.com", 40
   );
-  assert.deepEqual({ ...db.prepare("SELECT owner,carbon_responsible FROM projects WHERE id='nuevo'").get() }, {
-    owner: "NiobeMacMini", carbon_responsible: "Carlos"
+  assert.deepEqual({ ...db.prepare("SELECT owner,carbon_responsible,number FROM projects WHERE id='nuevo'").get() }, {
+    owner: "NiobeMacMini", carbon_responsible: "Carlos", number: 40
   });
   db.close();
 });
@@ -163,9 +163,9 @@ test("objetos, arrays, números y null se rechazan en todos los campos de respon
 
 function casDb() {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT,blurb TEXT,web TEXT,status TEXT,color TEXT,owner TEXT,carbon_responsible TEXT,created_at INTEGER,updated_at INTEGER,updated_by TEXT)");
-  db.prepare("INSERT INTO projects(id,name,status,owner,carbon_responsible,created_at,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?)")
-    .run("yokup", "Yokup", "activo", "NiobeMacMini", "Carlos", 1, 1, "seed");
+  db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT,blurb TEXT,web TEXT,status TEXT,color TEXT,owner TEXT,carbon_responsible TEXT,created_at INTEGER,updated_at INTEGER,updated_by TEXT,number INTEGER)");
+  db.prepare("INSERT INTO projects(id,name,status,owner,carbon_responsible,created_at,updated_at,updated_by,number) VALUES(?,?,?,?,?,?,?,?,?)")
+    .run("yokup", "Yokup", "activo", "NiobeMacMini", "Carlos", 1, 1, "seed", 7);
   return db;
 }
 
