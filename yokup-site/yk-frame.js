@@ -2303,6 +2303,22 @@
     railB.appendChild(expertResize);
     railB.appendChild(expert);
     wireExpertResize(railB, expertResize);
+    // ⌘ EXPERTO · CLI con el look de digitalavatar.ai (Carlos, 4-oct-2026): piel compartida de la
+    // suite (www.admiranext.com/suite) sobre la consola LOCAL (/help, /marca…); los verbos no cambian.
+    // Sólo en modo público: la consola de CLIs de la flota (FLEET_MODE) se queda como está.
+    if (!FLEET_MODE && !document.getElementById("ax-experto-js")) {
+      var axCss = document.createElement("link");
+      axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261004-experto-app-1";
+      document.head.appendChild(axCss);
+      var ax = document.createElement("script");
+      ax.id = "ax-experto-js"; ax.defer = true;
+      ax.src = "https://www.admiranext.com/suite/experto.js?v=20261004-experto-app-1";
+      var axCfg = {panel:"#yk-rail-bottom", header:".yk-expert-hd", title:".yk-expert-title", body:".yk-slot",
+        form:".yk-lcli-form", input:".yk-lcli-input", log:".yk-lcli-log", hint:".yk-lcli-hint",
+        extras:".yk-slot > :not(.yk-local-cli):not(.ax-engine-slot)", chrome:".yk-expert-ver,.yk-lcli-prompt"};
+      Object.keys(axCfg).forEach(function (k) { ax.setAttribute("data-" + k, axCfg[k]); });
+      document.head.appendChild(ax);
+    }
 
     icoL.setAttribute("aria-controls", railL.id);
     icoR.setAttribute("aria-controls", railR.id);
