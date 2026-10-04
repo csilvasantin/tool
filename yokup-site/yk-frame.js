@@ -2057,7 +2057,7 @@
   // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
   // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
   // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
-  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261004-avatar-2";
+  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261004-avatar-5";
   var cargadorPromesa = null;
   function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
   function enIframe() { try { return window.self !== window.top; } catch (e) { return true; } }
