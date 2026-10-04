@@ -1936,7 +1936,7 @@
   }
   var LOCAL_CLI = {
     log: null, input: null,
-    isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")) || /^\s*\/(?:avatarDigital|digitalAvatar)\b/i.test(String(text || "")) || /^\s*\/cli\s+(?:ayudante|helper)\b/i.test(String(text || "")); },
+    isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")) || /^\s*\/(?:avatarDigital|digitalAvatar)\b/i.test(String(text || "")) || /^\s*\/(?:avatarON|avatarOFF|avatar)(?:\s|$)/i.test(String(text || "")) || /^\s*\/cli\s+(?:ayudante|helper)\b/i.test(String(text || "")); },
     print: function (text, cls) {
       var ol = LOCAL_CLI.log; if (!ol) return;
       String(text == null ? "" : text).split("\n").forEach(function (line) {
@@ -2052,7 +2052,40 @@
   window.YkFrame.cargarMarca = cargarMarca;
   window.YkFrame.run = function (text) { return runLocal(text); };
   window.YkFrame.registerVerb = registerVerb;
+  // Avatar digital (encargo avatar · 4-oct-2026). Lo gobierna el cargador común de
+  // admiranext.com: elección del visitante > interruptor del proyecto (yokup y admira-app,
+  // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
+  // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
+  // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
+  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261004-avatar-1";
+  var cargadorPromesa = null;
+  function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
+  function enIframe() { try { return window.self !== window.top; } catch (e) { return true; } }
+  function cargarCargador() {
+    if (window.AdmiraAvatar) return Promise.resolve(window.AdmiraAvatar);
+    if (!cargadorPromesa) cargadorPromesa = new Promise(function (resolve) {
+      var s = document.querySelector("script[data-admira-avatar]");
+      if (s) {
+        s.addEventListener("load", function () { resolve(window.AdmiraAvatar || null); }, {once: true});
+        s.addEventListener("error", function () { resolve(null); }, {once: true});
+        return;
+      }
+      s = document.createElement("script");
+      s.src = AVATAR_LOADER;
+      s.async = true;
+      s.setAttribute("data-brain", "/avatar-ask");
+      s.setAttribute("data-admira-avatar", "");
+      s.onload = function () { resolve(window.AdmiraAvatar || null); };
+      s.onerror = function () { s.remove(); cargadorPromesa = null; resolve(null); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+    return cargadorPromesa;
+  }
   function cargarAvatar() {
+    if (window.AdmiraAvatar) return Promise.resolve(window.AdmiraAvatar);
+    return cargarCargador().then(function (A) { return A || cargarAvatarAntiguo(); });
+  }
+  function cargarAvatarAntiguo() {
     if (window.AvatarDigital) return Promise.resolve(window.AvatarDigital);
     return new Promise(function (resolve) {
       var s = document.createElement("script");
@@ -2064,6 +2097,7 @@
     });
   }
   window.YkFrame.avatar = function (text) {
+    if (conCopiloto()) return Promise.resolve(localEn() ? "This page already has the fleet copilot: no second avatar is shown." : "Esta página ya tiene el copiloto de la flota: no se muestra un segundo avatar.");
     return cargarAvatar().then(function (A) { return A ? A.handle(text) : (localEn() ? "Digital avatar unavailable" : "Avatar digital no disponible"); });
   };
   registerVerb({
@@ -2072,6 +2106,24 @@
     es: "Muestra u oculta el avatar digital. Sin argumento alterna; on/off lo fija.",
     en: "Show or hide the digital avatar. No argument toggles; on/off pins it.",
     run: function (args) { return window.YkFrame.avatar("/avatardigital" + (args ? " " + args : "")); }
+  });
+  registerVerb({
+    id: "avatarON",
+    es: "Muestra el avatar digital en esta web y lo recuerda.",
+    en: "Show the digital avatar on this site and remember it.",
+    run: function () { return window.YkFrame.avatar("/avatarON"); }
+  });
+  registerVerb({
+    id: "avatarOFF",
+    es: "Oculta el avatar digital en esta web y lo recuerda.",
+    en: "Hide the digital avatar on this site and remember it.",
+    run: function () { return window.YkFrame.avatar("/avatarOFF"); }
+  });
+  registerVerb({
+    id: "avatar",
+    es: "Avatar digital: /avatar on|off lo fija; /avatar reset vuelve a lo que diga el proyecto; sin argumento alterna.",
+    en: "Digital avatar: /avatar on|off pins it; /avatar reset returns to the project setting; no argument toggles.",
+    run: function (args) { return window.YkFrame.avatar("/avatar" + (args ? " " + args : "")); }
   });
   registerVerb({
     id: "cli",
@@ -2083,7 +2135,8 @@
       return localEn() ? "On this console, /cli helper toggles the digital avatar." : "En esta consola, /cli ayudante alterna el avatar digital.";
     }
   });
-  try { if (localStorage.getItem("da-avatar:" + location.host) === "1") cargarAvatar(); } catch (e) {}
+  function arrancarAvatar() { if (!enIframe() && !conCopiloto()) cargarCargador(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arrancarAvatar, {once: true}); else arrancarAvatar();
   window.YkFrame._test = {wantsBrand:wantsBrand, runMarca:runMarca, localComplete:localComplete, liveTarget:liveTarget};
 
   function build() {
