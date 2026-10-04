@@ -12,7 +12,7 @@ const SHEET = {
     'Store (xpaceos.com y admira.store) es el sistema operativo de la tienda Admira XP. El gemelo digital está en /admira-xp/. El modo Experto es la barra inferior. En cualquier página: /help, /limpiar, /gemelo y /marca (marca blanca; /marca off vuelve a Admira). Los verbos del gemelo (good, better, best, matrix, /distribuir, /inventario, /sincro) se ejecutan en /admira-xp/.',
     'App (admira.app y clearchannel.tv) es la cara de circuitos de publicidad exterior. Tiene su propia consola de experto en esa web.',
     'Yokup (yokup.com) es la bandeja de la flota: encargos, decisiones y normativa. No es el estudio ni la tienda.',
-    'El avatar digital se invoca desde el modo Experto con /avatarDigital, /digitalAvatar, /cli ayudante o /cli helper. Sin argumento alterna. on/off, encender/apagar y mostrar/ocultar lo fijan. El estado se recuerda en este sitio, en el navegador. No hay claves en la página.',
+    'El avatar digital se invoca desde el modo Experto: /avatar good abre el calvo (cara 3D), /avatar better abre la chica (Ready Player Me, gafas) y /avatar best abre a Neo (MetaHuman; si el host de render está apagado, entra la chica). /avatar sin nivel dice el estado. /avatarON lo muestra y /avatarOFF lo oculta. Alias: /avatarDigital, /digitalAvatar, /cli ayudante, /cli helper. El estado se recuerda en este sitio, en el navegador. No hay claves en la página.',
   ],
   en: [
     'AdmiraNeXT has four pillars, in this order: Studio, Store, App and Yokup.',
@@ -20,7 +20,7 @@ const SHEET = {
     'Store (xpaceos.com and admira.store) is the operating system of the Admira XP shop. The digital twin is at /admira-xp/. Expert mode is the bottom bar. On any page: /help, /limpiar, /gemelo and /marca (white label; /marca off returns to Admira). Twin verbs (good, better, best, matrix, /distribuir, /inventario, /sincro) run inside /admira-xp/.',
     'App (admira.app and clearchannel.tv) is the out-of-home advertising circuits face. It has its own expert console on that site.',
     'Yokup (yokup.com) is the fleet desk: tasks, decisions and rules. It is not the studio and it is not the shop.',
-    'The digital avatar is invoked from Expert mode with /avatarDigital, /digitalAvatar, /cli ayudante or /cli helper. No argument toggles. on/off, encender/apagar and mostrar/ocultar pin it. The state is remembered on this site, in the browser. There are no keys in the page.',
+    'The digital avatar is invoked from Expert mode: /avatar good opens the bald 3D face, /avatar better opens the girl (Ready Player Me, glasses) and /avatar best opens Neo (MetaHuman; if the render host is off, the girl takes over). /avatar alone shows the status. /avatarON shows it and /avatarOFF hides it. Aliases: /avatarDigital, /digitalAvatar, /cli ayudante, /cli helper. The state is remembered on this site, in the browser. There are no keys in the page.',
   ],
 };
 
