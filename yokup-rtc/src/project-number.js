@@ -42,7 +42,7 @@ export function planProjectNumbers(rows) {
 }
 
 export async function backfillProjectNumbers(env) {
-  const rows = (await env.DB.prepare("SELECT id, created_at, number FROM projects").all()).results || [];
+  const rows = (await env.DB.prepare("SELECT id, created_at, number FROM projects").bind().all()).results || [];
   const plan = planProjectNumbers(rows);
   const statements = [];
   for (const row of rows) {
@@ -59,7 +59,7 @@ export async function backfillProjectNumbers(env) {
 
 export async function syncProjectNumberHighWater(env) {
   await env.DB.exec(PROJECT_NUMBER_SEQ_SQL);
-  const row = await env.DB.prepare("SELECT COALESCE(MAX(number),0) AS m FROM projects").first();
+  const row = await env.DB.prepare("SELECT COALESCE(MAX(number),0) AS m FROM projects").bind().first();
   const max = Number(row && row.m) || 0;
   await env.DB.prepare(
     "INSERT INTO project_number_seq(id, highest) VALUES(1, ?) " +

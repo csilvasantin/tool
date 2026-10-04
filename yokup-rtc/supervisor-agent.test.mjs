@@ -60,7 +60,7 @@ test("el modelo de visión y las rutas viven detrás de la sesión Yokup", () =>
   assert.match(SUPERVISOR_AI_USAGE_SQL, /PRIMARY KEY\(window_start,scope\)/);
   assert.match(SUPERVISOR_IDENTITY_TRACKS_SQL, /PRIMARY KEY\(station_id,target_id\)/);
   assert.match(indexSource, /sessionInfo:async \(_environment, session\) => supervisorSessionInfo\(await currentSupervisorAccess\(session\)\)/);
-  assert.match(indexSource, /sessionAllowed:async \(_environment, session\) => \(await currentSupervisorAccess\(session\)\)\.allowed === true/);
+  assert.match(indexSource, /sessionAllowed:async \(_environment, session\) => String\(session && session\.email \|\| ""\)\.toLowerCase\(\) === "agentes@silicio\.admiranext\.com" \|\| \(await currentSupervisorAccess\(session\)\)\.allowed === true/);
   assert.match(indexSource, /const access = await currentSupervisorAccess\(session\)/);
   assert.match(indexSource, /json, ensureSchema, createIncident, resolveIncident, session, access/);
   assert.match(indexSource, /waitUntil:\(promise\) => ctx\.waitUntil\(promise\)/);

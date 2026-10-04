@@ -626,10 +626,9 @@ async function applySchema(env) {
   await env.DB.exec("ALTER TABLE projects ADD COLUMN importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5)").catch(() => {});
   // Número único del censo (Carlos, 4-oct-2026). Se rellena una vez por orden
   // de alta y el contador no baja aunque un proyecto se retire.
-  await env.DB.exec(PROJECT_NUMBER_COLUMN_SQL).catch(() => {});
-  await backfillProjectNumbers(env);
-  await syncProjectNumberHighWater(env);
-  await env.DB.exec(PROJECT_NUMBER_INDEX_SQL);
+  await env.DB.exec(unaLinea(PROJECT_NUMBER_COLUMN_SQL)).catch(() => {});
+  if (await backfillProjectNumbers(env) > 0) await syncProjectNumberHighWater(env);
+  await env.DB.exec(unaLinea(PROJECT_NUMBER_INDEX_SQL));
   // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
   // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});

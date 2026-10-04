@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { identityKey, isKnownPersona, machineSuffix, parseAgentIdentity, reportAgentIdentity } from "../src/agent-identity.js";
 import { madridDayKey } from "../src/display-ref.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs } from "../src/project-member-identity.js";
+import { publishedProjectNumber } from "../src/project-number.js";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const grab = (name) => {
@@ -35,7 +36,7 @@ function harness() {
   }; } };
   const context = vm.createContext({ Map, String, Date, Number, Object,
     identityKey, isKnownPersona, machineSuffix, parseAgentIdentity, reportAgentIdentity, madridDayKey,
-    canonicalProjectAgentRef, canonicalProjectAgentRefs,
+    canonicalProjectAgentRef, canonicalProjectAgentRefs, publishedProjectNumber,
     ensureSchema: async () => {}, __name: (fn) => fn });
   vm.runInContext([
     grab("projectSlug"), grab("projectIndex"), grab("principalAgentIdentity"),
