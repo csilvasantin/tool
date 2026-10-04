@@ -37,13 +37,14 @@ test("auth/agente Bearer bueno → 200", async () => {
   assert.match(r.headers.get("set-cookie") || "", /__Host-yk_session=/);
 });
 
-test("auth/agente Bearer sin X-Agente → 400 (no «sin nombre»)", async () => {
+test("auth/agente Bearer sin X-Agente → 200 con nombre «agente»", async () => {
   const r = await handleAuthRequest(new Request("https://api.admira.app/auth/agente", {
     method: "POST", headers: { Authorization: `Bearer ${TOKEN}` }
   }), env, deps);
-  assert.equal(r.status, 400);
+  assert.equal(r.status, 200);
   const body = await r.json();
-  assert.equal(body.ok, false);
-  assert.equal(body.error, "falta X-Agente");
-  assert.notEqual(body.name, "sin nombre");
+  assert.equal(body.ok, true);
+  assert.equal(body.agent, true);
+  assert.equal(body.name, "agente");
+  assert.match(r.headers.get("set-cookie") || "", /__Host-yk_session=/);
 });
