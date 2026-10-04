@@ -10,6 +10,13 @@ const help = await readFile(new URL("./help/index.html", import.meta.url), "utf8
 const llms = await readFile(new URL("./mcp/llms.txt", import.meta.url), "utf8");
 const manifest = JSON.parse(await readFile(new URL("./mcp/manifest.json", import.meta.url), "utf8"));
 
+test("la página nombra la misma versión que el manifiesto y que llms.txt", () => {
+  const mostrada = mcp.match(/Servidor <b>Yokup ([0-9]+\.[0-9]+\.[0-9]+)<\/b>/);
+  assert.ok(mostrada, "la página tiene que decir la versión del servidor");
+  assert.equal(mostrada[1], manifest.version);
+  assert.match(llms, new RegExp("versión " + manifest.version.replace(/\./g, "\\.")));
+});
+
 test("las dos puertas existen y se enlazan la una a la otra", () => {
   // Que existan no basta: quien entra por la puerta equivocada tiene que poder cruzar.
   assert.match(mcp, /href="\/help"/, "el /mcp manda a las personas a /help");

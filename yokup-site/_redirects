@@ -37,4 +37,42 @@
 /data/*                         https://www.clearchannel.tv/data/:splat                     301
 /target-assets/*                https://www.clearchannel.tv/target-assets/:splat            301
 /mcp/admira-app/*               https://www.clearchannel.tv/mcp/admira-app/:splat           301
+# FLOTA → admira.live, el mismo salto que el guardián de yokup.com (FLT-100557).
+# _redirects no filtra por host. El middleware lo repite porque una Function
+# gana a este fichero. /informes → /informes-flota: en admira.live /informes
+# es otra aplicación. /ayuda es el alias de /help. /llms.txt, /robots.txt y
+# /.well-known no van aquí: este formato no puede devolver 404, y el middleware
+# los corta para que el catch-all no sirva la portada con un 200.
+/highscore                      https://www.admira.live/highscore                      301
+/highscore/                     https://www.admira.live/highscore                      301
+/highscore.html                 https://www.admira.live/highscore                      301
+/misiones                       https://www.admira.live/misiones                       301
+/misiones/                      https://www.admira.live/misiones                       301
+/misiones.html                  https://www.admira.live/misiones                       301
+/normativa                      https://www.admira.live/normativa                      301
+/normativa/                     https://www.admira.live/normativa                      301
+/normativa.html                 https://www.admira.live/normativa                      301
+/tareas                         https://www.admira.live/tareas                         301
+/tareas/                        https://www.admira.live/tareas                         301
+/tareas.html                    https://www.admira.live/tareas                         301
+/objetivos                      https://www.admira.live/objetivos                      301
+/objetivos/                     https://www.admira.live/objetivos                      301
+/objetivos.html                 https://www.admira.live/objetivos                      301
+/notificaciones                 https://www.admira.live/notificaciones                 301
+/notificaciones/                https://www.admira.live/notificaciones                 301
+/notificaciones.html            https://www.admira.live/notificaciones                 301
+/decisiones                     https://www.admira.live/decisiones                     301
+/decisiones/                    https://www.admira.live/decisiones                     301
+/decisiones.html                https://www.admira.live/decisiones                     301
+/informes                       https://www.admira.live/informes-flota                 301
+/informes/                      https://www.admira.live/informes-flota                 301
+/informes.html                  https://www.admira.live/informes-flota                 301
+/dashboard                      https://www.admira.live/dashboard                      301
+/dashboard/                     https://www.admira.live/dashboard                      301
+/dashboard.html                 https://www.admira.live/dashboard                      301
+/asistencia                     https://www.admira.live/asistencia                     301
+/asistencia/                    https://www.admira.live/asistencia                     301
+/asistencia.html                https://www.admira.live/asistencia                     301
+/ayuda                          /help                                                  301
+/ayuda/                         /help/                                                 301
 /*                /index.html   200

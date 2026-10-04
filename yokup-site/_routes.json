@@ -1,1 +1,1 @@
-{"version":1,"include":["/*"],"exclude":["/*.js","/*.mjs","/*.css","/*.map","/*.json","/*.png","/*.jpg","/*.jpeg","/*.webp","/*.gif","/*.svg","/*.ico","/*.woff","/*.woff2","/*.ttf","/*.mp3","/*.mp4","/*.webm","/*.wasm","/*.glb","/*.pdf","/*.txt","/*.xml","/*.webmanifest"]}
+{"version":1,"include":["/*"],"exclude":["/*.js","/*.mjs","/*.css","/*.map","/*.png","/*.jpg","/*.jpeg","/*.webp","/*.gif","/*.svg","/*.ico","/*.woff","/*.woff2","/*.ttf","/*.mp3","/*.mp4","/*.webm","/*.wasm","/*.glb","/*.pdf","/*.xml","/*.webmanifest"]}

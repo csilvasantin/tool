@@ -59,7 +59,9 @@ test("el middleware solo actúa en el espejo y sobre HTML, y carga yk-casa.js lo
   assert.match(middleware, /el\.prepend\(`<script src="\/yk-casa\.js/);
   assert.match(middleware, /link\[rel="canonical"\]/);
   assert.deepEqual(rutas.include, ["/*"]);
-  for (const patron of ["/*.js", "/*.css", "/*.json", "/*.png"]) assert.ok(rutas.exclude.includes(patron), patron);
+  for (const patron of ["/*.js", "/*.css", "/*.png"]) assert.ok(rutas.exclude.includes(patron), patron);
+  // json y txt NO se excluyen: /mcp/galaxia.json, el manifiesto y llms.txt tienen
+  // que entrar en Functions para no caer en la portada ni quedarse en yokup.com.
 });
 
 test("yk-casa.js no hace nada fuera de la casa y no reescribe scripts ni campos de texto", () => {

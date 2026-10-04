@@ -101,7 +101,7 @@ test('notifications accepted with empty 202; no execution from tools/call notifi
 });
 test('real gate routes POST bare and www /mcp, GET SSE 405, browser still HTML',async()=>{
  const h=await setup();h.env.RELEASE_JSON='{}';h.env.ASSETS={fetch:async()=>new Response('documentation')};
- for(const host of ['yokup.com','www.yokup.com'])for(const path of ['/mcp','/mcp/']){
+ for(const host of ['yokup.com','www.yokup.com','admira.biz','www.admira.biz'])for(const path of ['/mcp','/mcp/']){
  const r=await handleRequest(new Request('https://'+host+path,h.request({jsonrpc:'2.0',id:1,method:'ping'})),h.env,{});assert.deepEqual((await r.json()).result,{});
  }
  assert.equal((await handleRequest(new Request('https://www.yokup.com/mcp',{headers:{Accept:'text/event-stream'}}),h.env,{})).status,405);
@@ -148,6 +148,11 @@ test('twentieth send is allowed, twenty-first fails atomically; existing receipt
 });
 test('CORS is present on allowed authenticated responses and a streamed oversized body fails',async()=>{
  const h=await setup();const r=await handleMcp(h.request({jsonrpc:'2.0',id:1,method:'ping'},{headers:{Origin:'https://www.yokup.com'}}),h.env);assert.equal(r.headers.get('Access-Control-Allow-Origin'),'https://www.yokup.com');
+ for(const origin of ['https://admira.biz','https://www.admira.biz']){
+  const espejo=await handleMcp(h.request({jsonrpc:'2.0',id:1,method:'ping'},{headers:{Origin:origin}}),h.env);
+  assert.equal(espejo.status,200,origin);assert.equal(espejo.headers.get('Access-Control-Allow-Origin'),origin);
+ }
+ assert.equal((await handleMcp(h.request({jsonrpc:'2.0',id:1,method:'ping'},{headers:{Origin:'https://admira.biz.evil.example'}}),h.env)).status,403);
  assert.equal((await handleMcp(h.request({padding:'x'.repeat(33000)}),h.env)).status,413);
  assert.equal((await h.call('yokup_send_message',{...msg,target_persona:'JobsImpostor'})).result.isError,true);
 });

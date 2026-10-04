@@ -2,6 +2,8 @@ const CENSUS_ORIGIN = "https://macmini.tail48b61c.ts.net/api/council/fleet-censu
 import { handleMcp } from './mcp.js';
 import { authProxy } from "./auth-proxy.js";
 import { galaxia } from "./galaxia.js";
+import { esEspejo } from "../../yokup-site/functions/_shared/casas.mjs";
+import { atajoDePagina, esContratoMarca, marcaCuerpoTexto, marcaDocumento } from "../../yokup-site/functions/_shared/espejo-puertas.mjs";
 
 function releaseFromEnv(env) {
   try { return JSON.parse(String(env.RELEASE_JSON || "")); } catch (_) { return null; }
@@ -99,6 +101,10 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
     upstream.protocol = "https:";
     return fetchImpl(new Request(upstream, request));
   }
+  // /ayuda, /llms.txt, /robots.txt y /.well-known, y la flota que comparte con
+  // Pages. En yokup.com el catch-all también servía la portada con un 200.
+  const atajo = atajoDePagina(request);
+  if (atajo) return atajo;
   // ── REDIRECCIONES A admira.live (Carlos, 17-09-2026 · FLT-100557) ───────────────
   // La plataforma de EMPRESA/SCORE se mudó a admira.live. yokup redirige a su casa nueva.
   // FLT-100883: yokup.com se queda con el gestor agentic de incidencias (/incidencias,
@@ -147,7 +153,27 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
     const home = new URL("/index.html", incoming);
     response = await env.ASSETS.fetch(new Request(home, request));
   }
-  return response;
+  return presentarCasa(response, request, incoming, release);
+}
+
+// El espejo (admira.biz) pide /mcp a este guardián. El HTML, el manifiesto y
+// llms.txt salen con la marca de la casa; yokup.com no cambia. La galaxia se
+// contesta antes y no se reescribe: es el censo, no el contrato de este host.
+async function presentarCasa(response, request, incoming, release) {
+  if (!esEspejo(incoming.hostname) || (request.method !== "GET" && request.method !== "HEAD") || !response.ok) return response;
+  if (esContratoMarca(incoming.pathname)) {
+    const headers = new Headers(response.headers);
+    headers.delete("content-length");
+    headers.set("cache-control", "no-store");
+    headers.set("x-content-type-options", "nosniff");
+    return new Response(marcaCuerpoTexto(await response.text(), incoming.hostname), { status: response.status, headers });
+  }
+  const type = response.headers.get("content-type") || "";
+  if (!type.includes("text/html")) return response;
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.append("vary", "Host");
+  return new Response(marcaDocumento(await response.text(), incoming.hostname, incoming.pathname, release.version), { status: response.status, headers });
 }
 
 // Cloudflare invoca fetch(request, env, ctx). No se puede exportar handleRequest

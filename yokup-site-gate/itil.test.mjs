@@ -79,3 +79,12 @@ test('wrangler.toml del gate declara el binding DESK a yokup-api',async()=>{
  const toml=await readFile(new URL('./wrangler.toml',import.meta.url),'utf8');
  assert.match(toml,/\[\[services\]\]\s*\nbinding = "DESK"\s*\nservice = "yokup-api"/);
 });
+
+test('wrangler.toml enruta /mcp de admira.biz al guardián y no se lleva el resto del host',async()=>{
+ const toml=await readFile(new URL('./wrangler.toml',import.meta.url),'utf8');
+ for(const pattern of ['admira.biz/mcp','admira.biz/mcp/*','www.admira.biz/mcp','www.admira.biz/mcp/*']){
+  assert.match(toml,new RegExp('pattern = "'+pattern.replace(/\*/g,'\\*')+'"\\s*\\nzone_name = "admira.biz"'),pattern);
+ }
+ assert.doesNotMatch(toml,/pattern = "admira\.biz\/\*"/);
+ assert.doesNotMatch(toml,/pattern = "www\.admira\.biz\/\*"/);
+});

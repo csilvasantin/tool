@@ -5,7 +5,9 @@ import { FLEET_INCIDENTS_PREFIX, INCIDENT_LIST_STATES, INCIDENT_STATUSES, INCIDE
 
 export const MCP_VERSION = '1.4.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
-const ORIGINS = new Set(['https://yokup.com', 'https://www.yokup.com']);
+// admira.biz es el espejo (2-oct-2026). Sin estos orígenes un navegador en la
+// casa recibe origin_not_allowed aunque la clave sea válida. No es el login.
+const ORIGINS = new Set(['https://yokup.com', 'https://www.yokup.com', 'https://admira.biz', 'https://www.admira.biz']);
 const obj = (properties = {}, required = []) => ({type:'object', properties, required, additionalProperties:false});
 const str = (maxLength = 160) => ({type:'string', minLength:1, maxLength});
 const project = {project_id:str(80)};

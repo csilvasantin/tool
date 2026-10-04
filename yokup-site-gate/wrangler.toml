@@ -12,6 +12,27 @@ zone_name = "yokup.com"
 pattern = "yokup.com/*"
 zone_name = "yokup.com"
 
+# Espejo admira.biz: /mcp lo sirve este guardián, igual que yokup.com. Sin la
+# ruta, Pages responde 405 al POST y el catch-all sirve la portada en
+# /mcp/galaxia.json. El resto del host (login, portales, /help) sigue en Pages.
+# RETORNO: quitar estas cuatro rutas y volver a publicar el guardián desde
+# el tag retorno/admira-biz-mcp-20261004. No cubren admira.app (otro sitio).
+[[routes]]
+pattern = "admira.biz/mcp"
+zone_name = "admira.biz"
+
+[[routes]]
+pattern = "admira.biz/mcp/*"
+zone_name = "admira.biz"
+
+[[routes]]
+pattern = "www.admira.biz/mcp"
+zone_name = "admira.biz"
+
+[[routes]]
+pattern = "www.admira.biz/mcp/*"
+zone_name = "admira.biz"
+
 [observability]
 enabled = true
 

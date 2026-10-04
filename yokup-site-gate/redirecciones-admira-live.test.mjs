@@ -64,6 +64,41 @@ test("/auth, /version.json y /__yokup-gate siguen intactos (no redirigen)", asyn
   assert.notEqual(cb.status, 301);
 });
 
+test("/ayuda salta a /help; /llms.txt, /robots.txt y /.well-known no son la portada", async () => {
+  let tocado = false;
+  const ciego = { RELEASE_JSON:JSON.stringify(signed), ASSETS:{ fetch:async()=>{ tocado=true; return new Response("<html>portada</html>", {headers:{"content-type":"text/html"}}); } } };
+  const ayuda = await handleRequest(new Request("https://www.yokup.com/ayuda?q=1"), ciego, {});
+  assert.equal(ayuda.status, 301);
+  assert.equal(ayuda.headers.get("location"), "https://www.yokup.com/help?q=1");
+  for (const path of ["/llms.txt", "/robots.txt", "/.well-known/security.txt"]) {
+    const r = await handleRequest(new Request("https://www.yokup.com" + path), ciego, {});
+    assert.equal(r.status, 404, path);
+    assert.match(r.headers.get("content-type"), /text\/plain/);
+  }
+  const biz = await handleRequest(new Request("https://admira.biz/ayuda/"), ciego, {});
+  assert.equal(biz.headers.get("location"), "https://admira.biz/help/");
+  assert.equal(tocado, false);
+});
+
+test("en admira.biz el manifiesto y el HTML de /mcp salen con la marca de la casa", async () => {
+  const envBiz = (body, type) => ({ RELEASE_JSON:JSON.stringify(signed), ASSETS:{ fetch:async()=>new Response(body, {headers:{"content-type":type}}) } });
+  const manifiesto = await handleRequest(new Request("https://www.admira.biz/mcp/manifest.json"), envBiz('{"site":"https://www.yokup.com","title":"Yokup","name":"yokup-fleet","api":"https://api.yokup.com"}', "application/json"), {});
+  const json = await manifiesto.json();
+  assert.equal(json.site, "https://www.admira.biz");
+  assert.equal(json.title, "admira.biz");
+  assert.equal(json.name, "yokup-fleet");
+  assert.equal(json.api, "https://api.yokup.com");
+  assert.equal(manifiesto.headers.get("cache-control"), "no-store");
+  const igual = await handleRequest(new Request("https://www.yokup.com/mcp/manifest.json"), envBiz('{"site":"https://www.yokup.com","title":"Yokup"}', "application/json"), {});
+  assert.equal((await igual.json()).title, "Yokup");
+  const html = await handleRequest(new Request("https://admira.biz/mcp/"), envBiz('<html><head><title>Yokup · MCP</title></head><body>Yokup 1.4.0</body></html>', "text/html; charset=utf-8"), {});
+  const texto = await html.text();
+  assert.match(texto, /data-casa="admira-biz"/);
+  assert.match(texto, /yk-casa\.js/);
+  assert.match(texto, /admira\.biz · MCP/);
+  assert.match(texto, /admira\.biz 1\.4\.0/);
+});
+
 test("una redirección no toca ASSETS (no sirve la página antes de redirigir)", async () => {
   let tocado = false;
   await handleRequest(new Request("https://www.yokup.com/dashboard"), { RELEASE_JSON:JSON.stringify(signed), ASSETS:{ fetch:async()=>{ tocado=true; return new Response("x"); } } }, {});

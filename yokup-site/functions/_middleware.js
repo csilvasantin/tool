@@ -1,5 +1,6 @@
 import { casaDe, esEspejo, marcaDeCasa, enlaceDeCasa } from './_shared/casas.mjs';
 import { mudanzaANegocio } from './_shared/mudanza.mjs';
+import { atajoDePagina } from './_shared/espejo-puertas.mjs';
 
 // La casa con marca Admira (admira.biz hoy, admira.app tras el intercambio de dominios
 // del 4-oct-2026): la cabecera sale ya con la marca de la casa (título, descripción,
@@ -16,6 +17,11 @@ async function selloDe(context, url) {
 }
 
 export async function onRequest(context) {
+  // Flota → admira.live, /ayuda → /help, y 404 de /llms.txt /robots.txt /.well-known.
+  // Va antes del asset: una Function gana a _redirects, y sin esto el catch-all
+  // servía la portada con un 200. No incluye /auth ni los portales.
+  const atajo = atajoDePagina(context.request);
+  if (atajo) return atajo;
   // Enlaces viejos de negocio que lleguen a admira.app tras el corte → www.admira.biz.
   // Solo con host (www.)admira.app; en cualquier otro host es null y no cambia nada.
   const mudanza = mudanzaANegocio(context.request);
