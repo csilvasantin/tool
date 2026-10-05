@@ -18,11 +18,25 @@ export const skillForCategory=c=>SKILL[c]||'kiosk';
 
 // Galaxia: lo que viaja a las soluciones. NUNCA serie, factura, proveedor, fabricante, modelo, importes,
 // fechas exactas, direcciones, coordenadas, correos ni ids internos. La garantía viaja como estado.
+function networkNumber(v){return typeof v==='number'&&Number.isFinite(v)?v:null;}
+// Telemetría operativa de un router. Sin serie, IMEI, coordenadas ni ids internos.
+export function publicNetwork(n){
+ if(!n||typeof n!=='object')return null;
+ const source=n.source==='rms'?'rms':'simulated';
+ return {source,vendor:'Teltonika o similar',model:typeof n.model==='string'?n.model.slice(0,40):null,
+  operator:typeof n.operator==='string'?n.operator.slice(0,40):null,radio:n.radio==='5G'?'5G':n.radio==='4G'?'4G':null,
+  rsrp:networkNumber(n.rsrp),rsrq:networkNumber(n.rsrq),sinr:networkNumber(n.sinr),data_usage_gb:networkNumber(n.data_usage_gb),uptime_s:networkNumber(n.uptime_s),
+  firmware:typeof n.firmware==='string'?n.firmware.slice(0,40):null,
+  vendor_status:['online','degraded','offline'].includes(n.vendor_status)?n.vendor_status:null,
+  badge:source==='simulated'?'SIMULADO':null};
+}
 export function publicCi(ci){
- return {id:ci.itil_code||'cat:'+(ci.surface_key||'equipo'),code:ci.itil_code||null,name:ci.name,category:ci.category,role:ci.role||null,
+ const out={id:ci.itil_code||'cat:'+(ci.surface_key||'equipo'),code:ci.itil_code||null,name:ci.name,category:ci.category,role:ci.role||null,
   group:ci.group_name||null,position:ci.position||null,orientation:ci.orientation||null,status:ci.status||'operational',managed_by:ci.managed_by,
   parent:ci.parent_code||null,relations:ci.parent_code?[{type:'depends_on',code:ci.parent_code}]:[],
   warranty:ci.warranty||'none',maintenance_due:!!ci.maintenance_due};
+ if(ci.category==='red'&&ci.network){const network=publicNetwork(ci.network);if(network)out.network=network;}
+ return out;
 }
 
 // Mapeo a admira.cmdb/2 (XpaceOS admira-xp/inventario.html). Lo privado queda vacío: no se inventa.

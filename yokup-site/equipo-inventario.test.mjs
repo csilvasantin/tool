@@ -78,7 +78,9 @@ test("Inventario ITIL del portal: garantía en meses, datos clave en la tarjeta 
   const itilForm = retailer.slice(retailer.indexOf('id="itil-form"'), retailer.indexOf('id="itil-retire-dialog"'));
   assert.match(itilForm, /name="warranty_months" min="1" max="600"/, "en el formulario del CI ITIL");
   assert.equal((retailer.match(/name="warranty_months"/g) || []).length, 1, "y solo ahí (Mis equipos no lo envía)");
-  assert.match(retailer, /\/retailer-itil\.js\?v=3/);
+  assert.match(retailer, /\/retailer-itil\.js\?v=4/);
+  assert.match(itil, /SIMULADO/);
+  assert.match(itil, /serie simulada/);
   assert.match(itil, /'warranty_months'/); assert.match(itil, /NUM\.has\(f\)/);
   assert.match(itil, /Q\.get\('itil_alta'\)==='1'/); assert.match(itil, /function openDeep\(\)/);
   assert.match(itil, /Nº de serie: '\+val\(lc\.serial\)/); assert.match(itil, /SIN='sin dato'/);

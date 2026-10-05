@@ -227,6 +227,20 @@ este inventario: modelo, nº de serie, compra, proveedor, garantía (meses, fin 
   `/retailer?itil_alta=1&xpacio=&categoria=&nombre=&adoptar=&incidencia=#itil` abre el alta prefijada).
   Lógica compartida: `yokup-site/yk-equipo.js`.
 
+## Routers de tienda (categoría red)
+
+05-oct-2026 · SmithMacMini · MacMini. Un router por Xpacio vivo, detrás de un adaptador que no nombra al fabricante en la puerta (`NetworkVendorAdapter`: `listDevices`, `getDeviceStatistics`, `mapToItilCi`). El rótulo visible es «Teltonika o similar».
+
+- **Activo por defecto:** `teltonika-rms-simulator`. Un router determinista por `admira_store_id` (modelos RUT241, RUTX11 o RUT956, operador Movistar/Vodafone/Orange, señal, consumo y estado). La identidad no cambia entre pasadas; la señal y el consumo cambian cada cubo de 10 minutos. Código ITIL `<tienda compacta>-RED-01`, válido con la regex de siempre (por ejemplo `ALSEASBUX021-RED-01`).
+- **Preparado y apagado:** `teltonika-rms-real`. No llama a RMS si falta el token. Con token solo asigna un equipo cuyo registro traiga `admira_store_id`; si no hay ninguno etiquetado, no pisa los simulados.
+- **Interruptor:** variable `NETWORK_VENDOR` (defecto `teltonika-rms`) y `NETWORK_SOURCE` (`simulated` o `real`). Otro vendor responde `vendor_unsupported` y no escribe.
+- **Pasar a RMS real:** en el worker `yokup-api`, `npx wrangler secret put TELTONIKA_RMS_TOKEN` (el valor no se imprime ni se guarda en el repo) y `NETWORK_SOURCE=real`. Base `https://api.rms.teltonika-networks.com`, `GET /devices` y `GET /devices/statistics?charts=status`. Sin token, la pasada se salta (`no_token`) y los routers simulados siguen como estaban.
+- **Dónde vive:** tabla `itil_network_telemetry` (`api/migrations/0022_network_telemetry.sql`). La ficha de ciclo de vida guarda el estado (online → operational, señal débil → degraded, offline → maintenance) y el modelo. Serie e IMEI van solo en la telemetría, marcados como simulados. La lectura pública añade `network[]` con `source:"simulated"` y la insignia `SIMULADO`, y sigue sin serie, IMEI ni coordenadas.
+- **Sync:** el cron de 2 minutos llama a `scheduledNetworkSync` como mucho cada 10 minutos (`scheduled_jobs.name = network_router_sync`). Si queda cola, la pasada siguiente continúa. A mano: `POST /api/portal-admin/network/sync` (superusuario) o `POST /internal/itil/network/sync` (solo por service binding).
+- **Catálogo:** el router no retira las pantallas provisionales. Un CI `itil` de otra categoría sigue congelando el catálogo del Xpacio, como hasta ahora. Un CI `red` con `created_by = network-sync` no lo congela.
+
+Punto de retorno del código anterior: tag `retorno/pre-routers-sim-20261005`.
+
 ## Orden de despliegue
 
 1. **yokup-api**: `cd api && npx wrangler d1 migrations apply yokup-db --remote` (o

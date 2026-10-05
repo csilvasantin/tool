@@ -11,6 +11,7 @@ import {statement,rows,hash,rateLimit} from './installer-portal.js';
 import {isoDay,validDay,lifecycleView,LIFECYCLE_COLUMNS} from './device-lifecycle.js';
 import {viaBinding,INTERNAL_HOST} from './incident-links.js';
 import {ITIL_SCHEMA,ITIL_CATEGORIES,ITIL_ORIENTATIONS,ITIL_LIFECYCLE_TEXTS,ITIL_LIFECYCLE_DATES,ITIL_LIFECYCLE_FIELDS,ITIL_LIMITS,validItilCode,lifecycleCategory,skillForCategory,publicCi,parseEquipoRef,equipoCategory,equipoLabel} from './itil-model.js';
+import {syncAllNetworkRouters} from './network-sync.js';
 // Intercambio de dominios (Carlos, 4-oct-2026): admira.biz pasa a servir la solución de negocio
 // (Pages clearchannel-tv). admira.app se conserva mientras dure la transición.
 export const GALAXY_ORIGINS=new Set(['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv']);
@@ -58,14 +59,16 @@ export async function ownerSite(env,owner,{site_id,admira_store_id}){
  const s=site_id?await statement(env,SITE_SELECT+' WHERE s.id=? AND s.retailer_id=?',String(site_id).slice(0,80),owner).first():await statement(env,SITE_SELECT+' WHERE x.admira_store_id=? AND s.retailer_id=?',String(admira_store_id).slice(0,160),owner).first();
  if(!s)bad(404,'site_not_found','Establecimiento no encontrado en tus Xpacios.');return s;
 }
-const CI_SELECT=`SELECT i.*,d.name,d.skill,p.itil_code AS parent_code,xd.surface_key,(SELECT COUNT(*) FROM installer_incidents n WHERE n.device_id=i.device_id AND n.status!='resolved') AS open_incidents,${LIFECYCLE_COLUMNS}
- FROM itil_items i JOIN installer_devices d ON d.id=i.device_id LEFT JOIN itil_items p ON p.device_id=i.parent_device_id LEFT JOIN admira_xpacio_devices xd ON xd.device_id=i.device_id LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id`;
+const CI_SELECT=`SELECT i.*,d.name,d.skill,p.itil_code AS parent_code,xd.surface_key,t.payload AS network_payload,(SELECT COUNT(*) FROM installer_incidents n WHERE n.device_id=i.device_id AND n.status!='resolved') AS open_incidents,${LIFECYCLE_COLUMNS}
+ FROM itil_items i JOIN installer_devices d ON d.id=i.device_id LEFT JOIN itil_items p ON p.device_id=i.parent_device_id LEFT JOIN admira_xpacio_devices xd ON xd.device_id=i.device_id LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id LEFT JOIN itil_network_telemetry t ON t.device_id=i.device_id`;
 function ciView(r,today){
  const lc={};for(const [k,x] of Object.entries(r))if(k.startsWith('lc_'))lc[k.slice(3)]=x;
  const lifecycle=lifecycleView(lc.device_id?lc:null,r.skill,today);
- return {device_id:r.device_id,itil_code:r.itil_code,name:r.name,category:r.category,role:r.role,group_name:r.group_name,position:r.position,orientation:r.orientation,
+ const out={device_id:r.device_id,itil_code:r.itil_code,name:r.name,category:r.category,role:r.role,group_name:r.group_name,position:r.position,orientation:r.orientation,
   parent_itil_code:r.parent_code||null,managed_by:r.managed_by,surface_key:r.surface_key||null,open_incidents:r.open_incidents||0,
   created_by:r.created_by,updated_by:r.updated_by,created_at:r.created_at,updated_at:r.updated_at,lifecycle};
+ if(r.network_payload){try{const parsed=JSON.parse(r.network_payload);if(parsed&&typeof parsed==='object')out.network=parsed;}catch{/* telemetría ilegible: el CI sigue visible sin ella */}}
+ return out;
 }
 const ORDER=' ORDER BY i.managed_by DESC,COALESCE(i.group_name,\'~\'),COALESCE(i.position,\'~\'),i.itil_code,d.name';
 // Inventario privado de un establecimiento: Xpacio + CIs + ciclo de vida completo + equipos aún sin ficha.
@@ -250,6 +253,7 @@ export async function handleItilInternal(request,env){
  if(!viaBinding(request,INTERNAL_HOST))return internalReply({ok:false,code:'not_found',error:'Ruta no encontrada.'},404);
  try{
   const url=new URL(request.url),path=url.pathname,q=url.searchParams;
+  if(request.method==='POST'&&path==='/internal/itil/network/sync')return internalReply(await syncAllNetworkRouters(env,{trigger:'binding'}));
   if(request.method==='GET'&&path==='/internal/itil/xpacios')return internalReply({ok:true,...await listXpacios(env,{brand:q.get('brand'),q:q.get('q'),limit:q.has('limit')?Number(q.get('limit')):50})});
   const one=/^\/internal\/itil\/xpacios\/([^/]+)$/.exec(path);
   if(request.method==='GET'&&path==='/internal/itil/equipo')return internalReply(await resolveEquipo(env,{ref:q.get('ref')||'',loc:q.get('loc')||'',code:q.get('code')||'',portal_incident:q.get('portal_incident')||''}));
@@ -299,8 +303,9 @@ export async function handleItilPublic(request,env,now=Date.now()){
   const includeRetired=!!key&&new URL(request.url).searchParams.get('include_retired')==='true';
   const cis=inv.cis.filter(c=>includeRetired||c.lifecycle.status!=='retired').map(c=>publicCi({...c,parent_code:c.parent_itil_code,status:c.lifecycle.status,warranty:c.lifecycle.warranty,maintenance_due:c.lifecycle.maintenance_due}));
   const byCategory={};for(const c of cis)byCategory[c.category]=(byCategory[c.category]||0)+1;
-  const base={schema:ITIL_SCHEMA,generated_at:new Date(now).toISOString(),xpacio:{admira_store_id:site.admira_store_id,name:site.name,brand:brand?.name||site.brand_key},managed_by:inv.managed_by,summary:{total:cis.length,by_category:byCategory},documentation:ITIL_DOCS};
-  if(!key)return out({...base,access:'public',note:'Sin clave solo se publica el recuento. Las soluciones de la Galaxia piden su clave de lectura (cabecera X-Yokup-Itil-Key).'},200,'public, max-age=60');
+  const network=cis.filter(c=>c.category==='red'&&c.network).map(c=>({code:c.code,name:c.name,category:'red',status:c.status,...c.network}));
+  const base={schema:ITIL_SCHEMA,generated_at:new Date(now).toISOString(),xpacio:{admira_store_id:site.admira_store_id,name:site.name,brand:brand?.name||site.brand_key},managed_by:inv.managed_by,summary:{total:cis.length,by_category:byCategory},...(network.length?{network}:{}),documentation:ITIL_DOCS};
+  if(!key)return out({...base,access:'public',note:'Sin clave se publica el recuento y, si hay router, su telemetría operativa (sin serie, IMEI ni coordenadas). Las soluciones de la Galaxia piden su clave de lectura (cabecera X-Yokup-Itil-Key).'},200,'public, max-age=60');
   return out({...base,access:'key',solution:key.solution,xpacio:{...base.xpacio,city:site.city,twin_url:site.twin_url},cis},200,'private, max-age=60');
  }catch(e){
   if(e.status===429)return out({error:'rate_limited'},429);

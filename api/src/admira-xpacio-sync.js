@@ -102,7 +102,8 @@ async function apply(env,p,known,retailerId,now){
  }
  // ITIL (FLT-101300): si el Xpacio ya tiene algún CI 'itil', los EQUIPOS los manda Yokup. La sync solo refresca
  // el establecimiento: no siembra, no renombra, no retira ni reactiva ningún equipo (ni los 'catalogo' que retiró ITIL).
- if(known&&await statement(env,"SELECT 1 AS x FROM itil_items WHERE site_id=? AND managed_by='itil' LIMIT 1",siteId).first()){await env.DB.batch(ops);return 'itil';}
+ // Un router de red sembrado por network-sync no cuenta: no retira pantallas ni congela el catálogo del Xpacio.
+ if(known&&await statement(env,"SELECT 1 AS x FROM itil_items WHERE site_id=? AND managed_by='itil' AND NOT (category='red' AND created_by='network-sync') LIMIT 1",siteId).first()){await env.DB.batch(ops);return 'itil';}
  // Un equipo que ITIL ya adoptó nunca lo toca el catálogo (defensivo: con uno solo, la línea anterior ya corta).
  const existing=known?await rows(env,"SELECT x.device_id,x.surface_key,x.removed_at FROM admira_xpacio_devices x LEFT JOIN itil_items i ON i.device_id=x.device_id WHERE x.admira_store_id=? AND COALESCE(i.managed_by,'catalogo')='catalogo'",p.id):[];
  const byKey=new Map(existing.map(e=>[e.surface_key,e]));

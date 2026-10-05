@@ -8,6 +8,7 @@ import { handleInstaller, sweepInstallers, dispatchNotifications } from './insta
 import { handleDesk } from './incident-desk.js';
 import { syncRetailerCircuits } from './admira-circuit-sync.js';
 import { scheduledXpacioSync } from './admira-xpacio-sync.js';
+import { scheduledNetworkSync } from './network-sync.js';
 import { sweepLifecycleAlerts } from './device-lifecycle.js';
 import { syncIncidentLinks, handleIncidentLinksInternal } from './incident-links.js';
 import { handleItilInternal, handleItilPublic } from './itil.js';
@@ -66,7 +67,7 @@ const JSON_ARRAY_COLS = {
 const BOOL_COLS = { stores: ["from_admira"] };
 
 export default {
-  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); ctx.waitUntil(scheduledXpacioSync(env)); ctx.waitUntil(sweepLifecycleAlerts(env).catch(e => console.error('lifecycle_sweep_failed', e && e.message))); ctx.waitUntil(syncIncidentLinks(env).catch(e => console.error('incident_links_sync_failed', e && e.message))); },
+  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); ctx.waitUntil(scheduledXpacioSync(env)); ctx.waitUntil(scheduledNetworkSync(env).catch(e => console.error('network_sync_failed', e && e.message))); ctx.waitUntil(sweepLifecycleAlerts(env).catch(e => console.error('lifecycle_sweep_failed', e && e.message))); ctx.waitUntil(syncIncidentLinks(env).catch(e => console.error('incident_links_sync_failed', e && e.message))); },
   async fetch(request, env, ctx) {
     // Incidencias unificadas (FLT-101298): /internal/* solo por el service binding de yokup-rtc; y tras cualquier
     // escritura con éxito del portal, el Desk o los MCP, el diff con la bandeja Yokup (docs/incidencias-unificadas.md).

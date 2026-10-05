@@ -2,6 +2,7 @@ import {ORIGINS,statement,rows,text,jsonBody,rateLimit,response,fail,distanceKm}
 import {manageSuperusers,ADMIN} from './portal-roles.js';
 import {adminIdentity,adminLogout} from './portal-access.js';
 import {syncXpacios,xpacioStatus} from './admira-xpacio-sync.js';
+import {syncAllNetworkRouters} from './network-sync.js';
 // Miembros de una cuenta de marca: quién puede abrirla con «Ver como» (correo verificado con Google).
 async function brandMember(request,env,actor,b){
  const retailer=text(b.retailer_id,1,80),email=text(b.email,3,254).toLowerCase();
@@ -39,6 +40,7 @@ export async function handleAdmin(request,env){
   if(path==='/superusers'&&['GET','POST'].includes(request.method))return await manageSuperusers(request,env,actor);
   if(path==='/xpacios'&&request.method==='GET')return response(request,await xpacioStatus(env));
   if(path==='/xpacios/sync'&&request.method==='POST'){await rateLimit(env,'xpacio-sync:'+actor.email,6,600000);return response(request,await syncXpacios(env,{force:true,trigger:'manual:'+actor.email}));}
+  if(path==='/network/sync'&&request.method==='POST'){await rateLimit(env,'network-sync:'+actor.email,6,600000);return response(request,await syncAllNetworkRouters(env,{trigger:'manual:'+actor.email}));}
   if(path==='/xpacios/members'&&request.method==='POST')return await brandMember(request,env,actor,await jsonBody(request));
   if(path==='/assign'&&request.method==='POST')return await assignment(request,env,actor,await jsonBody(request));
   if(path==='/candidates'&&request.method==='GET'){

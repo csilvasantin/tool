@@ -40,6 +40,8 @@ function chips(ci){
  box.append(el('span',label,'chip '+cls));
  if(lc.status&&lc.status!=='operational')box.append(el('span',STATUS[lc.status]||lc.status,'chip chip-none'));
  if(lc.maintenance_due)box.append(el('span','Mantenimiento pendiente','chip chip-warn'));
+ if(ci.network?.source==='simulated')box.append(el('span','SIMULADO','chip chip-warn'));
+ if(ci.network?.source==='rms')box.append(el('span','RMS','chip chip-ok'));
  if(ci.managed_by==='catalogo')box.append(el('span','Provisional · catálogo Admira','chip chip-none'));
  if(ci.open_incidents)box.append(el('span',ci.open_incidents===1?'1 incidencia abierta':ci.open_incidents+' incidencias abiertas','chip chip-bad'));
  return box;
@@ -62,6 +64,11 @@ function card(ci){
  const lc=ci.lifecycle||{},facts=el('p',undefined,'small itil-facts'),until=lc.warranty_end||lc.warranty_until;
  facts.textContent='Modelo: '+val([lc.manufacturer,lc.model].filter(Boolean).join(' ')||null)+' · Nº de serie: '+val(lc.serial)+' · Compra: '+day(lc.purchase_date)+' · Garantía: '+(lc.warranty_months?lc.warranty_months+' meses':SIN)+(until?' · hasta '+day(until)+(lc.warranty_end?'':' (calculado)'):'');
  c.append(facts);
+ if(ci.network){
+  const n=ci.network,bits=['Teltonika o similar',n.model,n.operator,n.radio,n.rsrp!=null?'RSRP '+n.rsrp+' dBm':'',n.rsrq!=null?'RSRQ '+n.rsrq:'',n.sinr!=null?'SINR '+n.sinr:'',n.data_usage_gb!=null?n.data_usage_gb+' GB':'',n.uptime_s!=null?'uptime '+n.uptime_s+' s':''];
+  if(n.serial)bits.push('serie simulada '+n.serial);if(n.imei)bits.push('IMEI simulado '+n.imei);if(n.badge)bits.push(n.badge);
+  c.append(el('p',bits.filter(Boolean).join(' · '),'small itil-network'));
+ }
  c.append(chips(ci));
  if(ci.itil_code)c.dataset.itilCode=ci.itil_code;
  const actions=el('div',undefined,'itil-actions');
