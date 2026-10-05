@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { nextDeployVersion, versionFromPayload } from "./deploy-version.js";
+import { novedadesFor } from "./deploy-novedades.js";
 import { validateDeployIdentity, wranglerCommitArgs } from "./deploy-signature.mjs";
 import { signedVersionFromPayload, signedVersionsFromDeployments } from "./deploy-history.js";
 
@@ -210,6 +211,8 @@ try {
     gitFull,
     dirty
   };
+  // Novedades del sello (06-10-2026): novedades.json → version.json.novedades[].
+  payload.novedades = novedadesFor(await readFile(new URL("./novedades.json", import.meta.url), "utf8").catch(() => "[]"), version);
   console.log(`Sello ${payload.version} · ${signature}`);
   const tests = await testFiles(new URL("./", import.meta.url));
   if (!tests.length) throw new Error("Deploy bloqueado: no se encontraron pruebas *.test.mjs");
