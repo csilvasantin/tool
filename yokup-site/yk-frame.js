@@ -1920,7 +1920,7 @@
   // navegador y nunca llegan a un agente. Esta consola es su intérprete mínimo, y
   // la única consola que ve quien entra sin sesión de flota.
   var LOCAL_HISTORY_KEY = "yk_local_cli_history_v1";
-  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand"];
+  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand", "idioma", "language", "languague"];
   // Verbos propios de una página (p. ej. el inventario ITIL: /inventario, /equipo…),
   // registrados con YkFrame.registerVerb({id, aliases, es, run(args, ctx)}). Sólo
   // valen en esa página y, como el resto de la consola local, nunca llegan a un agente.
@@ -1953,6 +1953,7 @@
     L.push(t("Yokup · consola local. Se ejecuta en este navegador; nunca llega a un agente.", "Yokup · local console. It runs in this browser and never reaches an agent."));
     L.push(t("  /help (/ayuda) — esta ayuda", "  /help (/ayuda) — this help"));
     L.push(t("  /limpiar (/clear) — vacía la consola", "  /limpiar (/clear) — clear the console"));
+    L.push(t("  /idioma [/language] [ESP|ENG] — alterna o fija el idioma (también idiomaESP)", "  /idioma [/language] [ESP|ENG] — toggle or set language (also idiomaESP)"));
     L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
       "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
     PAGE_VERB_DEFS.forEach(function (def) {
@@ -1967,7 +1968,7 @@
     if (!raw) return Promise.resolve();
     LOCAL_CLI.print("› " + raw, "yk-lcli-in");
     var m = raw.match(/^\/?(\S+)\s*([\s\S]*)$/), verb = (m ? m[1] : "").toLowerCase(), args = m ? m[2].trim() : "";
-    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand)$/i.test(verb)) {
+    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand|idioma|language|languague)$/i.test(verb) && !/^(idioma|language|languague)/i.test(verb)) {
       LOCAL_CLI.print(localEn() ? "This console only runs slash verbs. /help lists them." : "Esta consola sólo ejecuta verbos con barra. /help los lista.");
       return Promise.resolve();
     }
@@ -1981,6 +1982,28 @@
       return Promise.resolve().then(function () { return PAGE_VERBS[verb].run(args, {print:LOCAL_CLI.print, lang:localEn() ? "en" : "es"}); })
         .then(function (out) { if (out != null && out !== "") LOCAL_CLI.print(typeof out === "string" ? out : JSON.stringify(out)); },
           function (error) { LOCAL_CLI.print("Error: " + ((error && error.message) || error)); });
+    }
+    // /idioma · /language · /languague (Carlos 5-oct-2026): toggle o ESP|ENG; acepta pegados.
+    var langRaw = String(text == null ? "" : text).trim();
+    var langMatch = langRaw.replace(/^\//, "").trim().match(/^(idioma|language|languague)(?:[\s_-]*(.*))?$/i);
+    if (langMatch) {
+      var tok = String(langMatch[2] || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+      var next = "";
+      if (!tok) next = localEn() ? "es" : "en";
+      else if (/^(en|eng|english|ingles)$/.test(tok)) next = "en";
+      else if (/^(es|esp|spa|spanish|espanol|castellano)$/.test(tok)) next = "es";
+      else {
+        LOCAL_CLI.print(localEn()
+          ? "Use /idioma or /language (toggle), /idioma ESP|ENG. Also idiomaESP, languageENG…"
+          : "Usa /idioma o /language (toggle), /idioma ESP|ENG. También idiomaESP, languageENG…");
+        return Promise.resolve();
+      }
+      document.documentElement.lang = next;
+      try { if (typeof window.AdmiraSetLanguage === "function") window.AdmiraSetLanguage(next); } catch (e) {}
+      try { localStorage.setItem("xtanco_lang", next); } catch (e) {}
+      try { document.dispatchEvent(new CustomEvent("admiranext:lang", {detail: {lang: next}})); } catch (e) {}
+      LOCAL_CLI.print(next === "en" ? "Language: English" : "Idioma: español");
+      return Promise.resolve();
     }
     LOCAL_CLI.print(localEn() ? "Unknown verb: /" + verb + ". /help lists the verbs of this console." : "Verbo desconocido: /" + verb + ". /help lista los verbos de esta consola.");
     return Promise.resolve();
@@ -2308,11 +2331,11 @@
     // Sólo en modo público: la consola de CLIs de la flota (FLEET_MODE) se queda como está.
     if (!FLEET_MODE && !document.getElementById("ax-experto-js")) {
       var axCss = document.createElement("link");
-      axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261004-experto-min-2";
+      axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261005-experto-idioma-1";
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = "https://www.admiranext.com/suite/experto.js?v=20261004-experto-min-2";
+      ax.src = "https://www.admiranext.com/suite/experto.js?v=20261005-experto-idioma-1";
       var axCfg = {panel:"#yk-rail-bottom", header:".yk-expert-hd", title:".yk-expert-title", body:".yk-slot",
         form:".yk-lcli-form", input:".yk-lcli-input", log:".yk-lcli-log", hint:".yk-lcli-hint",
         extras:".yk-slot > :not(.yk-local-cli):not(.ax-engine-slot)", chrome:".yk-expert-ver,.yk-lcli-prompt"};
