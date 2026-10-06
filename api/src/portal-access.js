@@ -1,5 +1,14 @@
 import {ORIGINS,hash,random,statement,rows,text,passwordHash,jsonBody,rateLimit,response,fail} from './installer-portal.js';
+// Dos clientes OAuth del mismo proyecto Google (861856772040). El de la suite tiene como
+// orígenes JS yokup.com, admira.biz, admira.tv y admiranext.com, pero NO admira.app: en
+// www.admira.app/retailer e /instalador el botón de Google daba «Error 400: origin_mismatch».
+// El del sitio (clearchannel.tv/admira.app) sí tiene admira.app con y sin www. El reto
+// entrega el cliente que corresponde al Origin de la página y la verificación acepta los
+// dos (el nonce de un solo uso sigue atando la credencial a su reto). 06-10-2026.
 const CLIENT='861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com';
+const APP_CLIENT='861856772040-quq6ut76k4mqj3fdq87h6g6caht3nm4l.apps.googleusercontent.com';
+export const GOOGLE_CLIENTS=new Set([CLIENT,APP_CLIENT]);
+export const clientFor=origin=>/^https:\/\/(www\.)?admira\.app$/.test(String(origin||''))?APP_CLIENT:CLIENT;
 import {ADMIN,superuser,bindSuperuser} from './portal-roles.js';
 import {googlePortal,finishGoogleSignup} from './portal-google.js';
 import {googleRedirect} from './portal-google-redirect.js';
@@ -25,7 +34,7 @@ export async function verifyGoogle(jwt,nonce,env){
   const jwk=keys.find(k=>k.kid===header.kid);if(!jwk)return null;
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
   if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode(parts[2]),new TextEncoder().encode(parts[0]+'.'+parts[1])))return null;
-  if(!['https://accounts.google.com','accounts.google.com'].includes(p.iss)||p.aud!==CLIENT||p.email_verified!==true||!p.sub||p.nonce!==nonce)return null;
+  if(!['https://accounts.google.com','accounts.google.com'].includes(p.iss)||!GOOGLE_CLIENTS.has(p.aud)||p.email_verified!==true||!p.sub||p.nonce!==nonce)return null;
   if(!Number.isFinite(p.exp)||p.exp*1000<=now||!Number.isFinite(p.iat)||p.iat*1000>now+60000||p.iat*1000<now-7200000)return null;
   const email=String(p.email||'').toLowerCase();if(!email.endsWith('@gmail.com')&&!p.hd)return null;
   return {...p,email};
@@ -70,13 +79,13 @@ export async function handleAccess(request,env){
  try{
   if(request.method==='OPTIONS')return response(request,{});
   if(['/google/redirect-challenge','/google/redirect-callback','/google/redirect-complete'].includes(path))return googleRedirect(request,env,{client:CLIENT,verifyGoogle,login:loginGoogleIdentity});
-  if(request.method==='GET'&&path==='/config')return response(request,{google_client_id:CLIENT,email_recovery:!!(env.RESEND_API_KEY&&env.PORTAL_MAIL_FROM),superuser_email:ADMIN});
+  if(request.method==='GET'&&path==='/config')return response(request,{google_client_id:clientFor(request.headers.get('origin')),email_recovery:!!(env.RESEND_API_KEY&&env.PORTAL_MAIL_FROM),superuser_email:ADMIN});
   if(request.method!=='POST'||!ORIGINS.has(request.headers.get('origin')))fail(403,'Origen no permitido.');
   await rateLimit(env,'portal-access-ip:'+(request.headers.get('CF-Connecting-IP')||'local'),30,900000);
   const b=await jsonBody(request);
   if(path==='/google/challenge'){
    const token=random(),nonce=random();await statement(env,'INSERT INTO portal_google_challenges VALUES(?,?,?,0)',await hash(token),nonce,Date.now()+300000).run();
-   return response(request,{nonce,google_client_id:CLIENT},200,setCookie(GOOGLE_COOKIE,token,300));
+   return response(request,{nonce,google_client_id:clientFor(request.headers.get('origin'))},200,setCookie(GOOGLE_COOKIE,token,300));
   }
   if(path==='/google/admin'||path==='/google/login'){
    if(path==='/google/login'&&!['installer','retailer'].includes(b.kind))fail(400,'Selecciona tu portal.');

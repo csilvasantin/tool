@@ -64,3 +64,18 @@ test('admira.biz, espejo de yokup.com, puede iniciar «Continuar con Google» y 
  }
  for(const ajeno of ['https://admira.biz.evil.example','https://xadmira.biz','http://admira.biz']){assert.equal((await req(env,'/google/challenge',{},undefined,ajeno)).status,403,ajeno);}
 });
+
+test('admira.app recibe el cliente OAuth que tiene admira.app como origen y su credencial se acepta; los demás siguen con el de la suite',async()=>{
+ const {env}=fixture(),app='861856772040-quq6ut76k4mqj3fdq87h6g6caht3nm4l.apps.googleusercontent.com';
+ for(const casa of ['https://www.admira.app','https://admira.app']){
+  const c=await req(env,'/google/challenge',{},undefined,casa);assert.equal(c.status,200,casa);assert.equal(c.body.google_client_id,app,casa);
+  const credential=await jwt(c.body.nonce,{aud:app});const r=await req(env,'/google/admin',{credential},c.cookie,casa);assert.equal(r.status,200,casa);assert.equal(r.body.role,'superuser');
+ }
+ for(const casa of ['https://www.yokup.com','https://yokup.com','https://www.admira.biz','https://admira.biz']){
+  const c=await req(env,'/google/challenge',{},undefined,casa);assert.equal(c.body.google_client_id,client,casa);
+ }
+ const cfg=await handleAccess(new Request('https://data.admira.app/api/portal-access/config',{headers:{Origin:'https://www.admira.app'}}),env);assert.equal((await cfg.json()).google_client_id,app);
+ // Una audiencia ajena al proyecto sigue rechazada.
+ const c=await req(env,'/google/challenge',{},undefined,'https://www.admira.app');
+ assert.ok((await req(env,'/google/admin',{credential:await jwt(c.body.nonce,{aud:'861856772040-otro.apps.googleusercontent.com'})},c.cookie,'https://www.admira.app')).status>=400);
+});
