@@ -12,6 +12,7 @@ import { scheduledNetworkSync } from './network-sync.js';
 import { sweepLifecycleAlerts } from './device-lifecycle.js';
 import { syncIncidentLinks, handleIncidentLinksInternal } from './incident-links.js';
 import { handleItilInternal, handleItilPublic } from './itil.js';
+import { handleLectura, lecturaWriteForbidden } from './lectura-box.js';
 /**
  * yokup-api — Cloudflare Worker
  * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
@@ -82,7 +83,12 @@ export default {
 
 async function routeRequest(request, env, ctx) {
   {
-    if(new URL(request.url).pathname==='/mcp/calls')return handleCallsMcp(request,env);
+    const early = new URL(request.url);
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && await lecturaWriteForbidden(request, env)) {
+      return json(request, {error:'Clave de solo lectura.'}, 403);
+    }
+    if (early.pathname.startsWith('/api/lectura/')) return handleLectura(request, env);
+    if(early.pathname==='/mcp/calls')return handleCallsMcp(request,env);
     // Lectura ITIL para las soluciones de la Galaxia (CORS propio, sin datos privados; ver docs/itil-yokup.md).
     if(new URL(request.url).pathname.startsWith('/api/itil/'))return handleItilPublic(request,env);
     if(new URL(request.url).pathname.startsWith('/api/calls/'))return handleCalls(request,env);

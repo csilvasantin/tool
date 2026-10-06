@@ -2,7 +2,7 @@
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
     "Sello de versión con novedades al pasar el ratón",
-    "Los routers de una demo siguen el prefijo de sus equipos, como 365BCN01-RED-01",
-    "La marca de la demo 365 es 365"
+    "Acceso de solo lectura para grabar la demo 365, sin Google",
+    "El enlace caduca a las 8 horas, vale una vez y una escritura responde 403"
   ]
 }
