@@ -1,5 +1,6 @@
 const MAX_FIELD = 80;
-const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe"];
+// Cypher (Carlos, 6-oct-2026): deepagent de la flota (admira.live) autorizado a publicar; mismas reglas de apellido.
+const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe", "Cypher"];
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
 // Apellido canónico = diccionario de la normativa (regla 02): el modelo tal cual lo
 // fija el diccionario, igual para todos. Los apellidos de la generación anterior
