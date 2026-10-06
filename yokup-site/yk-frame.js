@@ -3221,7 +3221,7 @@
     document.documentElement.classList.toggle("yk-open-" + panel, !!v);
     // reflejar el estado en el icono (encendido/apagado)
     var ico = document.querySelector('.yk-ico[data-yk-panel="' + panel + '"]');
-    if (ico) ico.setAttribute("aria-pressed", v ? "true" : "false");
+    if (ico) { ico.setAttribute("aria-pressed", v ? "true" : "false"); ico.setAttribute("aria-expanded", v ? "true" : "false"); }
     if(panel==="bottom"){
       if(v)setTimeout(function(){if(FLEET.pty.term)try{FLEET.pty.fit.fit();}catch(e){}},0);
       else{disconnectSelectedPty(true);stopDesktopCapture(true,"Vista detenida: Experto está compactado.");stopDesktopWrite();}

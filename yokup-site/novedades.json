@@ -1,6 +1,11 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
+    "Mi comercio: «Incidencias» del menú lleva a tus propias incidencias (/retailer#incidencias), también en «Abrir como retailer»; ya no salta a la bandeja interna de la flota",
+    "Mis incidencias con su estado (buscando técnico, en manos del técnico, pendiente de valoración, resuelta) y el botón «+ Comunicar incidencia»",
+    "Menú lateral alcanzable a 1280×800: los enlaces ya no quedan tapados ni fuera de la pantalla; el raíl se desplaza"
+  ],
+  "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",
     "Superusuario en Mi comercio e Instaladores: se queda en el portal con la barra «Modo superusuario» (ya no salta a /superusuario)",
     "«Abrir como retailer» (marcas, 365 por defecto: inventario ITIL e incidencias) y «Abrir como instalador», revalidados en el servidor",
