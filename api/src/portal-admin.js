@@ -1,6 +1,7 @@
 import {ORIGINS,statement,rows,text,jsonBody,rateLimit,response,fail,distanceKm} from './installer-portal.js';
 import {manageSuperusers,ADMIN} from './portal-roles.js';
 import {adminIdentity,adminLogout} from './portal-access.js';
+import {manageViewAs} from './portal-view-as.js';
 import {syncXpacios,xpacioStatus} from './admira-xpacio-sync.js';
 import {syncAllNetworkRouters} from './network-sync.js';
 // Miembros de una cuenta de marca: quién puede abrirla con «Ver como» (correo verificado con Google).
@@ -38,6 +39,7 @@ export async function handleAdmin(request,env){
   if(path==='/me'&&request.method==='GET')return response(request,{email:actor.email,role:'superuser',can_manage_superusers:actor.email===ADMIN});
   if(path==='/logout'&&request.method==='POST')return await adminLogout(request,env);
   if(path==='/superusers'&&['GET','POST'].includes(request.method))return await manageSuperusers(request,env,actor);
+  if(path==='/view-as'&&['GET','POST'].includes(request.method))return await manageViewAs(request,env,actor);
   if(path==='/xpacios'&&request.method==='GET')return response(request,await xpacioStatus(env));
   if(path==='/xpacios/sync'&&request.method==='POST'){await rateLimit(env,'xpacio-sync:'+actor.email,6,600000);return response(request,await syncXpacios(env,{force:true,trigger:'manual:'+actor.email}));}
   if(path==='/network/sync'&&request.method==='POST'){await rateLimit(env,'network-sync:'+actor.email,6,600000);return response(request,await syncAllNetworkRouters(env,{trigger:'manual:'+actor.email}));}
@@ -55,8 +57,8 @@ export async function handleAdmin(request,env){
    const q='%'+String(url.searchParams.get('q')||'').slice(0,100)+'%',page=Math.max(0,Math.min(10000,parseInt(url.searchParams.get('page'))||0)),offset=page*50;
    const [installers,retailers,sites,incidents,counts]=await Promise.all([
     rows(env,'SELECT id,name,email,country,city,latitude,longitude,skills,available FROM installer_accounts WHERE name LIKE ? OR email LIKE ? OR city LIKE ? ORDER BY name,id LIMIT 51 OFFSET ?',q,q,q,offset),
-    rows(env,'SELECT r.id,r.name,r.email,COUNT(s.id) AS sites FROM retailer_accounts r LEFT JOIN retailer_sites s ON s.retailer_id=r.id WHERE r.name LIKE ? OR r.email LIKE ? GROUP BY r.id ORDER BY r.name,r.id LIMIT 51 OFFSET ?',q,q,offset),
-    rows(env,'SELECT s.id,s.name,s.kind,s.country,s.city,s.address,s.latitude,s.longitude,r.name AS retailer_name FROM retailer_sites s JOIN retailer_accounts r ON r.id=s.retailer_id WHERE s.name LIKE ? OR s.city LIKE ? OR r.name LIKE ? ORDER BY s.name,s.id LIMIT 51 OFFSET ?',q,q,q,offset),
+    rows(env,'SELECT r.id,r.name,r.email,b.brand_key,COUNT(s.id) AS sites FROM retailer_accounts r LEFT JOIN brand_accounts b ON b.retailer_id=r.id LEFT JOIN retailer_sites s ON s.retailer_id=r.id WHERE r.name LIKE ? OR r.email LIKE ? GROUP BY r.id ORDER BY r.name,r.id LIMIT 51 OFFSET ?',q,q,offset),
+    rows(env,'SELECT s.id,s.name,s.kind,s.country,s.city,s.address,s.latitude,s.longitude,r.id AS retailer_id,r.name AS retailer_name,b.brand_key FROM retailer_sites s JOIN retailer_accounts r ON r.id=s.retailer_id LEFT JOIN brand_accounts b ON b.retailer_id=r.id WHERE s.name LIKE ? OR s.city LIKE ? OR r.name LIKE ? ORDER BY s.name,s.id LIMIT 51 OFFSET ?',q,q,q,offset),
     rows(env,incidentSql+" WHERE i.status!='resolved' AND (i.title LIKE ? OR s.name LIKE ? OR r.name LIKE ?) ORDER BY i.created_at DESC LIMIT 51 OFFSET ?",q,q,q,offset),
     statement(env,"SELECT (SELECT COUNT(*) FROM installer_accounts) AS installers,(SELECT COUNT(*) FROM retailer_accounts) AS retailers,(SELECT COUNT(*) FROM retailer_sites) AS sites,(SELECT COUNT(*) FROM installer_incidents WHERE status='open') AS open").first()
    ]);return response(request,{email:actor.email,page,has_more:[installers,retailers,sites,incidents].some(a=>a.length>50),counts,installers:installers.slice(0,50).map(a=>({...a,skills:JSON.parse(a.skills),available:!!a.available})),retailers:retailers.slice(0,50),sites:sites.slice(0,50),incidents:incidents.slice(0,50)});

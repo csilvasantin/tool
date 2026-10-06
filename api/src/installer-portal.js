@@ -1,6 +1,7 @@
 import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
 import {sendTelegramAlerts,linkTelegramChats,telegramBot} from './installer-telegram.js';
+import {installerViewAs,viewAsCookie} from './portal-view-as.js';
 import {channelOf,effectiveRadius,MAX_RADIUS_KM,sweepDesk,resolveWithEvidence,recordProgress,kbFor,sendPushAlerts,validPushEndpoint,logTimeline} from './incident-desk.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 // admira.biz es el espejo de yokup.com (2-oct-2026): sus portales (comercio, instalador,
@@ -135,14 +136,21 @@ export async function handleInstaller(request,env,principal) {
    }
    return response(request,{profile:publicProfile(account)},path==='/register'?201:200,await session(env,account.id,account.password_hash));
   }
-  const account=principal||await authenticated(request,env);
+  // «Abrir como instalador» (portal-view-as.js): solo con sesión de superusuario vigente; si no, manda la sesión propia.
+  const viewAs=principal?null:await installerViewAs(request,env);
+  const account=principal||viewAs?.account||await authenticated(request,env), access=viewAs?.access||{delegated:false,role:'owner'};
+  if(viewAs){
+   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')fail(403,'Los tokens de agentes se gestionan desde la propia cuenta, no en modo «Abrir como instalador».');
+   if(path.startsWith('/push/'))fail(403,'Los avisos push se activan desde la cuenta del instalador, no en modo «Abrir como instalador».');
+   if(path==='/logout'&&method==='POST')return response(request,{ok:true,view_as:false},200,viewAsCookie('',0));
+  }
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'installer',account,path);
   if(path==='/logout' && method==='POST') {
    const token=request.headers.get('cookie').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'=')).slice(COOKIE.length+1);
    await statement(env,'DELETE FROM installer_sessions WHERE token_hash=?',await hash(token)).run();
    return response(request,{ok:true},200,`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);
   }
-  if(path==='/me' && method==='GET') return response(request,{profile:publicProfile(account)});
+  if(path==='/me' && method==='GET') return response(request,{profile:publicProfile(account),access:{role:access.role,delegated:access.delegated,actor_email:access.actor_email||null}});
   if(path==='/me' && method==='PATCH') {
    const p=profile(await jsonBody(request));
    await statement(env,`UPDATE installer_accounts SET name=?,country=?,city=?,latitude=?,longitude=?,skills=?,language=?,available=?,radius_km=?,notify_zone=?,demo=? WHERE id=?`,p.name,p.country,p.city,p.latitude,p.longitude,p.skills,p.language,p.available,p.radius_km,p.notify_zone,p.demo,account.id).run();
