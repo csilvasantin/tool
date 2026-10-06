@@ -4,7 +4,7 @@ import {setup} from './test-fixture.mjs';
 import {syncXpacios} from './src/admira-xpacio-sync.js';
 import {handleItilInternal,handleItilPublic} from './src/itil.js';
 import {validItilCode} from './src/itil-model.js';
-import {routerItilCode,routerItilCodeAlt,applySignal,lifecycleStatus,simulateRouter,createNetworkAdapter,timeBucket} from './src/network-vendor.js';
+import {routerItilCode,routerItilCodeAlt,routerCodeFromSiblings,applySignal,lifecycleStatus,simulateRouter,createNetworkAdapter,timeBucket} from './src/network-vendor.js';
 import {syncNetworkRouters,syncAllNetworkRouters,scheduledNetworkSync} from './src/network-sync.js';
 
 const surfaces=names=>names.map(([name,surface])=>({name,desc:'',status:'sched',surface}));
@@ -78,4 +78,30 @@ test('la pasada programada espera 10 minutos y el stub real no llama a RMS sin t
  const empty=await live.listDevices([{admira_store_id:'alsea-sbux-021'}]);
  assert.equal(empty.skipped,'unmapped');assert.equal(url,'https://api.rms.teltonika-networks.com/devices');
  const other=createNetworkAdapter({NETWORK_VENDOR:'meraki',NETWORK_SOURCE:'simulated'},NOW);assert.equal(other.skipped,'vendor_unsupported');
+});
+
+test('un circuito demo nombra el router con el prefijo de sus equipos y renombra el código largo',async()=>{
+ assert.equal(routerCodeFromSiblings(['365BCN01-ALTV-01','365BCN01-PANV-01','365BCN01-PANH-01']),'365BCN01-RED-01');
+ assert.equal(routerCodeFromSiblings(['365BCN01-ALTV-01','365BCN02-PANV-01']),null);
+ assert.equal(routerCodeFromSiblings(['365DEMOBCNTE-TUAN-RED-01']),null);
+ const demo={id:'365-demo-bcn-tetuan',name:'365 · Plaça de Tetuan, 3',kind:'Cafetería · 365',addr:'Plaça de Tetuan 3 · Barcelona',coords:[2.176016,41.394094],city:'Barcelona',circuit:'demo_365_bcn',external:{brand:'365',operator:'Admira (demo)'},twin:'https://www.admira.store/admira-xp/?loc=365-demo-bcn-tetuan',surfaces:surfaces([['Altavoz','audio'],['Pantalla vertical','pantalla']])};
+ const {env,db}=setup();
+ const alta=await syncXpacios(env,{fetcher:serve([demo])});
+ assert.equal(alta.error,null);assert.equal(alta.created,1);
+ const primero=await syncAllNetworkRouters(env,{now:NOW,trigger:'test'});
+ assert.equal(primero.created,1);assert.equal(primero.conflicts,0);
+ assert.equal(db.prepare("SELECT itil_code FROM itil_items WHERE device_id='net-365-demo-bcn-tetuan'").get().itil_code,'365DEMOBCNTE-TUAN-RED-01');
+ const equipos=db.prepare("SELECT device_id FROM admira_xpacio_devices WHERE admira_store_id='365-demo-bcn-tetuan' ORDER BY surface_key").all();
+ assert.equal(equipos.length,2);
+ db.prepare("UPDATE itil_items SET itil_code=?,managed_by='itil' WHERE device_id=?").run('365BCN01-ALTV-01',equipos[0].device_id);
+ db.prepare("UPDATE itil_items SET itil_code=?,managed_by='itil' WHERE device_id=?").run('365BCN01-PANV-01',equipos[1].device_id);
+ const segundo=await syncAllNetworkRouters(env,{now:NOW,trigger:'test'});
+ assert.equal(segundo.conflicts,0);
+ const row=db.prepare("SELECT itil_code,created_by FROM itil_items WHERE device_id='net-365-demo-bcn-tetuan'").get();
+ assert.equal(row.itil_code,'365BCN01-RED-01');assert.equal(row.created_by,'network-sync');
+ assert.equal(db.prepare("SELECT COUNT(*) n FROM itil_items WHERE category='red'").get().n,1);
+ const pub=await handleItilPublic(new Request('https://data.yokup.com/api/itil/xpacios/365-demo-bcn-tetuan'),env,NOW);
+ const body=await pub.json();
+ assert.equal(body.xpacio.brand,'365');
+ assert.equal(body.network[0].code,'365BCN01-RED-01');
 });

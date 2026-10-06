@@ -33,7 +33,7 @@ export const isXpacio=loc=>!!loc&&typeof loc==='object'&&typeof loc.id==='string
 export function brandOf(loc){
  const mapped=CIRCUIT_BRANDS[loc.circuit];if(mapped)return {key:mapped,name:BRAND_NAMES[mapped]};
  const ext=loc.external&&typeof loc.external==='object'?loc.external:{};
- const raw=[ext.operator,ext.sponsor,ext.brand].find(v=>typeof v==='string'&&slug(v));
+ const raw=[ext.operator,ext.sponsor,ext.brand].find(v=>typeof v==='string'&&slug(v)&&slug(v)!=='admira-demo');
  if(raw){const key=slug(raw).slice(0,40);return {key,name:BRAND_NAMES[key]||clean(raw,100)};}
  if(typeof loc.circuit==='string'&&slug(loc.circuit.split('_')[0])){const key=slug(loc.circuit.split('_')[0]).slice(0,40);return {key,name:BRAND_NAMES[key]||clean(loc.circuit.split('_')[0],100)};}
  const prefix=loc.id.split('-')[0].toLowerCase();if(ID_PREFIX_BRANDS.includes(prefix))return {key:prefix,name:BRAND_NAMES[prefix]};

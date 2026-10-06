@@ -2,7 +2,7 @@
 // El cron de 2 min la dispara como mucho cada 10 min; si queda cola, la siguiente pasada sigue.
 // Un router simulado (created_by network-sync) no retira las pantallas del catálogo ni toma el mando del Xpacio.
 import {statement,rows} from './installer-portal.js';
-import {createNetworkAdapter,routerItilCodeAlt,routerDeviceId,lifecycleStatus,telemetryPayload,mapToItilCi} from './network-vendor.js';
+import {createNetworkAdapter,routerItilCode,routerItilCodeAlt,routerCodeFromSiblings,routerDeviceId,lifecycleStatus,telemetryPayload} from './network-vendor.js';
 
 const JOB='network_router_sync';
 const INTERVAL=10*60*1000;
@@ -14,9 +14,26 @@ function add(into,part){
  if(part.source)into.source=part.source;if(part.vendor)into.vendor=part.vendor;
  return into;
 }
+async function preferredDemoRouterCode(env,site){
+ if(!String(site.circuit_id||'').startsWith('demo_'))return null;
+ const found=await rows(env,'SELECT itil_code FROM itil_items WHERE site_id=? AND itil_code IS NOT NULL',site.site_id);
+ return routerCodeFromSiblings(found.map(r=>r.itil_code));
+}
 async function applyOne(env,site,device,now,trigger){
- const mapped=mapToItilCi(device),id=routerDeviceId(site.admira_store_id);
- let code=mapped.itil_code;
+ const id=routerDeviceId(site.admira_store_id);
+ const preferred=await preferredDemoRouterCode(env,site);
+ let code=preferred||routerItilCode(site.admira_store_id);
+ const own=await statement(env,`SELECT i.itil_code,i.created_by,lc.status AS lc_status FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.device_id=?`,id).first();
+ if(own&&own.itil_code!==code&&own.lc_status!=='retired'&&own.created_by==='network-sync'){
+  const taken=await statement(env,'SELECT device_id FROM itil_items WHERE itil_code=? AND device_id!=?',code,id).first();
+  if(!taken){
+   await env.DB.batch([
+    statement(env,'UPDATE itil_items SET itil_code=?,updated_by=?,updated_at=? WHERE device_id=?',code,'network-sync',now,id),
+    statement(env,'UPDATE retailer_device_links SET admira_device_id=? WHERE device_id=?',code,id),
+    statement(env,'INSERT INTO itil_audit(id,at,actor,channel,action,itil_code,device_id,site_id,detail) VALUES(?,?,?,?,?,?,?,?,?)',crypto.randomUUID(),now,'network-sync',String(trigger||'cron').slice(0,40),'rename',code,id,site.site_id,'código alineado con los equipos del local'),
+   ]);
+  }else code=own.itil_code;
+ }
  const found=await statement(env,`SELECT i.device_id,i.site_id,lc.status AS lc_status,t.payload FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id LEFT JOIN itil_network_telemetry t ON t.device_id=i.device_id WHERE i.itil_code=?`,code).first();
  if(found&&found.device_id!==id){
   code=routerItilCodeAlt(site.admira_store_id);
@@ -84,8 +101,33 @@ export async function syncAllNetworkRouters(env,opts={}){
  }
  return totals;
 }
+async function syncDemoCircuitRouters(env,now,trigger){
+ const adapter=createNetworkAdapter(env,now);
+ if(adapter.skipped)return {ok:false,skipped:adapter.skipped};
+ const gate=adapter.ready?adapter.ready():{ok:true};
+ if(gate.skipped)return {ok:false,skipped:gate.skipped};
+ const sites=await rows(env,`SELECT x.admira_store_id,x.site_id,x.circuit_id,s.name,s.latitude,s.longitude,s.address FROM admira_xpacio_sites x JOIN retailer_sites s ON s.id=x.site_id WHERE x.removed_at IS NULL AND x.circuit_id LIKE 'demo\\_%' ESCAPE '\\' ORDER BY x.admira_store_id LIMIT 40`);
+ if(!sites.length)return {ok:true,seen:0,created:0,updated:0,unchanged:0,skipped_retired:0,conflicts:0,done:true};
+ const listed=await adapter.listDevices(sites);
+ if(listed.skipped)return {ok:false,skipped:listed.skipped,seen:sites.length,done:true};
+ let devices=listed.devices||[];
+ if(adapter.getDeviceStatistics){const stats=await adapter.getDeviceStatistics(devices);if(stats?.devices)devices=stats.devices;}
+ const byStore=new Map(devices.map(d=>[d.admira_store_id,d]));
+ const out={ok:true,seen:sites.length,created:0,updated:0,unchanged:0,skipped_retired:0,conflicts:0,done:true};
+ for(const site of sites){
+  const device=byStore.get(site.admira_store_id);if(!device){out.conflicts++;continue;}
+  let result;try{result=await applyOne(env,site,device,now,trigger);}catch(e){out.conflicts++;console.error('network_router_skip',site.admira_store_id,e?.message);continue;}
+  if(result==='created')out.created++;
+  else if(result==='updated')out.updated++;
+  else if(result==='unchanged')out.unchanged++;
+  else if(result==='retired')out.skipped_retired++;
+  else out.conflicts++;
+ }
+ return out;
+}
 export async function scheduledNetworkSync(env,now=Date.now()){
  try{
+  try{await syncDemoCircuitRouters(env,now,'cron');}catch(e){console.error('network_demo_sync_failed',e?.message);}
   const job=await statement(env,"SELECT last_run_on,last_run_at FROM scheduled_jobs WHERE name=?",JOB).first();
   const cursor=job?.last_run_on&&job.last_run_on!=='done'?job.last_run_on:'';
   if(!cursor&&job&&now-job.last_run_at<INTERVAL)return {skipped:'recent'};
