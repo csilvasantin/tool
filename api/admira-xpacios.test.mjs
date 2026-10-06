@@ -41,6 +41,8 @@ const brandId=(db,key)=>db.prepare('SELECT retailer_id FROM brand_accounts WHERE
 test('marca: circuito conocido, operador/sponsor, prefijo del id y cuenta sin marca',()=>{
  const b=catalog().map(l=>brandOf(l).key);assert.deepEqual(b.slice(0,6),['alsea','alsea','jti','caixabank','canalkiosk','sin-marca']);
  assert.equal(brandOf({id:'x-1',external:{operator:'Grupo Nuevo'}}).key,'grupo-nuevo');assert.equal(brandOf({id:'xtanco-valencia'}).key,'xtanco');
+ assert.equal(brandOf({id:'365-demo-bcn-tetuan',circuit:'demo_365_bcn',external:{operator:'Admira (demo)',brand:'365'}}).key,'365');
+ assert.equal(brandOf({id:'365-demo-bcn-tetuan',circuit:'demo_365_bcn',external:{operator:'Admira (demo)',brand:'365'}}).name,'365');
  const p=prepare(catalog()[3]);assert.equal(p.city,'Barcelona');assert.equal(p.kind,'other');assert.equal(p.country,'ES');
  assert.equal(prepare(catalog()[1]).country,'MX');assert.equal(prepare(catalog()[2]).kind,'tobacco');assert.equal(prepare(catalog()[0]).kind,'hospitality');assert.equal(prepare(catalog()[4]).kind,'kiosk');
  assert.equal(prepare({...catalog()[0],coords:[0,0]}),null);

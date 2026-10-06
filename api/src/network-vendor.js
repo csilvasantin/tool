@@ -34,6 +34,21 @@ export function routerItilCode(storeId){
  return code;
 }
 // Si el código natural ya identifica otro equipo, este segundo código sigue siendo determinista.
+// En un circuito demo, los equipos comparten prefijo (365BCN01-ALTV-01) y el router es 365BCN01-RED-01.
+// Si no hay un único prefijo válido, se queda el código derivado del id de tienda.
+export function routerCodeFromSiblings(codes){
+ const prefixes=new Set();
+ for(const raw of codes||[]){
+  const code=String(raw||'');
+  if(!validItilCode(code)||/-RED-\d{2}$/.test(code))continue;
+  const prefix=code.split('-')[0];
+  if(prefix.length<2||prefix.length>12)continue;
+  prefixes.add(prefix);
+ }
+ if(prefixes.size!==1)return null;
+ const code=[...prefixes][0]+'-RED-01';
+ return validItilCode(code)?code:null;
+}
 export function routerItilCodeAlt(storeId){
  const compact=String(storeId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
  const head=(compact+'STOREXX').slice(0,8);
