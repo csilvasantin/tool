@@ -60,3 +60,17 @@ test("GrokBotBox firma el despliegue sin suplantar otro equipo",()=>{
   assert.equal(validateDeployIdentity("OraculoGrokBotBox","GrokBotBox").signature,"OraculoGrokBotBox · GrokBotBox");
   assert.throws(()=>validateDeployIdentity("OraculoGrokBotBox","MacMini"),/no coincide/);
 });
+
+test("Cypher firma como persona de la flota con las mismas reglas de apellido y máquina",()=>{
+  assert.deepEqual(validateDeployIdentity("CypherMacMini","MacMini"),{deployer:"CypherMacMini",machine:"MacMini",signature:"CypherMacMini · MacMini"});
+  assert.equal(validateDeployIdentity("CypherMini","Mac Mini").deployer,"CypherMacMini");
+  assert.equal(validateDeployIdentity("SubCypherMacMini","admira-macmini").signature,"SubCypherMacMini · MacMini");
+  assert.equal(validateDeployIdentity("InfraCypherMBP16","MacBook Pro 16").deployer,"InfraCypherMBP16");
+  assert.throws(()=>validateDeployIdentity("Cypher","MacMini"),/apellido físico/);
+  assert.throws(()=>validateDeployIdentity("CypherMacMini","MacBook Pro 16"),/no coincide/);
+  assert.throws(()=>validateDeployIdentity("CypherMacMini","PortatilInventado"),/censo operativo/);
+  assert.throws(()=>validateDeployIdentity("Cypher · Jensen Huang · MacMini","MacMini"),/no coincide|forma canónica/);
+  // Los runtimes siguen fuera aunque se cuele un nombre de persona.
+  assert.throws(()=>validateDeployIdentity("GrokCypherMacMini","MacMini"),/runtime o identidad interna/);
+  assert.throws(()=>validateDeployIdentity("ClaudeMacMini","MacMini"),/runtime o identidad interna/);
+});
