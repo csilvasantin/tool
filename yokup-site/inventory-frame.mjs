@@ -32,7 +32,11 @@ function install() {
   options.prepend(nav);
   // ☰ Opciones · enlaces del inventario (antes window.XPACE_SHELL.options).
   const more = group(tr('Inventario', 'Inventory'), 'inventory-links');
-  for (const [es, english, href] of [['Inventario ITIL', 'ITIL inventory', '/retailer#itil'], ['Catálogo XpaceOS', 'XpaceOS catalogue', X + '/inventario/'], ['Referencias Starbucks', 'Starbucks references', X + '/inventario/starbucks/?view=references'], ['Incidencias', 'Incidents', '/incidencias']]) {
+  // Incidencias del PROPIO comercio (6-oct-2026): en el portal del comercio el enlace lleva a su
+  // sección #incidencias. /incidencias es la bandeja interna de la flota (verja con Google propio):
+  // un comercio no entra y el superusuario perdía su «Abrir como retailer».
+  const incidents = page === 'retailer' ? '/retailer#incidencias' : '/incidencias';
+  for (const [es, english, href] of [['Inventario ITIL', 'ITIL inventory', '/retailer#itil'], ['Catálogo XpaceOS', 'XpaceOS catalogue', X + '/inventario/'], ['Referencias Starbucks', 'Starbucks references', X + '/inventario/starbucks/?view=references'], ['Incidencias', 'Incidents', incidents]]) {
     if (!options.querySelector('a[href="' + href + '"]')) more.append(link(tr(es, english), localized(href)));
   }
   if (more.querySelector('a')) nav.after(more);
