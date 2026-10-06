@@ -8,6 +8,7 @@ import {retailerAccess} from './retailer-accounts.js';
 import {isBrandEmail} from './admira-xpacio-sync.js';
 import {isoDay,LIFECYCLE_COLUMNS,withLifecycle,lifecycleStats,readLifecycle,updateLifecycle,inventory,alerts} from './device-lifecycle.js';
 import {ownerSite,inventory as itilInventory,upsertCi,retireCi} from './itil.js';
+import {lecturaRetailerGate} from './lectura-box.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
 const publicAccount=({id,name,email})=>({id,name,email});
@@ -59,6 +60,9 @@ export async function handleRetailer(request,env,principal){
   const path=decodeURIComponent(new URL(request.url).pathname.replace('/api/retailer','')),method=request.method;
   if(method==='OPTIONS')return response(request,{});
   if(path==='/health'&&method==='GET')return response(request,{ok:true,admira_configured:!!env.ADMIRA_CIRCUIT_SECRET});
+  const lectura=await lecturaRetailerGate(request,env);
+  if(lectura?.blocked)return response(request,{error:'Clave de solo lectura.'},403);
+  if(lectura?.missing)return response(request,{error:'La cuenta de la marca 365 no está disponible.'},503);
   if(method!=='GET'&&!ORIGINS.has(request.headers.get('origin')))fail(403,'Origen no permitido.');
   if(['/register','/login'].includes(path)&&method==='POST'){
    await rateLimit(env,'retail-ip:'+(request.headers.get('CF-Connecting-IP')||'local'),20,900000);
@@ -78,7 +82,7 @@ export async function handleRetailer(request,env,principal){
    return response(request,{profile:publicAccount(account)},path==='/register'?201:200,await createSession(env,account.id,account.password_hash));
   }
   if(path==='/accounts'||path==='/switch'){if(principal)fail(404,'Ruta no encontrada.');return await retailerAccess(request,env,path,{authenticated,createSession,cookieToken,cookieName:COOKIE});}
-  const account=principal||await authenticated(request,env),owner=account.id,access=account.access||{delegated:false,role:'owner'};
+  const account=principal||lectura?.account||await authenticated(request,env),owner=account.id,access=account.access||{delegated:false,role:'owner'};
   if(access.delegated){
    if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')fail(403,'Los tokens de agentes se gestionan desde la propia cuenta, no en modo «Ver como».');
    if(access.role==='viewer'&&method!=='GET'&&path!=='/logout')fail(403,'Tienes acceso de solo lectura a esta cuenta.');
