@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {handleDemoIncidentReport,buildReportModel,brandIdFor,decodeJpeg,fetchBrand,REPORT_TO,cleanTimeline,idIotFor,defaultTelegram,aiSummary,tplus,dur} from './src/demo-incident-report.js';
+import {openedVia,handleDemoIncidentReport,buildReportModel,brandIdFor,decodeJpeg,fetchBrand,REPORT_TO,cleanTimeline,idIotFor,defaultTelegram,aiSummary,tplus,dur} from './src/demo-incident-report.js';
 import {renderMissionPdf,winAnsi} from './src/demo-report-pdf.js';
 const T0=1791400000000;
 const base={id:'INC-CLI001',resource:'demo:starbucks-alsea-paseo-de-gracia:pantalla-4:manual:cli-abc',subject:'Starbucks Paseo de Gracia 103 · pantalla-4 · Reproductor colgado',stage:'cerrada',priority:'alta',assignee:'Construcciones Oria',created_at:T0-600000,resolved_at:T0-60000,closed_by:'admira.store · XpaceOS Matrix · CLI',resolution:'Reinicio remoto del reproductor; la playlist arranca de nuevo.',sla:{response_min:30,resolution_min:480,responded_at:T0-590000,response_ok:true,resolution_ok:true}};
@@ -15,7 +15,10 @@ test('envía el PDF sólo a Carlos (correo y Telegram), una vez por incidencia, 
  assert.equal(r.headers.get('access-control-allow-origin'),'https://www.admira.store');
  r=await handleDemoIncidentReport(req({id:'INC-CLI001'}),{},t.d);assert.equal(r.status,409);assert.equal(t.sent.length,1);assert.equal(t.tg.length,1);
  assert.equal((await handleDemoIncidentReport(req({id:'INC-CLI001'},'https://evil.example'),{},deps().d)).status,403);
- assert.equal((await handleDemoIncidentReport(req({id:'INC-CLI001'}),{},deps({...base,resource:'demo:starbucks-alsea-paseo-de-gracia:pantalla-1:manual:040c'}).d)).status,403);
+ // r4: una incidencia manual del gemelo vale si se cerró desde la CLI (id explícito); si la cerró otro, no.
+ assert.equal((await handleDemoIncidentReport(req({id:'INC-CLI001'}),{},deps({...base,resource:'demo:starbucks-alsea-paseo-de-gracia:pantalla-1:manual:040c',closed_by:'Sofía P. · portal'}).d)).status,403);
+ assert.equal((await handleDemoIncidentReport(req({id:'INC-CLI001'}),{},deps({...base,resource:'demo:starbucks-alsea-paseo-de-gracia:pantalla-1:manual:040c'}).d)).status,200);
+ assert.equal((await handleDemoIncidentReport(req({id:'INC-CLI001'}),{},deps({...base,resource:'demo:otra-tienda:pantalla-1:manual:040c'}).d)).status,403);
  assert.equal((await handleDemoIncidentReport(req({id:'INC-CLI001'}),{},deps({...base,stage:'abierta'}).d)).status,409);
  assert.equal((await handleDemoIncidentReport(req({id:'x'}),{},deps().d)).status,400);
 });
@@ -63,3 +66,5 @@ test('marca blanca del catálogo y fotos del gemelo: tema, tipografía, logo e i
  const r=await handleDemoIncidentReport(req({id:'INC-CLI001',logo:JPG,photos:{open:JPG,closed:'data:image/png;base64,xx',open_at:base.created_at+1000}}),{},t.d);const j=await r.json();
  assert.equal(j.brand,'starbucks');assert.equal(j.photos,1);assert.equal(j.logo,true);
 });
+test('r4: cómo se abrió la incidencia (CLI, panel manual o automática)',()=>{assert.equal(openedVia('demo:s:pantalla-1:manual:cli-x'),'cli');assert.equal(openedVia('demo:s:pantalla-1:manual:040c'),'manual');assert.equal(openedVia('demo:s:pantalla-1'),'auto');
+ const m=buildReportModel({...base,resource:'demo:starbucks-alsea-paseo-de-gracia:pantalla-1:manual:040c'},ctx,{now:T0});assert.match(m.incident.find(r=>r[0]==='Abierta')[1],/panel «Incidencia» del gemelo/);});

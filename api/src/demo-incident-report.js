@@ -4,7 +4,8 @@
 // al Telegram privado de Carlos.
 // Seguridad: el destinatario NO viene del cliente —el correo lo fija el binding send_email (destination_address)
 // y aquí también; el chat de Telegram es un secreto del worker (DEMO_REPORT_TELEGRAM_CHAT_ID, chat privado: id
-// positivo)—, sólo incidencias demo de la tienda Starbucks abiertas por la CLI (`…:manual:cli-…`) y ya CERRADAS,
+// positivo)—, sólo incidencias demo de la tienda Starbucks abiertas por la CLI (`…:manual:cli-…`) o, r4 (Carlos 23:06),
+// cualquier incidencia demo de este gemelo cerrada desde la CLI con id explícito (closed_by «… · CLI»), ya CERRADAS,
 // una vez por incidencia y como mucho 10 informes por hora. No es un relay: sin destinatario, asunto ni cuerpo libres.
 import {rateLimit,statement} from './installer-portal.js';
 import {resolveEquipo,xpacioSite} from './itil.js';
@@ -16,6 +17,10 @@ export const AI_MODEL='@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const STORE_PREFIX='demo:starbucks-alsea-paseo-de-gracia:';
 const ID_RE=/^[A-Z]{3}-[A-Z0-9]{4,10}$/;
 const DAY=86400000;
+// Cómo se abrió: CLI del modo experto, panel del gemelo (manual) o el propio gemelo (desenchufe / demo automática).
+export function openedVia(resource){const r=String(resource||'');return /:manual:cli-/.test(r)?'cli':/:manual:/.test(r)?'manual':'auto';}
+const VIA_TEXT={cli:'admira.store (modo experto, CLI)',manual:'el panel «Incidencia» del gemelo (alta manual)',auto:'el gemelo (aviso automático del equipo)'};
+export const closedViaCli=inc=>/·\s*CLI$/.test(String(inc&&inc.closed_by||''));
 // r3 (Carlos 21:39): marca blanca del cliente desde el catálogo único (admiranext.com/marcablanca, el mismo que usa
 // /marca en admira.*): colores, tipografía y nombre; el logo SVG lo rasteriza el gemelo a JPEG (aquí no hay canvas).
 export const BRAND_API='https://www.admiranext.com/marcablanca/api/marcas/';
@@ -79,7 +84,7 @@ export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now(),media={}
  const cause=causeFromSubject(inc.subject),sev=SEV[inc.priority]||String(inc.priority||'').toUpperCase();
  const events=ctx.history.events||[];
  const accept=events.find(e=>e.kind==='accept'||e.kind==='assign'),start=events.find(e=>['note','status','evidence'].includes(e.kind)&&Number(e.ts)>=opened);
- const tl=[Object.assign([tplus(0),clock(opened),'Detectada','Fallo notificado desde el gemelo (CLI) · '+cause],{ms:opened-2}),Object.assign([tplus(0),clock(opened),'Abierta','Ticket '+inc.id+' en Yokup / admira.app · severidad '+sev],{ms:opened-1})];
+ const tl=[Object.assign([tplus(0),clock(opened),'Detectada','Fallo notificado desde '+VIA_TEXT[openedVia(inc.resource)]+' · '+cause],{ms:opened-2}),Object.assign([tplus(0),clock(opened),'Abierta','Ticket '+inc.id+' en Yokup / admira.app · severidad '+sev],{ms:opened-1})];
  if(accept)tl.push(Object.assign([tplus(accept.ts-opened),clock(accept.ts),'Asignada',(accept.author||inc.assignee||'Técnico')+(accept.text?' · '+accept.text:'')],{ms:Number(accept.ts)}));else if(inc.assignee)tl.push(Object.assign(['—','—','Asignada','Técnico asignado: '+inc.assignee],{ms:opened}));
  if(sla.responded_at)tl.push(Object.assign([tplus(sla.responded_at-opened),clock(sla.responded_at),'Iniciada','Primera respuesta registrada · en curso'],{ms:Number(sla.responded_at)+0.5}));else if(start)tl.push(Object.assign([tplus(start.ts-opened),clock(start.ts),'Iniciada',(start.text||'').slice(0,120)],{ms:Number(start.ts)}));
  for(const e of events){if(e===accept||e.kind==='close')continue;if(e.kind==='log'&&/Misión activada/.test(e.text||''))continue;if(tl.length>=12)break;tl.push(Object.assign([tplus(e.ts-opened),clock(e.ts),EVENT_LABEL[e.kind]||e.kind,String(e.author?e.author+': ':'')+String(e.text||'').slice(0,140)],{ms:Number(e.ts)+1}));}
@@ -88,7 +93,7 @@ export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now(),media={}
  const statusTone='ok';
  const history=list.filter(t=>t.id!==inc.id).slice(0,6).map(t=>{const row=[t.id,fmt(t.created_at,{second:undefined}),causeFromSubject(t.subject).slice(0,90),t.resolved_at?dur(t.resolved_at-t.created_at):'—',t.status==='resolved'?'Cerrada':t.status==='open'?'Abierta':t.status];return row;});
  const theme=themeFromBrand(ctx.marca),mb=theme.isAdmira?'ADMIRA':theme.name.toUpperCase();
- const shot=(img,at,stage)=>img?{img,tone:stage==='ok'?'ok':'err',tag:(at&&opened?tplus(at-opened)+' · ':'')+(stage==='ok'?'CERRADA':'ABIERTA'),caption:(stage==='ok'?'Tras el cierre':'Al abrir el ticket')+' · '+clock(at||(stage==='ok'?closed:opened))+' · '+equipoLabel(inc.resource)+' con su tarjeta de incidencia. Captura del gemelo 360°, no de una cámara de tienda.'}:null;
+ const shot=(img,at,stage)=>img?{img,tone:stage==='ok'?'ok':'err',tag:(at&&opened?tplus(at-opened)+' · ':'')+(stage==='ok'?'CERRADA':'ABIERTA'),caption:(stage==='ok'?'Tras el cierre':'Con la incidencia activa')+' · '+clock(at||(stage==='ok'?closed:opened))+' · '+equipoLabel(inc.resource)+' con su tarjeta de incidencia. Captura del gemelo 360°, no de una cámara de tienda.'}:null;
  const reportNo='MR-'+fmtDay(now).split('/').reverse().join('')+'-'+inc.id.slice(4);
  return {
   id:inc.id,reportNo,classification:`DEMO // ${mb} · USO INTERNO // NO DISTRIBUIR // YOKUP MISSION CONTROL`,theme,images:{logo:media.logo||null},
@@ -114,7 +119,7 @@ export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now(),media={}
     ['Estado del activo',{operational:'Operativo',degraded:'Degradado',maintenance:'En mantenimiento',retired:'Retirado',planned:'Previsto'}[lc.status]||'Operativo'],...(isDemoInv?[['Nota de inventario','Datos de compra, serie y garantía del registro DEMO del gemelo en Yokup ITIL (no proceden de factura real).']]:[])],
    history},
   incident:[['Incidencia',inc.id+' · '+(inc.stage==='cerrada'?'Finalizada en admira.app':inc.stage)],['Motivo',cause],['Severidad',sev],['Técnico asignado',inc.assignee||'—'],
-   ['Abierta',fmt(opened)+' · por admira.store (modo experto, CLI)'],['Primera respuesta',fmt(sla.responded_at)],['Cerrada',fmt(closed)+' · por '+(inc.closed_by||'—')],['Duración',dur(elapsed)],
+   ['Abierta',fmt(opened)+' · desde '+VIA_TEXT[openedVia(inc.resource)]],['Primera respuesta',fmt(sla.responded_at)],['Cerrada',fmt(closed)+' · por '+(inc.closed_by||'—')],['Duración',dur(elapsed)],
    ['SLA respuesta',(sla.response_min?'<= '+sla.response_min+' min · ':'')+(sla.response_ok===false?'FUERA de plazo':'en plazo')],['SLA resolución',(resMin?'<= '+(resMin>=60?Math.round(resMin/60)+' h':resMin+' min')+' · ':'')+(sla.resolution_ok===false?'FUERA de plazo':'en plazo')+(frac?' · '+Math.round(frac*100)+'% del plazo':'')],
    ['Nota de resolución',inc.resolution||'—'],['Ficha',`https://www.admira.app/ticket?id=${inc.id}`]],
   timeline:tl,console:cleanTimeline(timeline).map(s=>[s.at,s.text]),
@@ -177,7 +182,7 @@ export async function handleDemoIncidentReport(request,env,deps={}){
  if(!ID_RE.test(id))return cors(request,{error:'Incidencia inválida.'},400);
  const inc=await (deps.fetchIncident||fetchIncident)(env,id);
  if(!inc)return cors(request,{error:'No encuentro esa incidencia.'},404);
- if(!String(inc.resource||'').startsWith(STORE_PREFIX)||!/:manual:cli-/.test(String(inc.resource||'')))return cors(request,{error:'Sólo incidencias demo abiertas por la CLI del gemelo.'},403);
+ if(!String(inc.resource||'').startsWith(STORE_PREFIX)||!(openedVia(inc.resource)==='cli'||closedViaCli(inc)))return cors(request,{error:'Sólo incidencias demo de este gemelo abiertas o cerradas desde la CLI.'},403);
  if(inc.stage!=='cerrada')return cors(request,{error:'La incidencia aún no está cerrada.'},409);
  const now=(deps.now||Date.now)();
  const limiter=deps.rateLimit||rateLimit;
