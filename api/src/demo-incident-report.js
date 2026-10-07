@@ -8,7 +8,7 @@
 // una vez por incidencia y como mucho 10 informes por hora. No es un relay: sin destinatario, asunto ni cuerpo libres.
 import {rateLimit,statement} from './installer-portal.js';
 import {resolveEquipo,xpacioSite} from './itil.js';
-import {renderMissionPdf} from './demo-report-pdf.js';
+import {renderMissionPdf,themeFromBrand,jpegInfo} from './demo-report-pdf.js';
 export const REPORT_TO='csilvasantin@gmail.com',REPORT_FROM='incidencias@admira.live',REPORT_FROM_NAME='Admira · Mission Control';
 export const REPORT_ORIGINS=new Set(['https://www.admira.store','https://admira.store','https://www.xpaceos.com','https://xpaceos.com']);
 export const REPORT_HOURLY=10;
@@ -16,6 +16,15 @@ export const AI_MODEL='@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const STORE_PREFIX='demo:starbucks-alsea-paseo-de-gracia:';
 const ID_RE=/^[A-Z]{3}-[A-Z0-9]{4,10}$/;
 const DAY=86400000;
+// r3 (Carlos 21:39): marca blanca del cliente desde el catálogo único (admiranext.com/marcablanca, el mismo que usa
+// /marca en admira.*): colores, tipografía y nombre; el logo SVG lo rasteriza el gemelo a JPEG (aquí no hay canvas).
+export const BRAND_API='https://www.admiranext.com/marcablanca/api/marcas/';
+const BRAND_RE=/^[a-z0-9][a-z0-9-]{1,40}$/;
+export function brandIdFor(asked,resource){const a=String(asked||'').trim().toLowerCase();if(BRAND_RE.test(a)&&a!=='admira')return a;const slug=/^demo:([a-z0-9-]+):/.exec(String(resource||''))?.[1]||'';return slug.split('-')[0]||'';}
+export async function fetchBrand(id,{fetcher=fetch,timeoutMs=5000}={}){if(!BRAND_RE.test(String(id||'')))return null;try{const r=await fetcher(BRAND_API+encodeURIComponent(id),{headers:{accept:'application/json'},signal:AbortSignal.timeout(timeoutMs)});if(!r.ok)return null;const j=await r.json();return j&&j.id&&j.colores?j:null;}catch(e){console.error('report_brand_failed',e&&e.message);return null;}}
+// Imágenes del gemelo: sólo JPEG en data URL, tamaño y dimensiones acotados.
+export const MAX_IMAGE_BYTES=700000;
+export function decodeJpeg(v,max=MAX_IMAGE_BYTES){const m=/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(v||''));if(!m||m[1].length>max*1.37+8)return null;let raw;try{raw=atob(m[1]);}catch{return null;}const data=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)data[i]=raw.charCodeAt(i);const info=jpegInfo(data);return info&&info.w<=2600&&info.h<=2600&&data.length<=max?{...info,data}:null;}
 function cors(request,body,status=200){const origin=request.headers.get('origin')||'';const h={'content-type':'application/json; charset=utf-8','cache-control':'no-store','vary':'Origin'};if(REPORT_ORIGINS.has(origin)){h['access-control-allow-origin']=origin;h['access-control-allow-methods']='POST, OPTIONS';h['access-control-allow-headers']='content-type';h['access-control-max-age']='600';}return new Response(JSON.stringify(body),{status,headers:h});}
 const fmt=(ms,opt={})=>ms?new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',...opt}).format(new Date(ms)):'—';
 const fmtDay=(ms)=>ms?new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(ms)):'—';
@@ -54,7 +63,7 @@ async function loadContext(env,inc,now){
 const SEV={urgente:'URGENTE',alta:'ALTA',normal:'NORMAL',baja:'BAJA'};
 const EVENT_LABEL={log:'Registro',accept:'Aceptada',assign:'Asignada',note:'Nota',status:'Estado',close:'Cierre',recover:'Recuperada',evidence:'Evidencia',reopen:'Reabierta'};
 // Modelo del informe: todo lo que pinta el PDF, ya en texto. Puro (testeable sin red).
-export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now()}={}){
+export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now(),media={}}={}){
  const sla=inc.sla||{},opened=inc.created_at,closed=inc.resolved_at,site=ctx.site||{},ci=ctx.ci||null,lc=ci?.lifecycle||{};
  const brand='Starbucks',client=ctx.brand?.name||'Alsea',address=site.address||'Paseo de Gracia 103 · Barcelona · 08008',city=site.city||'Barcelona';
  const idIoT=idIotFor({project:brand,address,equipo:ctx.equipo});
@@ -76,28 +85,31 @@ export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now()}={}){
  for(const e of events){if(e===accept||e.kind==='close')continue;if(e.kind==='log'&&/Misión activada/.test(e.text||''))continue;if(tl.length>=22)break;tl.push(Object.assign([tplus(e.ts-opened),clock(e.ts),EVENT_LABEL[e.kind]||e.kind,String(e.author?e.author+': ':'')+String(e.text||'').slice(0,140)],{ms:Number(e.ts)+1}));}
  tl.sort((a,b)=>(a.ms??0)-(b.ms??0));
  tl.push([tplus(elapsed),clock(closed),'Resuelta','Finalizada por '+(inc.closed_by||'—')+' · «'+(inc.resolution||'—')+'»']);
- const statusTone='0.35 0.95 0.55';
+ const statusTone='ok';
  const history=list.filter(t=>t.id!==inc.id).slice(0,8).map(t=>{const row=[t.id,fmt(t.created_at,{second:undefined}),causeFromSubject(t.subject).slice(0,90),t.resolved_at?dur(t.resolved_at-t.created_at):'—',t.status==='resolved'?'Cerrada':t.status==='open'?'Abierta':t.status];return row;});
+ const theme=themeFromBrand(ctx.marca),mb=theme.isAdmira?'ADMIRA':theme.name.toUpperCase();
+ const shot=(img,at,stage)=>img?{img,tone:stage==='ok'?'ok':'err',tag:(at&&opened?tplus(at-opened)+' · ':'')+(stage==='ok'?'CERRADA':'ABIERTA'),caption:(stage==='ok'?'Tras el cierre':'Al abrir el ticket')+' · '+clock(at||(stage==='ok'?closed:opened))+' · '+equipoLabel(inc.resource)+' con su tarjeta de incidencia. Captura del gemelo 360°, no de una cámara de tienda.'}:null;
  const reportNo='MR-'+fmtDay(now).split('/').reverse().join('')+'-'+inc.id.slice(4);
  return {
-  id:inc.id,reportNo,classification:'DEMO // USO INTERNO ADMIRA // NO DISTRIBUIR // YOKUP MISSION CONTROL',
+  id:inc.id,reportNo,classification:`DEMO // ${mb} · USO INTERNO // NO DISTRIBUIR // YOKUP MISSION CONTROL`,theme,images:{logo:media.logo||null},
+  photos:[shot(media.open,media.openAt,'err'),shot(media.closed,media.closedAt,'ok')].filter(Boolean),
   headline:`${brand} Paseo de Gracia 103 · ${equipoLabel(inc.resource)}`,
   status:inc.stage==='cerrada'?'FINALIZADA':String(inc.stage||'').toUpperCase(),statusTone,severity:sev,
-  slaVerdict:slaOk?'EN PLAZO':'FUERA DE PLAZO',slaTone:slaOk?statusTone:'1 0.45 0.35',duration:dur(elapsed),
+  slaVerdict:slaOk?'EN PLAZO':'FUERA DE PLAZO',slaTone:slaOk?'ok':'err',duration:dur(elapsed),
   t0:fmt(opened),tEnd:fmt(closed),generated:fmt(now),
   slaFraction:frac,slaSub:resMin?dur(elapsed)+' de '+(resMin>=60?Math.round(resMin/60)+' h':resMin+' min'):'',
   location:{oneLine:`${site.name||'Starbucks Paseo de Gracia'} · ${address} · alsea-sbux-021`,rows:[
    ['Establecimiento',site.name||'Starbucks Paseo de Gracia'],['Dirección',address],['Ciudad / país',city+' · '+(site.country||'ES')],
    ['Id de Xpacio','alsea-sbux-021 (catálogo Admira) · Yokup '+(site.id||'—')],['Gemelo digital',site.twin_url||'https://www.xpaceos.com/admira-xp/?loc=alsea-sbux-021'],
    ['Recurso del gemelo',String(inc.resource||'').replace(/:manual:.*/,'')]]},
-  project:[['Marca',brand],['Cliente',client+' (cuenta de marca '+(site.brand_key||'alsea')+')'],['Proyecto / circuito',(site.circuit_id||'alsea_starbucks')+' · Admira DS'],['Tipo de Xpacio','Cafetería · QSR con pared de pantallas verticales'],['Plataforma','XpaceOS (gemelo) · Yokup (ITIL, incidencias) · admira.app (ficha)']],
+  project:[['Marca',brand],['Cliente',client+' (cuenta de marca '+(site.brand_key||'alsea')+')'],['Proyecto / circuito',(site.circuit_id||'alsea_starbucks')+' · Admira DS'],['Tipo de Xpacio','Cafetería · QSR con pared de pantallas verticales'],['Plataforma','XpaceOS (gemelo) · Yokup (ITIL, incidencias) · admira.app (ficha)'],['Marca blanca',theme.isAdmira?'Sin marca del cliente en el catálogo: aspecto Admira':`${theme.name} · catálogo admiranext.com/marcablanca (${theme.id}) · colores y logo del cliente · tipografía ${theme.fonts}`]],
   asset:{idIoT,itil:ci?.itil_code||'—',model:[lc.manufacturer,lc.model].filter(Boolean).join(' ')||'modelo sin registrar',
    failuresAll:ctx.history.available?failuresAll:'—',failures90:ctx.history.available?failures90:'—',mtbf,warrantyShort:{valid:'VIGENTE',expiring:'POR VENCER',expired:'VENCIDA',none:'—'}[lc.warranty||'none'],
    source:(ci?'Inventario: Yokup ITIL '+ci.itil_code+(isDemoInv?' (registro DEMO del gemelo)':''):'Inventario: sin ficha ITIL')+' · historial: Yokup tickets',
    rows:[['idIoT',idIoT],['Código ITIL',ci?.itil_code||'—'],['Equipo (CI)',(ci?.name||equipoLabel(inc.resource))+' · '+(ci?.device_id||'—')],['Fabricante / modelo',[lc.manufacturer,lc.model].filter(Boolean).join(' · ')||'—'],
     ['Orientación',ci?.orientation||'vertical'],['Posición en el lineal',[ci?.group_name,ci?.position?'posición '+ci.position:''].filter(Boolean).join(' · ')||'—'],['Función',ci?.role||'—'],
     ['Nº de serie',lc.serial||'—'],['Fecha de compra',esDay(lc.purchase_date)+(lc.supplier?' · '+lc.supplier:'')+(lc.invoice_ref?' · '+lc.invoice_ref:'')],['Instalación',esDay(lc.installed_at)+(lc.installed_by?' · '+lc.installed_by:'')],
-    ['Garantía',warrantyLong,lc.warranty==='valid'?'0.1 0.5 0.25':lc.warranty==='expired'?'0.75 0.15 0.1':null],['Mantenimiento',lc.last_maintenance_at?'último '+esDay(lc.last_maintenance_at)+(lc.maintenance_due_on?' · próximo '+esDay(lc.maintenance_due_on):''):'—'],
+    ['Garantía',warrantyLong,lc.warranty==='valid'?'ok':lc.warranty==='expired'?'err':null],['Mantenimiento',lc.last_maintenance_at?'último '+esDay(lc.last_maintenance_at)+(lc.maintenance_due_on?' · próximo '+esDay(lc.maintenance_due_on):''):'—'],
     ['Fallos registrados',ctx.history.available?`${failuresAll} en total (incluida esta) · ${failures90} en los últimos 90 días`:'historial no disponible'],['MTBF',mtbf==='—'?'—':mtbf+' entre fallos desde la instalación'],
     ['Estado del activo',{operational:'Operativo',degraded:'Degradado',maintenance:'En mantenimiento',retired:'Retirado',planned:'Previsto'}[lc.status]||'Operativo'],...(isDemoInv?[['Nota de inventario','Datos de compra, serie y garantía del registro DEMO del gemelo en Yokup ITIL (no proceden de factura real).']]:[])],
    history},
@@ -108,7 +120,7 @@ export function buildReportModel(inc,ctx,{ai,timeline=[],now=Date.now()}={}){
   timeline:tl,console:cleanTimeline(timeline).map(s=>[s.at,s.text]),
   ai:ai||fallbackSummary(inc,{cause,sev,failuresAll,failures90,warranty:lc.warranty,elapsed,slaOk}),
   signoff:[['PREPARADO POR','Yokup Mission Control · informe automático',fmt(now)],['CERRADO POR',inc.closed_by||'—',fmt(closed)],['VALIDADO EN','admira.app · ficha '+inc.id+' Finalizada',fmt(closed)]],
-  disclaimer:'Incidencia de demostración del gemelo digital (recurso demo:). Datos de proyecto, ubicación y activo tomados del ITIL de Yokup; historial de fallos de la bandeja de tickets de Yokup; resumen ejecutivo generado por IA ('+(ai?.model||'plantilla')+') a partir de esos datos. Enviado únicamente a '+REPORT_TO+' y al Telegram privado de Carlos Silva.'
+  disclaimer:'Incidencia de demostración del gemelo digital (recurso demo:). Datos de proyecto, ubicación y activo tomados del ITIL de Yokup; historial de fallos de la bandeja de tickets de Yokup; resumen ejecutivo generado por IA ('+(ai?.model||'plantilla')+') a partir de esos datos. Aspecto: '+(theme.isAdmira?'Admira':'marca blanca '+theme.name+' del catálogo admiranext.com/marcablanca')+'. Fotos: capturas del gemelo digital, no de una cámara de tienda. Enviado únicamente a '+REPORT_TO+' y al Telegram privado de Carlos Silva.'
  };
 }
 export function fallbackSummary(inc,{cause,sev,failuresAll,failures90,warranty,elapsed,slaOk}){
@@ -135,7 +147,7 @@ const b64text=(t)=>b64(new TextEncoder().encode(t));
 const encWord=(t)=>'=?UTF-8?B?'+b64text(t)+'?=';
 export function buildMime(model,pdf,{now=Date.now(),messageId}={}){
  const boundary='yk-'+crypto.randomUUID();
- const text=`INFORME DE MISIÓN · ${model.id} · ${model.reportNo}\n${model.headline}\n${model.location.oneLine}\n\nEstado: ${model.status} · Severidad: ${model.severity} · SLA: ${model.slaVerdict} · Duración: ${model.duration}\n\nRESUMEN EJECUTIVO (${model.ai.label})\n${model.ai.summary}\n\nCausa raíz: ${model.ai.rootCause}\nRecomendaciones:\n${model.ai.recommendations.map((r,i)=>(i+1)+'. '+r).join('\n')}\n\nActivo: ${model.asset.idIoT} · ${model.asset.itil} · ${model.asset.model}\nFallos: ${model.asset.failuresAll} (90 días: ${model.asset.failures90}) · MTBF ${model.asset.mtbf} · Garantía ${model.asset.warrantyShort}\n\nAdjunto: informe completo en PDF.\n`;
+ const text=`INFORME DE MISIÓN · ${model.id} · ${model.reportNo}${model.theme.isAdmira?'':' · '+model.theme.name}\n${model.headline}\n${model.location.oneLine}\n\nEstado: ${model.status} · Severidad: ${model.severity} · SLA: ${model.slaVerdict} · Duración: ${model.duration}\n\nRESUMEN EJECUTIVO (${model.ai.label})\n${model.ai.summary}\n\nCausa raíz: ${model.ai.rootCause}\nRecomendaciones:\n${model.ai.recommendations.map((r,i)=>(i+1)+'. '+r).join('\n')}\n\nActivo: ${model.asset.idIoT} · ${model.asset.itil} · ${model.asset.model}\nFallos: ${model.asset.failuresAll} (90 días: ${model.asset.failures90}) · MTBF ${model.asset.mtbf} · Garantía ${model.asset.warrantyShort}\n\nAdjunto: informe completo en PDF.\n`;
  const lines=['From: '+encWord(REPORT_FROM_NAME)+' <'+REPORT_FROM+'>','To: <'+REPORT_TO+'>','Subject: '+encWord(`Informe de misión ${model.id} · ${model.headline} · ${model.status}`),'Message-ID: '+messageId,'Date: '+new Date(now).toUTCString(),'MIME-Version: 1.0','Content-Type: multipart/mixed; boundary="'+boundary+'"','','--'+boundary,'Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',b64text(text).replace(/.{76}/g,'$&\r\n'),'--'+boundary,'Content-Type: application/pdf; name="informe-'+model.id+'.pdf"','Content-Disposition: attachment; filename="informe-'+model.id+'.pdf"','Content-Transfer-Encoding: base64','',b64(pdf).replace(/.{76}/g,'$&\r\n'),'--'+boundary+'--',''];
  return lines.join('\r\n');
 }
@@ -160,6 +172,7 @@ export async function handleDemoIncidentReport(request,env,deps={}){
  if(request.method==='OPTIONS')return cors(request,{});
  if(request.method!=='POST')return cors(request,{error:'Método no permitido.'},405);
  if(!REPORT_ORIGINS.has(request.headers.get('origin')||''))return cors(request,{error:'Origen no permitido.'},403);
+ if(Number(request.headers.get('content-length')||0)>3000000)return cors(request,{error:'Petición demasiado grande.'},413);
  const b=await request.json().catch(()=>({}));const id=String(b&&b.id||'').trim().toUpperCase();
  if(!ID_RE.test(id))return cors(request,{error:'Incidencia inválida.'},400);
  const inc=await (deps.fetchIncident||fetchIncident)(env,id);
@@ -172,9 +185,12 @@ export async function handleDemoIncidentReport(request,env,deps={}){
  const onceKey='demo-incident-report:'+id;
  try{await limiter(env,onceKey,1,7*DAY);}catch(e){return cors(request,{error:'El informe de esta incidencia ya se envió.',already:true,to:REPORT_TO},409);}
  const ctx=await (deps.loadContext||loadContext)(env,inc,now);
- const draft=buildReportModel(inc,ctx,{timeline:b.timeline,now});
+ ctx.marca=await (deps.fetchBrand||fetchBrand)(brandIdFor(b.marca,inc.resource));
+ const ph=b.photos&&typeof b.photos==='object'?b.photos:{},okAt=v=>{const n=Number(v);return n>=Number(inc.created_at||0)-3600000&&n<=now+60000?n:0;};
+ const media={logo:decodeJpeg(b.logo,250000),open:decodeJpeg(ph.open),closed:decodeJpeg(ph.closed),openAt:okAt(ph.open_at),closedAt:okAt(ph.closed_at)};
+ const draft=buildReportModel(inc,ctx,{timeline:b.timeline,now,media});
  const ai=await (deps.aiSummary||aiSummary)(env,draft);
- const model=ai?buildReportModel(inc,ctx,{ai,timeline:b.timeline,now}):draft;
+ const model=ai?buildReportModel(inc,ctx,{ai,timeline:b.timeline,now,media}):draft;
  const pdf=renderMissionPdf(model);
  const messageId='<informe-'+id.toLowerCase()+'-'+now+'@admira.live>';
  let mail=null,mailErr=null,tg=null;
@@ -182,5 +198,5 @@ export async function handleDemoIncidentReport(request,env,deps={}){
  try{tg=await (deps.telegram||defaultTelegram)(env,pdf,model);}catch(e){tg={sent:false,reason:String(e&&e.message||e).slice(0,120)};}
  if(mailErr&&!tg?.sent){try{await statement(env,'DELETE FROM installer_rate_limits WHERE key=?',onceKey).run();}catch{}return cors(request,{error:'No se pudo enviar el informe: '+String(mailErr&&mailErr.message||mailErr).slice(0,160),telegram:tg},mailErr&&mailErr.status||502);}
  return cors(request,{ok:true,sent:!mailErr,id,to:REPORT_TO,provider:'cloudflare-email-routing',message_id:mailErr?null:(mail||messageId),mail_error:mailErr?String(mailErr.message).slice(0,160):undefined,
-  telegram:tg,ai:model.ai.model,pages:(new TextDecoder('latin1').decode(pdf).match(/\/Type \/Page /g)||[]).length,pdf_bytes:pdf.length,report_no:model.reportNo});
+  telegram:tg,ai:model.ai.model,brand:model.theme.isAdmira?'admira':model.theme.id,photos:model.photos.length,logo:!!media.logo,pages:(new TextDecoder('latin1').decode(pdf).match(/\/Type \/Page /g)||[]).length,pdf_bytes:pdf.length,report_no:model.reportNo});
 }
