@@ -4,6 +4,7 @@ import {handleAccess,sweepPortalAccess} from './portal-access.js';
 import {handleAdmin} from './portal-admin.js';
 import {handlePortalMcp} from './portal-mcp.js';
 import { handleRetailer, handleCircuit } from './retailer-portal.js';
+import { handleDemoIncidentReport } from './demo-incident-report.js';
 import { handleInstaller, sweepInstallers, dispatchNotifications } from './installer-portal.js';
 import { handleDesk } from './incident-desk.js';
 import { syncRetailerCircuits } from './admira-circuit-sync.js';
@@ -88,6 +89,8 @@ async function routeRequest(request, env, ctx) {
       return json(request, {error:'Clave de solo lectura.'}, 403);
     }
     if (early.pathname.startsWith('/api/lectura/')) return handleLectura(request, env);
+    // Informe PDF por correo de una incidencia DEMO cerrada desde la CLI del gemelo (destinatario fijo, ver src/demo-incident-report.js).
+    if (early.pathname === '/api/demo/incident-report') return handleDemoIncidentReport(request, env);
     if(early.pathname==='/mcp/calls')return handleCallsMcp(request,env);
     // Lectura ITIL para las soluciones de la Galaxia (CORS propio, sin datos privados; ver docs/itil-yokup.md).
     if(new URL(request.url).pathname.startsWith('/api/itil/'))return handleItilPublic(request,env);
