@@ -23,7 +23,7 @@ function page(url, {fleet = false, existing = null} = {}) {
 }
 
 test('App launch uses the fixed engine and retains the real local CLI mount', () => {
-  for (const host of ['admira.app', 'www.admira.app']) {
+  for (const host of ['admira.app', 'www.admira.app', 'yokup.com', 'www.yokup.com']) {
     const p = page(`https://${host}/retailer?marca=starbucks&ax_demo=app`); p.run();
     const [engine] = p.engines(); assert.equal(p.engines().length, 1);
     assert.equal(engine.src, current); assert.equal(engine.attrs['data-pata'], 'admira.app');
@@ -36,7 +36,7 @@ test('App launch uses the fixed engine and retains the real local CLI mount', ()
 
 test('normal visits, wrong platform and untrusted hosts preserve the legacy pin', () => {
   for (const url of ['https://www.admira.app/', 'https://www.admira.app/?ax_demo=biz',
-    'https://www.admira.app/?ax_demo=app-other', 'https://www.yokup.com/?ax_demo=app',
+    'https://www.admira.app/?ax_demo=app-other', 'https://www.yokup.com/?ax_demo=biz',
     'https://admira.app.evil.example/?ax_demo=app', 'https://sub.admira.app/?ax_demo=app',
     'https://localhost/?ax_demo=app']) {
     const p = page(url); p.run(); const [engine] = p.engines();
@@ -59,4 +59,14 @@ test('fleet console remains independent and retailer loads the same frame', () =
   const html = readFileSync(new URL('./retailer.html', import.meta.url), 'utf8');
   assert.match(html, /<script src="\/yk-frame\.js\?v=/);
   assert.match(html, /id="workspace" hidden/);
+});
+
+// These assets are immutable for one year: changed source needs a new browser URL.
+test('native entry pages request a fresh frame URL instead of the immutable old pin', () => {
+  const expected = '/yk-frame.js?v=20261007-native-demo-control-1';
+  for (const file of ['index.html', 'retailer.html']) {
+    const html = readFileSync(new URL('./' + file, import.meta.url), 'utf8');
+    assert.ok(html.includes(expected), file);
+    assert.ok(!html.includes('/yk-frame.js?v=r35'), file);
+  }
 });

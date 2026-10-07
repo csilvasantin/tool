@@ -2333,7 +2333,7 @@
     // abierto se recuerda solo en la pestaña. El ?v= va con el sello de la piel para no servir la antigua de caché.
     var nativeAppDemo = false;
     try {
-      nativeAppDemo = /^(www\.)?admira\.app$/.test(location.hostname) &&
+      nativeAppDemo = /^(www\.)?(admira\.app|yokup\.com)$/.test(location.hostname) &&
         new URLSearchParams(location.search).get("ax_demo") === "app";
     } catch (_) {}
     if (!FLEET_MODE && !document.getElementById("ax-experto-js") &&
