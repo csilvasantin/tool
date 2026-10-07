@@ -74,3 +74,16 @@ test("Cypher firma como persona de la flota con las mismas reglas de apellido y 
   assert.throws(()=>validateDeployIdentity("GrokCypherMacMini","MacMini"),/runtime o identidad interna/);
   assert.throws(()=>validateDeployIdentity("ClaudeMacMini","MacMini"),/runtime o identidad interna/);
 });
+
+test("GrokBot firma como persona de la flota con su apellido físico (Carlos, 7-oct-2026)",()=>{
+  assert.deepEqual(validateDeployIdentity("GrokBotMBP16","MacBookPro16"),{deployer:"GrokBotMBP16",machine:"MacBookPro16",signature:"GrokBotMBP16 · MacBookPro16"});
+  assert.equal(validateDeployIdentity("GrokBot16","MacBook Pro 16").deployer,"GrokBotMBP16");
+  assert.equal(validateDeployIdentity("GrokBotMacMini","MacMini").signature,"GrokBotMacMini · MacMini");
+  assert.equal(validateDeployIdentity("SubGrokBotMBP16","macbook-pro-16").deployer,"SubGrokBotMBP16");
+  assert.throws(()=>validateDeployIdentity("GrokBot","MacBookPro16"),/apellido físico|runtime o identidad interna/);
+  assert.throws(()=>validateDeployIdentity("GrokBotMBP16","MacMini"),/no coincide/);
+  // El runtime sigue fuera: «Grok», «grokbot…» en minúsculas o Grok + otra persona no firman.
+  assert.throws(()=>validateDeployIdentity("GrokMBP16","MacBookPro16"),/runtime o identidad interna/);
+  assert.throws(()=>validateDeployIdentity("grokbotMBP16","MacBookPro16"),/runtime o identidad interna/);
+  assert.throws(()=>validateDeployIdentity("GrokCypherMacMini","MacMini"),/runtime o identidad interna/);
+});
