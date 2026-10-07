@@ -136,3 +136,13 @@ Pruebas: `api/incident-links.test.mjs`, `yokup-rtc/portal-bridge.test.mjs` (incl
 4. `cd yokup-site && node deploy.mjs` (marca en `/incidencias` y nº de ticket en la ficha del portal).
 
 El orden 2↔3 es tolerante: mientras el otro no esté publicado, cada lado guarda el error y reintenta. **Requisito**: los dos workers tienen que estar en la **misma cuenta de Cloudflare** (los service bindings no cruzan cuentas). `yokup-rtc` fija `account_id = 5b14…`; `api/wrangler.toml` no lo fija. Compruébalo antes del paso 2 (`npx wrangler deployments list` en `api/` con la sesión de la cuenta de gmail).
+
+## Cerrar incidencia (7-oct-2026 · GrokBot · MacBookPro16)
+
+ES: «Si damos de alta una incidencia tenemos que poder cerrarla» (Carlos).
+- Portal del comercio (admira.app/retailer · Mi comercio): botón **Cerrar incidencia** en cada incidencia activa, con nota de resolución opcional y confirmación. `POST /api/retailer/incidents/:id/close {note}` (idempotente, solo el dueño o delegados con edición; lectura → 403). Queda `resolved`, `resolution='Cerrada por el comercio: …'`, `resolved_at` y línea `cerrada_comercio` con quién. El cierre viaja a Yokup por incident_links (estado `resolved`) y de ahí al gemelo.
+- Gemelo admira.store (Matrix · Incidencia · Starbucks): **✓ Cerrar incidencia** sobre la pantalla averiada y en el panel. `POST https://api.yokup.com/incident {close:true,id|resource,by,note}` — carril público SOLO para recursos `demo:`; `{start:true}` pasa a en curso. Con técnico asignado en el portal → 409 (se cierra allí con evidencia).
+- `GET /incident/status` añade `resolution` (nota del cierre) junto a `closed_by` y `resolved_at`; el gemelo pinta «Cerrada por … · hora · «nota»» y la pantalla vuelve a emitir.
+- Ficha Yokup (`/ticket`): «✓ Finalizar» pide nota de resolución opcional (viaja como `note`).
+
+EN: Retailer portal **Close incident** (optional note, confirmation; idempotent `POST /api/retailer/incidents/:id/close`), twin **✓ Close incident** (public `POST /incident {close:true}` limited to `demo:` resources), `/incident/status` exposes `resolution`, and the Yokup ticket close asks for an optional resolution note.

@@ -132,6 +132,17 @@ export async function handleRetailer(request,env,principal){
    // Notification recovery is retried by the existing two-minute sweep if this request fails.
    if(channelOf(b.channel)==='digital')await sweepDesk(env);else await dispatchNotifications(env);return response(request,{id,channel:channelOf(b.channel),source,...follow(id)},201);
   }
+  // Cerrar incidencia desde el comercio (Carlos, 7-oct-2026: «si damos de alta una incidencia tenemos que poder cerrarla»).
+  // Idempotente: una ya resuelta responde applied:false. El cierre viaja a Yokup (incident_links) y de ahí al gemelo de admira.store.
+  const closeOne=/^\/incidents\/([\w:-]+)\/close$/.exec(path);
+  if(closeOne&&method==='POST'){
+   const incident=await ownIncident(env,closeOne[1],owner),b=await jsonBody(request),note=typeof b.note==='string'?b.note.trim().slice(0,500):'',actor=access.actor_email||account.email;
+   if(incident.status==='resolved')return response(request,{id:incident.id,status:'resolved',applied:false,resolution:incident.resolution||null,resolved_at:incident.resolved_at||null});
+   const now=Date.now(),resolution='Cerrada por el comercio'+(note?': '+note:'.');
+   const r=await statement(env,"UPDATE installer_incidents SET status='resolved',resolution=?,resolved_at=? WHERE id=? AND status!='resolved'",resolution,now,incident.id).run();
+   if(r.meta&&r.meta.changes)await statement(env,'INSERT INTO incident_timeline(id,incident_id,kind,detail,created_at) VALUES(?,?,?,?,?)',crypto.randomUUID(),incident.id,'cerrada_comercio',(resolution+' · '+actor).slice(0,500),now).run();
+   return response(request,{id:incident.id,status:'resolved',applied:!!(r.meta&&r.meta.changes),resolution,resolved_at:now,closed_by:actor});
+  }
   const rating=/^\/incidents\/([\w:-]+)\/rating$/.exec(path);
   if(rating&&method==='POST'){
    const incident=await ownIncident(env,rating[1],owner),b=await jsonBody(request);

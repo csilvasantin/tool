@@ -70,7 +70,7 @@ import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
 import { createAdmiraMcpClient, handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL, SUPERVISOR_IDENTITY_TRACKS_SQL } from "./supervisor.js";
 import { normalizeAccessDirectory, supervisorAccessForSession, supervisorSessionInfo } from "./supervisor-access.js";
-import { INCIDENT_STATUS_CACHE_S, INCIDENT_STATUS_MAX_ACTIVE, INCIDENT_STATUS_PREFIX, isMonitoredScreen, normalizeIncidentStatusQuery, prefixUpperBound, serializeIncidentStatus } from "./incident-status.js";
+import { INCIDENT_STATUS_CACHE_S, INCIDENT_STATUS_MAX_ACTIVE, INCIDENT_STATUS_PREFIX, isMonitoredScreen, normalizeIncidentStatusQuery, prefixUpperBound, serializeIncidentStatus, normalizeIncidentAction, applyIncidentAction } from "./incident-status.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -10120,7 +10120,7 @@ var worker_app = {
         }
         const ids = [...rows.keys()], byTicket = new Map(ids.map((id) => [id, []]));
         if (ids.length) {
-          const { results } = await env.DB.prepare("SELECT ticket_id,ts,kind,author FROM events WHERE ticket_id IN (" + ids.map(() => "?").join(",") + ") ORDER BY id ASC")
+          const { results } = await env.DB.prepare("SELECT ticket_id,ts,kind,author,substr(text,1,400) AS text FROM events WHERE ticket_id IN (" + ids.map(() => "?").join(",") + ") ORDER BY id ASC")
             .bind(...ids).all();
           for (const e of results || []) byTicket.get(e.ticket_id)?.push(e);
         }
@@ -11356,6 +11356,14 @@ var worker_app = {
     if (url.pathname === "/incident" && req.method === "POST") {
       try {
         const b = await req.json().catch(() => ({}));
+        if (b && (b.close || b.start || b.action === "close" || b.action === "start")) {
+          await ensureSchema(env);
+          const q = normalizeIncidentAction(b);
+          if (!q.ok) return json({ ok: false, error: q.error }, 400);
+          const out = await applyIncidentAction(env, q, { addEvent, portalAssigned });
+          if (out.body.applied && q.action === "close" && ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(pushPortalChanges(env, portalDeps()).catch(() => {}));
+          return json(out.body, out.status);
+        }
         if (b && b.resolve) {
           const rid = await resolveIncident(env, b.resource, b.by, b.detail);
           return json({ ok: true, resolved: rid });
