@@ -82,6 +82,18 @@ test("y las de las casas admira.biz y admira.app (intercambio de dominios, 4-oct
   }
 });
 
+test("y el stream de Neo (digitalavatar.ai), que necesita relé fuera de la red de casa (7-oct-2026)", async () => {
+  // El reproductor de Pixel Streaming de Neo se sirve desde neo-digitalavatar.csilvasantin.workers.dev
+  // (y neo.digitalavatar.ai). Sin TURN, quien está fuera de la LAN/tailnet o sin UDP veía negro y no oía.
+  for (const o of ["https://neo-digitalavatar.csilvasantin.workers.dev", "https://neo.digitalavatar.ai",
+                   "https://digitalavatar.ai", "https://www.digitalavatar.ai"]) {
+    assert.equal(ctx.origen(pide({ Origin: o })), o);
+  }
+  for (const o of ["https://digitalavatar.ai.evil.net", "http://digitalavatar.ai", "https://evil-digitalavatar.csilvasantin.workers.dev"]) {
+    assert.equal(ctx.origen(pide({ Origin: o })), "", `${o} no debería pasar`);
+  }
+});
+
 test("un origen ajeno no vale, ni aunque se parezca", async () => {
   for (const o of ["https://yokup.com.evil.net", "http://yokup.com", "https://admira.live.evil.net",
                    "http://www.admira.live", "https://admiralive.com", "null"]) {
