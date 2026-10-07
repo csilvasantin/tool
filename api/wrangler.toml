@@ -88,3 +88,15 @@ service = "yokup-rtc"
 [[send_email]]
 name = "INCIDENT_MAIL"
 destination_address = "csilvasantin@gmail.com"
+
+# ── Informe de misión (r2, GrokBot · 7-oct-2026) ─────────────────────────────────────────────────
+# Workers AI: resumen ejecutivo del informe demo (mismo modelo que yokup-rtc; si falla, plantilla).
+[ai]
+binding = "AI"
+
+# Historial de tickets del gemelo para el informe (fallos del activo, eventos de la incidencia).
+# Es la D1 de yokup-rtc (bandeja Yokup); aquí SÓLO se lee (src/demo-incident-report.js · ticketHistory).
+[[d1_databases]]
+binding = "TICKETS"
+database_name = "yokup-tickets"
+database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
