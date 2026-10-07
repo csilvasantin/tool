@@ -80,3 +80,11 @@ DESK_PROGRESS_MIN = "240"
 [[services]]
 binding = "RTC"
 service = "yokup-rtc"
+
+# ── Informe PDF de incidencias DEMO (GrokBot · 7-oct-2026, petición de Carlos) ───────────────
+# Cloudflare Email Routing de admira.live (MX route*.mx.cloudflare.net, misma cuenta). El binding
+# FIJA el destinatario: el worker no puede escribir a nadie más que a Carlos (no es un relay).
+# Remitente: incidencias@admira.live. Ruta: POST /api/demo/incident-report (src/demo-incident-report.js).
+[[send_email]]
+name = "INCIDENT_MAIL"
+destination_address = "csilvasantin@gmail.com"
