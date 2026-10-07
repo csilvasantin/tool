@@ -2331,13 +2331,24 @@
     // Sólo en modo público: la consola de CLIs de la flota (FLEET_MODE) se queda como está.
     // Cerrado por defecto (Carlos, 6-oct-2026): sin data-min la piel lo oculta hasta pulsar ⌘ (.yk-ico-exp);
     // abierto se recuerda solo en la pestaña. El ?v= va con el sello de la piel para no servir la antigua de caché.
-    if (!FLEET_MODE && !document.getElementById("ax-experto-js")) {
+    var nativeAppDemo = false;
+    try {
+      nativeAppDemo = /^(www\.)?(admira\.app|yokup\.com)$/.test(location.hostname) &&
+        new URLSearchParams(location.search).get("ax_demo") === "app";
+    } catch (_) {}
+    if (!FLEET_MODE && !document.getElementById("ax-experto-js") &&
+        (!nativeAppDemo || !document.querySelector('script[src^="https://www.admiranext.com/suite/experto.js"]'))) {
       var axCss = document.createElement("link");
       axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261006-experto-cerrado-1";
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = "https://www.admiranext.com/suite/experto.js?v=20261007-pill-1";
+      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261007-native-demo-control-1" :
+        "https://www.admiranext.com/suite/experto.js?v=20261007-pill-1";
+      if (nativeAppDemo) {
+        ax.setAttribute("data-admira-demo-engine", "");
+        ax.setAttribute("data-pata", "admira.app");
+      }
       var axCfg = {panel:"#yk-rail-bottom", header:".yk-expert-hd", title:".yk-expert-title", body:".yk-slot",
         form:".yk-lcli-form", input:".yk-lcli-input", log:".yk-lcli-log", hint:".yk-lcli-hint",
         extras:".yk-slot > :not(.yk-local-cli):not(.ax-engine-slot)", chrome:".yk-expert-ver,.yk-lcli-prompt"};
