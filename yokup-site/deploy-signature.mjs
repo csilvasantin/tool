@@ -1,6 +1,7 @@
 const MAX_FIELD = 80;
 // Cypher (Carlos, 6-oct-2026): deepagent de la flota (admira.live) autorizado a publicar; mismas reglas de apellido.
-const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe", "Cypher"];
+// GrokBot (Carlos, 7-oct-2026): agente de la flota autorizado a publicar; mismas reglas de apellido (GrokBotMBP16 · MacBookPro16).
+const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe", "Cypher", "GrokBot"];
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
 // Apellido canónico = diccionario de la normativa (regla 02): el modelo tal cual lo
 // fija el diccionario, igual para todos. Los apellidos de la generación anterior
@@ -38,7 +39,9 @@ function resolveMachine(value) {
 }
 export function validateDeployIdentity(agentValue, machineValue) {
   const agent = clean(agentValue, "YOKUP_DEPLOY_AGENT");
-  if (INTERNAL.test(agent)) throw new Error("YOKUP_DEPLOY_AGENT no puede ser un runtime o identidad interna");
+  // «GrokBot» es una persona operativa (con su apellido físico), no el runtime: sólo esa forma exacta pasa el filtro.
+  const grokBot = /^(?:Infra|Sub)?GrokBot(?!Box$)[A-Z0-9]/.test(agent);
+  if (!grokBot && INTERNAL.test(agent)) throw new Error("YOKUP_DEPLOY_AGENT no puede ser un runtime o identidad interna");
   const machine = resolveMachine(machineValue);
   let role = "", body = agent;
   if (body.startsWith("Infra")) { role = "Infra"; body = body.slice(5); }
