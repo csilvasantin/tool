@@ -72,11 +72,11 @@ function contHeader(d,r){const T=d.T;band(d,H-14,r.classification);d.rect(0,H-40
 // Tarjeta de marca en la cabecera: logo del catálogo (rasterizado a JPEG por el gemelo) o el nombre; Admira: insignia.
 function brandCard(d,x,y,w,h){const T=d.T,img=d.r.images?.logo;d.rect(x,y,w,h,WHITE);d.rect(x,y,w,2.2,T.head2);if(img){d.image(img,x+6,y+5,w-12,h-10);return;}if(T.isAdmira){patch(d,x+h/2,y+h/2,h/2-4);d.text(x+h+2,y+h/2-4,12,'F2','ADMIRA',C.navy);return;}d.center(x+w/2,y+h/2-5,14,T.titleFont,(T.name||'').toUpperCase().slice(0,16),T.primary);}
 // Evidencia visual: fotos de la pantalla en el gemelo (abierta / cerrada), con marco y rótulo de telemetría.
-function photos(d,y,list,ensure){const T=d.T,n=list.length,gap=12,bw=n>1?(W-2*M-gap)/2:(W-2*M)*0.62,bh=Math.min(230,bw*1.05);y=ensure(y,bh+40);const top=y+4;
+function photos(d,y,list,ensure){const T=d.T,n=list.length,gap=12,bw=n>1?(W-2*M-gap)/2:(W-2*M)*0.62,bh=Math.min(170,bw*0.85);y=ensure(y,bh+40);const top=y+4;
  list.forEach((p,i)=>{const x=n>1?M+i*(bw+gap):M+(W-2*M-bw)/2,by=top-bh;d.rect(x,by,bw,bh,BLACK);const box=d.image(p.img,x+2,by+2,bw-4,bh-4);d.rect(x,by,bw,bh,null,T.head,1);
   const tag=p.tag||'';d.rect(x,top-14,Math.min(bw,width(tag,7,true)+12),14,p.tone==='ok'?T.ok:T.err);d.text(x+6,top-10,7,'F4',tag,WHITE);
-  wrapText(p.caption||'',6.8,bw,true).slice(0,4).forEach((l,j)=>d.text(x,by-10-j*8.5,6.8,'F3',l,T.grey));});
- return top-bh-62;}
+  wrapText(p.caption||'',6.8,bw,true).slice(0,3).forEach((l,j)=>d.text(x,by-10-j*8.5,6.8,'F3',l,T.grey));});
+ return top-bh-54;}
 export function renderMissionPdf(r){
  const T=r.theme||ADMIRA_THEME,d=new Doc(r,T);d.page();let sec=0;const num=()=>String(++sec).padStart(2,'0');
  // ── Página 1: cabecera de misión con la marca, estado, SLA y resumen ejecutivo ──────────────────────
@@ -115,10 +115,10 @@ export function renderMissionPdf(r){
  y=gridTable(d,y,[{label:'ID',w:0.14},{label:'FECHA',w:0.19},{label:'MOTIVO',w:0.41},{label:'DURACIÓN',w:0.14},{label:'ESTADO',w:0.12}],r.asset.history.length?r.asset.history:[['—','—','Sin incidencias previas registradas','—','—']],ensure);
  y=ensure(y,200);y=sectionTitle(d,y,num(),'Telemetría · cronología de la misión');
  y=gridTable(d,y,[{label:'T+',w:0.13},{label:'HORA (MADRID)',w:0.2},{label:'EVENTO',w:0.2},{label:'DETALLE',w:0.47}],r.timeline,ensure);
- if(r.console.length){y=ensure(y,40);d.text(M,y,7.5,'F4','REGISTRO DE LA CONSOLA DEL GEMELO (HORA LOCAL)',T.primary);y-=12;y=gridTable(d,y,[{label:'HORA',w:0.13},{label:'PASO',w:0.87}],r.console,ensure,7.2);}
- y=ensure(y,118);y=sectionTitle(d,y,num(),'Validación y firmas');
- const boxW=(W-2*M-16)/3;r.signoff.forEach(([role,who,when],i)=>{const x=M+i*(boxW+8);d.rect(x,y-78,boxW,82,null,T.head,0.8);d.text(x+6,y-8,6.8,'F4',role,T.grey);wrapText(who,8,boxW-12).slice(0,3).forEach((l,j)=>d.text(x+6,y-22-j*10,8,T.titleFont,l,T.ink));d.line(x+6,y-58,x+boxW-6,y-58,T.grey,0.5);d.text(x+6,y-68,6.6,'F3',when,T.grey);});
- y-=92;y=ensure(y,30);wrapText(r.disclaimer,6.8,W-2*M,true).forEach(l=>{d.text(M,y,6.8,'F3',l,T.grey);y-=9;});
+ if(r.console.length){y=ensure(y,40);d.text(M,y,7.5,'F4','REGISTRO DE LA CONSOLA DEL GEMELO (HORA LOCAL)',T.primary);y-=12;y=gridTable(d,y,[{label:'HORA',w:0.13},{label:'PASO',w:0.87}],r.console.slice(-6),ensure,7.2);}
+ y=ensure(y,100);y=sectionTitle(d,y,num(),'Validación y firmas');
+ const boxW=(W-2*M-16)/3;r.signoff.forEach(([role,who,when],i)=>{const x=M+i*(boxW+8);d.rect(x,y-62,boxW,66,null,T.head,0.8);d.text(x+6,y-8,6.8,'F4',role,T.grey);wrapText(who,8,boxW-12).slice(0,2).forEach((l,j)=>d.text(x+6,y-20-j*10,8,T.titleFont,l,T.ink));d.line(x+6,y-44,x+boxW-6,y-44,T.grey,0.5);d.text(x+6,y-54,6.6,'F3',when,T.grey);});
+ y-=76;y=ensure(y,30);wrapText(r.disclaimer,6.8,W-2*M,true).forEach(l=>{d.text(M,y,6.8,'F3',l,T.grey);y-=9;});
  const total=d.pages.length;d.pages.forEach((ops,i)=>{d.ops=ops;footer(d,i+1,total,r);});
  return pdfBytes(d,r);
 }
