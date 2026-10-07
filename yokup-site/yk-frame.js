@@ -2080,7 +2080,7 @@
   // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
   // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
   // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
-  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261004-avatar-5";
+  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261007-pill-1";
   var cargadorPromesa = null;
   function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
   function enIframe() { try { return window.self !== window.top; } catch (e) { return true; } }
@@ -2337,7 +2337,7 @@
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = "https://www.admiranext.com/suite/experto.js?v=20261006-experto-cerrado-1";
+      ax.src = "https://www.admiranext.com/suite/experto.js?v=20261007-pill-1";
       var axCfg = {panel:"#yk-rail-bottom", header:".yk-expert-hd", title:".yk-expert-title", body:".yk-slot",
         form:".yk-lcli-form", input:".yk-lcli-input", log:".yk-lcli-log", hint:".yk-lcli-hint",
         extras:".yk-slot > :not(.yk-local-cli):not(.ax-engine-slot)", chrome:".yk-expert-ver,.yk-lcli-prompt"};
