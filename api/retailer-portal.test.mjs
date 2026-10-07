@@ -118,3 +118,16 @@ test('incident detail and filtered list are owner scoped, expose timeline, sourc
  assert.equal((await retail(env,'/incidents?status=to_rate',undefined,a.cookie)).body.incidents.length,0);assert.equal((await retail(env,'/incidents?status=resolved&limit=1',undefined,a.cookie)).body.incidents.length,1);
  const dash=(await retail(env,'/dashboard',undefined,a.cookie)).body;assert.equal(dash.incidents[0].source,'xpaceos');assert.equal(dash.incidents[0].description,body.description);
 });
+test('retailer closes its own incident with a note: idempotent, owner scoped, timeline and link state resolved',async()=>{
+ const {env,db}=setup(),a=await shop(env),b=await shop(env);
+ const opened=await retail(env,'/incidents',incidentBody(a.device),a.cookie);assert.equal(opened.status,201);const id=opened.body.id;
+ assert.equal((await retail(env,'/incidents/'+id+'/close',{note:'x'},b.cookie)).status,404);
+ const closed=await retail(env,'/incidents/'+id+'/close',{note:'Reiniciado por el encargado, funciona.'},a.cookie);
+ assert.equal(closed.status,200);assert.equal(closed.body.applied,true);assert.equal(closed.body.status,'resolved');assert.match(closed.body.resolution,/^Cerrada por el comercio: Reiniciado/);
+ const again=await retail(env,'/incidents/'+id+'/close',{},a.cookie);assert.equal(again.status,200);assert.equal(again.body.applied,false);
+ const row=db.prepare('SELECT status,resolution,resolved_at FROM installer_incidents WHERE id=?').get(id);assert.equal(row.status,'resolved');assert.ok(row.resolved_at>0);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM incident_timeline WHERE incident_id=? AND kind='cerrada_comercio'").get(id).n,1);
+ const detail=(await retail(env,'/incidents/'+id,undefined,a.cookie)).body.incident;assert.equal(detail.status,'resolved');
+ assert.equal((await retail(env,'/incidents/'+id+'/rating',{stars:5,satisfied:true,comment:''},a.cookie)).status,409);
+ const reopened=await retail(env,'/incidents',incidentBody(a.device),a.cookie);assert.equal(reopened.status,201);assert.notEqual(reopened.body.id,id);
+});

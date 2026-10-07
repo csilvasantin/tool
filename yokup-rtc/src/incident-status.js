@@ -91,6 +91,7 @@ export function serializeIncidentStatus(ticket, events, now = Date.now()) {
     recovered_at: recovered ? Number(recovered.ts) || null : null,
     resolved_at: resolvedAt,
     closed_by: closing ? String(closing.author || '').slice(0, 60) : '',
+    resolution: closing && typeof closing.text === 'string' ? closing.text.replace(/^(Incidencia cerrada|Estado → resolved)[:.]?\s*/, '').slice(0, 300) : '',
     proof: ticket.status === 'resolved' && /^https:\/\//.test(String(ticket.proof_image || '')) ? ticket.proof_image : null,
     // Cerrar sin nota previa también es responder: el técnico actuó al cerrar.
     sla: incidentSla(ticket.priority, created, (responded && responded.ts) || resolvedAt, resolvedAt, now)
@@ -104,4 +105,45 @@ export function serializeIncidentStatus(ticket, events, now = Date.now()) {
 export const RECONCILE_SKIP_ROLES = new Set(['xtore-game']);
 export function isMonitoredScreen(screen) {
   return !!(screen && screen.screen) && !RECONCILE_SKIP_ROLES.has(String(screen.role || ''));
+}
+
+// CERRAR DESDE EL GEMELO (Carlos, 7-oct-2026: «si damos de alta una incidencia tenemos que poder cerrarla»).
+// Carril PÚBLICO como POST /incident y GET /incident/status, y por eso con el mismo cerco: sólo tickets
+// cuyo recurso empieza por `demo:`. abierta → en_curso (start) → cerrada (close), idempotente.
+// Un ticket que lleva un técnico en el portal del comercio NO se cierra aquí: se cierra allí con evidencia.
+export const INCIDENT_ACTIONS = Object.freeze(['start', 'close']);
+export function normalizeIncidentAction(b) {
+  const body = b && typeof b === 'object' ? b : {};
+  const action = body.close ? 'close' : body.start ? 'start' : String(body.action || '');
+  if (!INCIDENT_ACTIONS.includes(action)) return { ok: false, error: 'action start|close requerida' };
+  const id = String(body.id || '').trim().toUpperCase();
+  const resource = String(body.resource || '').trim().slice(0, 160);
+  if (id && !ID_RE.test(id)) return { ok: false, error: 'id de incidencia inválido' };
+  if (!id && !resource) return { ok: false, error: 'id o resource requerido' };
+  if (resource && !resource.startsWith(INCIDENT_STATUS_PREFIX)) return { ok: false, error: 'sólo incidencias demo:' };
+  const by = String(body.by || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 60) || 'XpaceOS';
+  const note = String(body.note || body.detail || '').replace(/[\u0000-\u0008\u000b-\u001f]/g, ' ').trim().slice(0, 500);
+  return { ok: true, action, id, resource, by, note };
+}
+export async function applyIncidentAction(env, q, deps, now = Date.now()) {
+  const sel = 'SELECT id,screen,status FROM tickets WHERE ';
+  const t = q.id ? await env.DB.prepare(sel + 'id=?').bind(q.id).first()
+    : await env.DB.prepare(sel + "screen=? AND status NOT IN ('resolved','cancelled') ORDER BY created_at DESC").bind(q.resource).first();
+  if (!t || !String(t.screen || '').startsWith(INCIDENT_STATUS_PREFIX) || (q.resource && t.screen !== q.resource))
+    return { status: 404, body: { ok: false, error: 'incidencia demo no encontrada' } };
+  if (t.status === 'resolved' || t.status === 'cancelled')
+    return { status: 200, body: { ok: true, id: t.id, status: t.status, stage: t.status === 'resolved' ? 'cerrada' : 'cancelada', applied: false } };
+  if (q.action === 'close') {
+    const held = deps.portalAssigned ? await deps.portalAssigned(env, t.id) : null;
+    if (held) return { status: 409, body: { ok: false, portal_assigned: true, id: t.id,
+      error: 'La lleva un técnico en el portal del comercio' + (held.technician_name ? ' (' + held.technician_name + ')' : '') + ': se cierra allí con evidencia.' } };
+    const r = await env.DB.prepare("UPDATE tickets SET status='resolved',updated_at=?,resolved_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')").bind(now, now, t.id).run();
+    const applied = !!Number(r && r.meta && r.meta.changes);
+    if (applied) await deps.addEvent(env, t.id, 'close', q.by, 'Incidencia cerrada' + (q.note ? ': ' + q.note : '.'));
+    return { status: 200, body: { ok: true, id: t.id, status: 'resolved', stage: 'cerrada', applied, closed_by: q.by, resolved_at: now, resolution: q.note || '' } };
+  }
+  if (t.status === 'in_progress') return { status: 200, body: { ok: true, id: t.id, status: t.status, stage: 'en_curso', applied: false } };
+  await env.DB.prepare("UPDATE tickets SET status='in_progress',updated_at=? WHERE id=? AND status='open'").bind(now, t.id).run();
+  await deps.addEvent(env, t.id, 'status', q.by, 'Estado → in_progress' + (q.note ? ': ' + q.note : ''));
+  return { status: 200, body: { ok: true, id: t.id, status: 'in_progress', stage: 'en_curso', applied: true } };
 }
