@@ -3,7 +3,8 @@
   "default": [
     "/idioma traduce el cuerpo visible de la portada entre español e inglés",
     "/demo idioma enseña el cambio y dice bien o mal según el texto",
-    "La consola local no entra en esa traducción"
+    "La consola local no entra en esa traducción",
+    "El cambio termina: la página no se queda recorriéndose sola"
   ],
   "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",

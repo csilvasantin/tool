@@ -23,7 +23,18 @@ function montar() {
     elemento("h1", "", [mundo, nodoTexto("conectado.")]),
     elemento("ol", "yk-lcli-log", [log])
   ]);
-  const documentElement = { lang: "es" };
+  let avisos = 0;
+  let observer = null;
+  const documentElement = {
+    _lang: "es",
+    get lang() { return this._lang; },
+    set lang(value) {
+      if (this._lang === value) return;
+      this._lang = value;
+      avisos += 1;
+      if (observer) observer();
+    }
+  };
   const listeners = [];
   const document = {
     documentElement,
@@ -32,10 +43,17 @@ function montar() {
     addEventListener(type, fn) { listeners.push([type, fn]); },
     dispatchEvent(ev) { listeners.filter((l) => l[0] === ev.type).forEach((l) => l[1](ev)); }
   };
-  const sandbox = { document, window: null, MutationObserver: class { observe() {} } };
+  const sandbox = {
+    document,
+    window: null,
+    MutationObserver: class {
+      constructor(fn) { this.fn = fn; }
+      observe() { observer = () => this.fn(); }
+    }
+  };
   sandbox.window = sandbox;
   vm.runInNewContext(src, sandbox, { filename: "yk-idioma.js" });
-  return { sandbox, ceja, mundo, log, document };
+  return { sandbox, ceja, mundo, log, document, avisos: () => avisos };
 }
 
 test("el cuerpo de la portada pasa de español a inglés y vuelve, sin tocar la consola", () => {
@@ -49,4 +67,16 @@ test("el cuerpo de la portada pasa de español a inglés y vuelve, sin tocar la 
   assert.match(ceja.nodeValue, /TECNOLOGÍA GLOBAL/);
   assert.equal(mundo.nodeValue, "Un mundo");
   assert.equal(document.documentElement.lang, "es");
+});
+
+test("observar lang no vuelve a entrar y el cambio termina", () => {
+  const { sandbox, ceja, avisos } = montar();
+  sandbox.YkIdioma.aplicar("en");
+  assert.equal(ceja.nodeValue, " GLOBAL TECHNOLOGY. LOCAL TALENT.");
+  assert.equal(avisos(), 1);
+  sandbox.YkIdioma.aplicar("en");
+  assert.equal(avisos(), 1);
+  sandbox.YkIdioma.aplicar("es");
+  assert.match(ceja.nodeValue, /TECNOLOGÍA GLOBAL/);
+  assert.equal(avisos(), 2);
 });
