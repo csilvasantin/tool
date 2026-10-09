@@ -1921,6 +1921,7 @@
   // la única consola que ve quien entra sin sesión de flota.
   var LOCAL_HISTORY_KEY = "yk_local_cli_history_v1";
   var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand", "idioma", "language", "languague"];
+  if (LOCAL_VERBS.indexOf("demo") < 0) LOCAL_VERBS.push("demo");
   // Verbos propios de una página (p. ej. el inventario ITIL: /inventario, /equipo…),
   // registrados con YkFrame.registerVerb({id, aliases, es, run(args, ctx)}). Sólo
   // valen en esa página y, como el resto de la consola local, nunca llegan a un agente.
@@ -1954,6 +1955,7 @@
     L.push(t("  /help (/ayuda) — esta ayuda", "  /help (/ayuda) — this help"));
     L.push(t("  /limpiar (/clear) — vacía la consola", "  /limpiar (/clear) — clear the console"));
     L.push(t("  /idioma [/language] [ESP|ENG] — alterna o fija el idioma (también idiomaESP)", "  /idioma [/language] [ESP|ENG] — toggle or set language (also idiomaESP)"));
+    L.push(t("  /demo idioma — enseña que el cuerpo de la portada cambia de idioma", "  /demo idioma — shows that the homepage body changes language"));
     L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
       "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
     PAGE_VERB_DEFS.forEach(function (def) {
@@ -1962,6 +1964,19 @@
     if (fleet) L.push(t("Para hablar con un agente, elige su CLI abajo y escribe en su caja: ese texto sí va a su tmux. /marca escrito allí también se resuelve aquí.", "To talk to an agent, pick its CLI below and type in its box: that text goes to its tmux. /marca typed there is also handled here."));
     L.push(t("Ayuda completa: yokup.com/help · MCP de flota: yokup.com/mcp", "Full help: yokup.com/help · Fleet MCP: yokup.com/mcp"));
     return L.join("\n");
+  }
+  function demoIdiomaPortada() {
+    var ceja = document.querySelector(".hero .eyebrow") || document.querySelector(".eyebrow");
+    var antes = ceja ? String(ceja.textContent || "") : "";
+    var destino = localEn() ? "es" : "en";
+    document.documentElement.lang = destino;
+    try { document.dispatchEvent(new CustomEvent("admiranext:lang", { detail: { lang: destino } })); } catch (e) {}
+    try { if (window.YkIdioma && typeof window.YkIdioma.aplicar === "function") window.YkIdioma.aplicar(destino); } catch (e) {}
+    var despues = ceja ? String(ceja.textContent || "") : "";
+    var esperado = destino === "en" ? /GLOBAL TECHNOLOGY/ : /TECNOLOGÍA GLOBAL/;
+    var bien = antes.trim() !== despues.trim() && esperado.test(despues);
+    LOCAL_CLI.print((bien ? (destino === "en" ? "ok" : "bien") : "mal") + " · " + destino + " · " + despues.trim().slice(0, 80));
+    return Promise.resolve({ ok: bien, lang: destino });
   }
   function runLocal(text) {
     var raw = String(text == null ? "" : text).trim();
@@ -2004,6 +2019,16 @@
       try { document.dispatchEvent(new CustomEvent("admiranext:lang", {detail: {lang: next}})); } catch (e) {}
       LOCAL_CLI.print(next === "en" ? "Language: English" : "Idioma: español");
       return Promise.resolve();
+    }
+    if (verb === "demo") {
+      var demoArg = args.toLowerCase();
+      if (demoArg && demoArg !== "idioma" && demoArg !== "language") {
+        LOCAL_CLI.print(localEn()
+          ? "This page has /demo idioma. It switches the visible homepage text."
+          : "Esta página tiene /demo idioma. Cambia el texto visible de la portada.");
+        return Promise.resolve();
+      }
+      return demoIdiomaPortada();
     }
     LOCAL_CLI.print(localEn() ? "Unknown verb: /" + verb + ". /help lists the verbs of this console." : "Verbo desconocido: /" + verb + ". /help lista los verbos de esta consola.");
     return Promise.resolve();
