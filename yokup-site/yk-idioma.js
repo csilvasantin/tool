@@ -89,11 +89,20 @@
     var kids = node.childNodes || [];
     for (var i = 0; i < kids.length; i++) recorrer(kids[i]);
   }
+  var aplicando = false;
   function aplicar(lang) {
-    if (lang === "en" || lang === "es") {
-      try { document.documentElement.lang = lang; } catch (e) {}
+    if (aplicando) return;
+    aplicando = true;
+    try {
+      if (lang === "en" || lang === "es") {
+        try {
+          if (document.documentElement.lang !== lang) document.documentElement.lang = lang;
+        } catch (e) {}
+      }
+      recorrer(document.body);
+    } finally {
+      aplicando = false;
     }
-    recorrer(document.body);
   }
   function arrancar() {
     aplicar(idioma());
