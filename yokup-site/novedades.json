@@ -1,7 +1,9 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
-    "Cerrar incidencias desde Mi comercio y la ficha; GrokBot autorizado como firmante"
+    "/idioma traduce el cuerpo visible de la portada entre español e inglés",
+    "/demo idioma enseña el cambio y dice bien o mal según el texto",
+    "La consola local no entra en esa traducción"
   ],
   "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",
