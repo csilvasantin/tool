@@ -2067,6 +2067,20 @@
     var history = [];
     try { history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || "[]").filter(function (x) { return typeof x === "string"; }).slice(-50); } catch (e) {}
     var cursor = history.length, draft = "";
+    // La suite captura /demo en la fase de bajada y, si no hay demo 1, dice que
+    // esta página no la tiene. /demo idioma es de esta portada: se registra antes.
+    form.addEventListener("submit", function (ev) {
+      var value = input.value.trim();
+      var demo = value.match(/^\/demo(?:\s+(.*))?$/i);
+      if (!demo) return;
+      var arg = String(demo[1] || "").trim().toLowerCase();
+      if (arg !== "idioma" && arg !== "language") return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      input.value = "";
+      LOCAL_CLI.print("› " + value, "yk-lcli-in");
+      demoIdiomaPortada();
+    }, true);
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       var value = input.value.trim(); if (!value) return;
