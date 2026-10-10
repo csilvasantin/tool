@@ -205,7 +205,7 @@ test("la hoja de Yokup va acotada a su plataforma y apunta a <body> (gana a body
 
 test("/marca y /brand: consola LOCAL con los textos del canon; nunca llegan al tmux del agente", () => {
   assert.match(frame, /var MARCA_VERB = \/\^\\\/\?\(\?:marca\|brand\|marcablanca\)\$\/i;/);
-  assert.match(frame, /var LOCAL_VERBS = \["help", "ayuda", "limpiar", "clear", "marca", "brand", "idioma", "language", "languague"\];/);
+  assert.match(frame, /var LOCAL_VERBS = \["help", "ayuda", "limpiar", "clear", "marca", "brand", "idioma", "language", "languague", "lang"\];/);
   for (const texto of [
     "Sin marca blanca: ves el aspecto de Admira.",
     "Aplicando la marca ",

@@ -1920,7 +1920,7 @@
   // navegador y nunca llegan a un agente. Esta consola es su intérprete mínimo, y
   // la única consola que ve quien entra sin sesión de flota.
   var LOCAL_HISTORY_KEY = "yk_local_cli_history_v1";
-  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand", "idioma", "language", "languague"];
+  var LOCAL_VERBS = ["help", "ayuda", "limpiar", "clear", "marca", "brand", "idioma", "language", "languague", "lang"];
   if (LOCAL_VERBS.indexOf("demo") < 0) LOCAL_VERBS.push("demo");
   // Verbos propios de una página (p. ej. el inventario ITIL: /inventario, /equipo…),
   // registrados con YkFrame.registerVerb({id, aliases, es, run(args, ctx)}). Sólo
@@ -1954,7 +1954,7 @@
     L.push(t("Yokup · consola local. Se ejecuta en este navegador; nunca llega a un agente.", "Yokup · local console. It runs in this browser and never reaches an agent."));
     L.push(t("  /help (/ayuda) — esta ayuda", "  /help (/ayuda) — this help"));
     L.push(t("  /limpiar (/clear) — vacía la consola", "  /limpiar (/clear) — clear the console"));
-    L.push(t("  /idioma [/language] [ESP|ENG] — alterna o fija el idioma (también idiomaESP)", "  /idioma [/language] [ESP|ENG] — toggle or set language (also idiomaESP)"));
+    L.push(t("  /idioma [/language|/lang] [ESP|ENG] — alterna o fija el idioma (también idiomaESP)", "  /idioma [/language|/lang] [ESP|ENG] — toggle or set language (also idiomaESP)"));
     L.push(t("  /demo idioma — enseña que el cuerpo de la portada cambia de idioma", "  /demo idioma — shows that the homepage body changes language"));
     L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
       "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
@@ -1978,12 +1978,37 @@
     LOCAL_CLI.print((bien ? (destino === "en" ? "ok" : "bien") : "mal") + " · " + destino + " · " + despues.trim().slice(0, 80));
     return Promise.resolve({ ok: bien, lang: destino });
   }
+  function tokenIdioma(raw) {
+    return String(raw || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+  }
+  function idiomaDeToken(tok) {
+    if (/^(en|eng|english|ingles)$/.test(tok)) return "en";
+    if (/^(es|esp|spa|spanish|espanol|castellano)$/.test(tok)) return "es";
+    return "";
+  }
+  function aplicarIdioma(next) {
+    document.documentElement.lang = next;
+    try { if (typeof window.AdmiraSetLanguage === "function") window.AdmiraSetLanguage(next); } catch (e) {}
+    try { localStorage.setItem("xtanco_lang", next); } catch (e) {}
+    try { document.dispatchEvent(new CustomEvent("admiranext:lang", {detail: {lang: next}})); } catch (e) {}
+    try { if (window.YkIdioma && typeof window.YkIdioma.aplicar === "function") window.YkIdioma.aplicar(next); } catch (e) {}
+  }
+  function langDeQuery() {
+    try { return idiomaDeToken(tokenIdioma(new URLSearchParams(location.search).get("lang") || "")); }
+    catch (e) { return ""; }
+  }
+  (function () {
+    var pedido = langDeQuery();
+    if (!pedido) return;
+    if (pedido === (localEn() ? "en" : "es")) return;
+    aplicarIdioma(pedido);
+  })();
   function runLocal(text) {
     var raw = String(text == null ? "" : text).trim();
     if (!raw) return Promise.resolve();
     LOCAL_CLI.print("› " + raw, "yk-lcli-in");
     var m = raw.match(/^\/?(\S+)\s*([\s\S]*)$/), verb = (m ? m[1] : "").toLowerCase(), args = m ? m[2].trim() : "";
-    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand|idioma|language|languague)$/i.test(verb) && !/^(idioma|language|languague)/i.test(verb)) {
+    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand|idioma|language|languague|lang)$/i.test(verb) && !/^(idioma|language|languague|lang)/i.test(verb)) {
       LOCAL_CLI.print(localEn() ? "This console only runs slash verbs. /help lists them." : "Esta consola sólo ejecuta verbos con barra. /help los lista.");
       return Promise.resolve();
     }
@@ -2000,23 +2025,17 @@
     }
     // /idioma · /language · /languague (Carlos 5-oct-2026): toggle o ESP|ENG; acepta pegados.
     var langRaw = String(text == null ? "" : text).trim();
-    var langMatch = langRaw.replace(/^\//, "").trim().match(/^(idioma|language|languague)(?:[\s_-]*(.*))?$/i);
+    var langMatch = langRaw.replace(/^\//, "").trim().match(/^(idioma|language|languague|lang)(?:[\s_-]*(.*))?$/i);
     if (langMatch) {
-      var tok = String(langMatch[2] || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
-      var next = "";
-      if (!tok) next = localEn() ? "es" : "en";
-      else if (/^(en|eng|english|ingles)$/.test(tok)) next = "en";
-      else if (/^(es|esp|spa|spanish|espanol|castellano)$/.test(tok)) next = "es";
-      else {
+      var tok = tokenIdioma(langMatch[2] || "");
+      var next = tok ? idiomaDeToken(tok) : (localEn() ? "es" : "en");
+      if (!next) {
         LOCAL_CLI.print(localEn()
-          ? "Use /idioma or /language (toggle), /idioma ESP|ENG. Also idiomaESP, languageENG…"
-          : "Usa /idioma o /language (toggle), /idioma ESP|ENG. También idiomaESP, languageENG…");
+          ? "Use /idioma, /language or /lang (toggle), /idioma ESP|ENG. Also idiomaESP, languageENG, langENG…"
+          : "Usa /idioma, /language o /lang (toggle), /idioma ESP|ENG. También idiomaESP, languageENG, langENG…");
         return Promise.resolve();
       }
-      document.documentElement.lang = next;
-      try { if (typeof window.AdmiraSetLanguage === "function") window.AdmiraSetLanguage(next); } catch (e) {}
-      try { localStorage.setItem("xtanco_lang", next); } catch (e) {}
-      try { document.dispatchEvent(new CustomEvent("admiranext:lang", {detail: {lang: next}})); } catch (e) {}
+      aplicarIdioma(next);
       LOCAL_CLI.print(next === "en" ? "Language: English" : "Idioma: español");
       return Promise.resolve();
     }
