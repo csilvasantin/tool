@@ -63,7 +63,7 @@ test('fleet console remains independent and retailer loads the same frame', () =
 
 // These assets are immutable for one year: changed source needs a new browser URL.
 test('native entry pages request a fresh frame URL instead of the immutable old pin', () => {
-  const expected = '/yk-frame.js?v=20261007-native-demo-control-1';
+  const expected = '/yk-frame.js?v=20261010-lang-5491';
   for (const file of ['index.html', 'retailer.html']) {
     const html = readFileSync(new URL('./' + file, import.meta.url), 'utf8');
     assert.ok(html.includes(expected), file);

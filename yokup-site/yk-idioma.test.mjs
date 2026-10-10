@@ -69,6 +69,25 @@ test("el cuerpo de la portada pasa de español a inglés y vuelve, sin tocar la 
   assert.equal(document.documentElement.lang, "es");
 });
 
+test("el titular del comercio y las pestañas de la cuenta pasan a inglés", () => {
+  const { sandbox, document } = montar();
+  const equipos = nodoTexto("Tus equipos.");
+  const calma = nodoTexto("Tu tranquilidad.");
+  const cuenta = nodoTexto("Crear cuenta de comercio");
+  const entrar = nodoTexto("Entrar");
+  const alta = nodoTexto("Crear cuenta →");
+  for (const nodo of [equipos, calma, cuenta, entrar, alta]) {
+    nodo.parentNode = document.body;
+    document.body.childNodes.push(nodo);
+  }
+  sandbox.YkIdioma.aplicar("en");
+  assert.equal(equipos.nodeValue, "Your devices.");
+  assert.equal(calma.nodeValue, "Your peace of mind.");
+  assert.equal(cuenta.nodeValue, "Create a retailer account");
+  assert.equal(entrar.nodeValue, "Sign in");
+  assert.equal(alta.nodeValue, "Create account →");
+});
+
 test("observar lang no vuelve a entrar y el cambio termina", () => {
   const { sandbox, ceja, avisos } = montar();
   sandbox.YkIdioma.aplicar("en");
