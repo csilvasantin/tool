@@ -14,8 +14,8 @@ test('incident page carries portal look and versioned assets; data is inserted o
  assert.doesNotMatch(js,/innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(/);
  assert.match(js,/'\/incidents\/'\+encodeURIComponent\(id\)/);assert.match(js,/request_key:requestKey/);assert.match(js,/crypto\.randomUUID\(\)/);
  assert.match(js,/'\/retailer\?next='\+encodeURIComponent\('\/retailer\/incidencia'\+location\.search\)/);
- assert.match(read('retailer.html'),/retailer-portal\.js\?v=20261010-idioma-5491/);
- assert.match(read('retailer.html'),/yk-idioma\.js\?v=20261010-idioma-5491/);
+ assert.match(read('retailer.html'),/retailer-portal\.js\?v=20261010-idioma-5532/);
+ assert.match(read('retailer.html'),/yk-idioma\.js\?v=20261010-idioma-5532/);
 });
 test('login returns only to relative commerce routes, never to another origin or back to the portal root',()=>{
  assert.equal(nextTarget('?next='+encodeURIComponent('/retailer/incidencia?origen=xpaceos&equipo=Pantalla')),'/retailer/incidencia?origen=xpaceos&equipo=Pantalla');

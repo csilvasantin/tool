@@ -43,7 +43,7 @@ test("?lang= en admira.app se lee como en admiranext y /lang no se come a /langu
   assert.equal("lang ENG".match(re)[2].trim(), "ENG");
   assert.match(frame, /"language", "languague", "lang"/);
   assert.match(frame, /aplicarIdioma\(pedido\)/);
-  assert.match(retailer, /yk-idioma\.js\?v=20261010-idioma-5491/);
+  assert.match(retailer, /yk-idioma\.js\?v=20261010-idioma-5532/);
   assert.match(retailer, /yk-frame\.js\?v=20261010-lang-5491/);
   assert.match(home, /yk-frame\.js\?v=20261010-lang-5491/);
   assert.match(retailer, /Tus equipos\./);
