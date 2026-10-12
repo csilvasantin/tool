@@ -1929,6 +1929,7 @@
   function registerVerb(def) {
     if (!def || typeof def.run !== "function" || !/^[a-z0-9-]+$/i.test(def.id || "")) throw new Error("yk-frame: verbo no válido");
     if (PAGE_VERB_DEFS.indexOf(def) < 0) PAGE_VERB_DEFS.push(def);
+    if(window.AdmiraExperto)registerSuiteVerb(window.AdmiraExperto,def);
     [def.id].concat(def.aliases || []).forEach(function (name) {
       name = String(name).toLowerCase();
       PAGE_VERBS[name] = def;
@@ -1979,60 +1980,18 @@
     return Promise.resolve({ ok: bien, lang: destino });
   }
   function runLocal(text) {
-    var raw = String(text == null ? "" : text).trim();
-    if (!raw) return Promise.resolve();
-    LOCAL_CLI.print("› " + raw, "yk-lcli-in");
-    var m = raw.match(/^\/?(\S+)\s*([\s\S]*)$/), verb = (m ? m[1] : "").toLowerCase(), args = m ? m[2].trim() : "";
-    if (raw.charAt(0) !== "/" && !/^(help|ayuda|limpiar|clear|marca|brand|idioma|language|languague)$/i.test(verb) && !/^(idioma|language|languague)/i.test(verb)) {
-      LOCAL_CLI.print(localEn() ? "This console only runs slash verbs. /help lists them." : "Esta consola sólo ejecuta verbos con barra. /help los lista.");
-      return Promise.resolve();
-    }
-    if (verb === "help" || verb === "ayuda" || verb === "?") { LOCAL_CLI.print(localHelp(fleetMode())); return Promise.resolve(); }
-    if (verb === "limpiar" || verb === "clear" || verb === "cls") { if (LOCAL_CLI.log) LOCAL_CLI.log.textContent = ""; return Promise.resolve(); }
-    if (MARCA_VERB.test(verb)) {
-      if (!isOpen("bottom")) setOpen("bottom", true);
-      return cargarMarca().then(function (M) { return runMarca(args, M, localEn(), LOCAL_CLI.print); });
-    }
-    if (PAGE_VERBS[verb]) {
-      return Promise.resolve().then(function () { return PAGE_VERBS[verb].run(args, {print:LOCAL_CLI.print, lang:localEn() ? "en" : "es"}); })
-        .then(function (out) { if (out != null && out !== "") LOCAL_CLI.print(typeof out === "string" ? out : JSON.stringify(out)); },
-          function (error) { LOCAL_CLI.print("Error: " + ((error && error.message) || error)); });
-    }
-    // /idioma · /language · /languague (Carlos 5-oct-2026): toggle o ESP|ENG; acepta pegados.
-    var langRaw = String(text == null ? "" : text).trim();
-    var langMatch = langRaw.replace(/^\//, "").trim().match(/^(idioma|language|languague)(?:[\s_-]*(.*))?$/i);
-    if (langMatch) {
-      var tok = String(langMatch[2] || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
-      var next = "";
-      if (!tok) next = localEn() ? "es" : "en";
-      else if (/^(en|eng|english|ingles)$/.test(tok)) next = "en";
-      else if (/^(es|esp|spa|spanish|espanol|castellano)$/.test(tok)) next = "es";
-      else {
-        LOCAL_CLI.print(localEn()
-          ? "Use /idioma or /language (toggle), /idioma ESP|ENG. Also idiomaESP, languageENG…"
-          : "Usa /idioma o /language (toggle), /idioma ESP|ENG. También idiomaESP, languageENG…");
-        return Promise.resolve();
-      }
-      document.documentElement.lang = next;
-      try { if (typeof window.AdmiraSetLanguage === "function") window.AdmiraSetLanguage(next); } catch (e) {}
-      try { localStorage.setItem("xtanco_lang", next); } catch (e) {}
-      try { document.dispatchEvent(new CustomEvent("admiranext:lang", {detail: {lang: next}})); } catch (e) {}
-      LOCAL_CLI.print(next === "en" ? "Language: English" : "Idioma: español");
-      return Promise.resolve();
-    }
-    if (verb === "demo") {
-      var demoArg = args.toLowerCase();
-      if (demoArg && demoArg !== "idioma" && demoArg !== "language") {
-        LOCAL_CLI.print(localEn()
-          ? "This page has /demo idioma. It switches the visible homepage text."
-          : "Esta página tiene /demo idioma. Cambia el texto visible de la portada.");
-        return Promise.resolve();
-      }
-      return demoIdiomaPortada();
-    }
-    LOCAL_CLI.print(localEn() ? "Unknown verb: /" + verb + ". /help lists the verbs of this console." : "Verbo desconocido: /" + verb + ". /help lista los verbos de esta consola.");
-    return Promise.resolve();
+    if (window.AdmiraExperto) return window.AdmiraExperto.exec(text, LOCAL_CLI.log);
+    LOCAL_CLI.print("Motor de comandos cargando. Inténtalo de nuevo.");
   }
+  function connectSuiteCommands(engine) {
+    engine.registerAdapter({id:'app',verbs:[{name:'marca',alias:['brand','marcablanca'],desc:['Marca blanca','White label'],run:function(args){return cargarMarca().then(function(M){return runMarca(args.join(' '),M,localEn(),LOCAL_CLI.print);});}}]});
+    PAGE_VERB_DEFS.forEach(function(def){registerSuiteVerb(engine,def);});
+  }
+  function registerSuiteVerb(engine,def) {
+    engine.registerAdapter({id:'app-action-'+def.id,verbs:[{name:def.id,alias:def.aliases||[],desc:[def.es||def.id,def.en||def.es||def.id],run:function(args){return Promise.resolve(def.run(args.join(' '),{print:LOCAL_CLI.print,lang:localEn()?'en':'es'})).then(function(out){if(out!=null&&out!=='')LOCAL_CLI.print(typeof out==='string'?out:JSON.stringify(out));});}}]});
+  }
+  (window.AdmiraCommandAdapters=window.AdmiraCommandAdapters||[]).push(connectSuiteCommands);
+  if(window.AdmiraExperto)connectSuiteCommands(window.AdmiraExperto);
   function localComplete(value, brandIds) {
     var text = String(value == null ? "" : value), m = text.match(/^(\s*)(\/?)(\S*)$/);
     function prefix(list) { return list.reduce(function (a, b) { var i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); }, list[0] || ""); }
@@ -2119,7 +2078,7 @@
   // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
   // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
   // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
-  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261007-pill-1";
+  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261012-unified-1";
   var cargadorPromesa = null;
   function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
   function enIframe() { try { return window.self !== window.top; } catch (e) { return true; } }
@@ -2375,15 +2334,15 @@
       nativeAppDemo = /^(www\.)?(admira\.app|yokup\.com)$/.test(location.hostname) &&
         new URLSearchParams(location.search).get("ax_demo") === "app";
     } catch (_) {}
-    if (!FLEET_MODE && !document.getElementById("ax-experto-js") &&
+    if (!document.getElementById("ax-experto-js") &&
         (!nativeAppDemo || !document.querySelector('script[src^="https://www.admiranext.com/suite/experto.js"]'))) {
       var axCss = document.createElement("link");
       axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261006-experto-cerrado-1";
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261007-native-demo-control-1" :
-        "https://www.admiranext.com/suite/experto.js?v=20261007-pill-1";
+      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261012-unified-1" :
+        "https://www.admiranext.com/suite/experto.js?v=20261012-unified-1";
       if (nativeAppDemo) {
         ax.setAttribute("data-admira-demo-engine", "");
         ax.setAttribute("data-pata", "admira.app");
