@@ -99,3 +99,7 @@ Native Fold and Wear OS apps are distinct from the older WebView APK. The explic
 ## Alcance cinco pilares / Five-pillar scope
 
 La misma sintaxis Android está integrada en Admira.biz, Pixeria, XpaceOS, Yokup y ClearChannel. Selecciona un proyecto explícito o usa `?project=ID`; en Pixeria se requiere sesión. El puente instalado resuelve las asociaciones de playlist por proyecto. / The same syntax is integrated in all five pillars; an explicit project is required, Pixeria remains authenticated, and the installed bridge resolves project playlist associations.
+
+## Recurso MCP autenticado / Authenticated MCP resource
+
+En el MCP de Yokup consulta `resources/list` y lee `resources/read` con `uri: https://www.yokup.com/mcp/native-players.md`. Requiere la misma credencial válida del servidor. Es documentación de sólo lectura, sin lanzar demos ni modificar players. / Use `resources/list` and `resources/read` with that exact URI and a valid server credential. Documentation only; no demo launch or player mutation.
