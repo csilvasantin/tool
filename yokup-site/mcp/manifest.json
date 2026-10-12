@@ -2,7 +2,7 @@
   "name": "yokup-fleet",
   "title": "Yokup · yokup.com — El marcador y el tablero de la flota AdmiraNeXT",
   "description": "Servidor MCP de Yokup para comunicar consejeros y agentes, consultar misiones y registrar trabajo con identidad y permisos por proyecto.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "site": "https://www.yokup.com",
   "hub": "https://www.yokup.com/mcp/",
   "llms_txt": "https://www.yokup.com/mcp/llms.txt",
@@ -1233,5 +1233,47 @@
       ],
       "cache": "max-age=60"
     }
+  },
+  "native_players": {
+    "doc": "https://www.yokup.com/mcp/native-players.md",
+    "help": "https://www.yokup.com/help/#native-players",
+    "updated": "2026-10-12",
+    "mission": "DCL-4fde5a5d6275b52660b49e8e",
+    "sync_mission": "DCL-db715cdd09c9d69097f0bbb6",
+    "platforms": [
+      "Android Fold native Media3",
+      "Wear OS visor",
+      "iOS AVAudioPlayer local audio beta"
+    ],
+    "sync_scope": "explicit four-audio snapshot, editorial610s; software transport measurements, not calibrated acoustics",
+    "tutorial": {
+      "url": "https://api.yokup.com/media/fleet/9efeb654b5ab0dbe.mp4",
+      "type": "Motion explanatory animation, not screen recording",
+      "verified": true
+    },
+    "reports": [
+      "https://www.admira.biz/mcp/player-sync-evidence/fronteras.json",
+      "https://www.admira.biz/mcp/player-sync-evidence/reapertura.json",
+      "https://www.admira.biz/mcp/player-sync-evidence/por-pieza.json"
+    ],
+    "demo_commands_status": "five-pillar release 12-10-2026; verify release evidence in mission148",
+    "demo_commands": {
+      "both": "/demo android",
+      "fold": "/demo android Fold8",
+      "watch": "/demo android watch",
+      "selector": "optional playlist NAME_OR_ID or #tag",
+      "runtime": "installed Mac bridge and fleet-owned virtual devices",
+      "watch_audio": "title only; no audio playback",
+      "isolated_packages": true,
+      "shared_clock": false,
+      "presentation": "human command opens local panel in background; --no-present QA opens no windows",
+      "preservation": "physical .dev playlist and sync configuration verified unchanged"
+    },
+    "demo_tutorial": {
+      "url": "https://api.yokup.com/media/fleet/dddb19c869cc0feb.mp4",
+      "sha256": "2ad8e76ef4d3bedcbf8e1a44ecd4fdb1cbd04d60deb464f4a9aac38d9e34f9b0",
+      "kind": "verified explanatory animation, not screen recording"
+    },
+    "evidence_bundle": "https://www.admira.biz/mcp/player-sync-evidence/evidencias.zip"
   }
 }

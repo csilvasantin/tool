@@ -141,6 +141,7 @@ function publicArtifactFilter(source) {
   const parts = rel.split(sep);
   if (parts.some((part) => part.startsWith(".") || part === "node_modules" || part === "__pycache__")) return false;
   const name = basename(rel);
+  if (rel === "mcp" + sep + "native-players.md") return true;
   if (/\.test\.mjs$/i.test(name) || /\.py$/i.test(name) || /\.md$/i.test(name) || /\.bak(?:-|$)/i.test(name)) return false;
   if (/^deploy(?:-[a-z-]+)?\.(?:m?js)$/i.test(name) || name === "pages-snapshots.mjs" || /^(?:package(?:-lock)?\.json|wrangler\.toml)$/i.test(name)) return false;
   return true;

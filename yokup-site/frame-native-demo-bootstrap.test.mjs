@@ -6,14 +6,14 @@ import vm from 'node:vm';
 const source = readFileSync(new URL('./yk-frame.js', import.meta.url), 'utf8');
 const bootstrap = source.slice(source.indexOf('    var nativeAppDemo = false;'), source.indexOf('    icoL.setAttribute("aria-controls"'));
 assert.ok(bootstrap.includes('var axCfg'), 'exercise the actual frame loader');
-const current = 'https://www.admiranext.com/suite/experto.js?v=20261007-native-demo-control-1';
-const legacy = 'https://www.admiranext.com/suite/experto.js?v=20261007-pill-1';
+const current = '/suite/experto.js?v=20261012-android-five-1';
+const legacy = '/suite/experto.js?v=20261012-android-five-1';
 
 function page(url, {fleet = false, existing = null} = {}) {
   const location = new URL(url), nodes = existing ? [existing] : [];
   const document = {
     getElementById: id => nodes.find(n => n.id === id),
-    querySelector: () => nodes.find(n => n.tag === 'script' && n.src?.startsWith('https://www.admiranext.com/suite/experto.js')),
+    querySelector: () => nodes.find(n => n.tag === 'script' && n.src?.startsWith('/suite/experto.js')),
     createElement: tag => ({tag, attrs: {}, setAttribute(k, v) {this.attrs[k] = v;}}),
     head: {appendChild: n => nodes.push(n)}
   };
@@ -63,7 +63,7 @@ test('fleet console remains independent and retailer loads the same frame', () =
 
 // These assets are immutable for one year: changed source needs a new browser URL.
 test('native entry pages request a fresh frame URL instead of the immutable old pin', () => {
-  const expected = '/yk-frame.js?v=20261007-native-demo-control-1';
+  const expected = '/yk-frame.js?v=20261012-android-five-1';
   for (const file of ['index.html', 'retailer.html']) {
     const html = readFileSync(new URL('./' + file, import.meta.url), 'utf8');
     assert.ok(html.includes(expected), file);

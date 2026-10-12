@@ -1,10 +1,9 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
-    "Asistente de campo en /assistant: un móvil con cámara y micro vigila una pantalla y avisa si deja de emitir o de sonar",
-    "Si algo se cae lo arregla solo (pasar de pieza, volver a poner el audio, recargar el player) y, si no basta, avisa para que vaya alguien",
-    "Pruebas dirigidas por tres vías: acuse del player, lo que el player declara y lo que el móvil ve u oye; con modo ensayo para aparatos virtuales",
-    "La imagen y el sonido se analizan en el móvil: no se graban ni salen de él"
+    "Experto: /demo android, /demo android Fold8 y /demo android watch con playlist del proyecto.",
+    "Help ES/EN y MCP conservan comandos, versiones, tutorial y evidencias de players nativos.",
+    "Fold8 usa un perfil compatible; Wear OS es visor silencioso. Requiere puente Mac y emuladores propios."
   ],
   "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",
