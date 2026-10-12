@@ -2588,7 +2588,8 @@
     // (el guardián los redirige): enlace directo y marcado ↗.
     var _live = onYokupHost();
     // ASISTENTE (Carlos, 2026-10-12): el asistente de campo — un móvil con cámara y micro que vigila una pantalla.
-    [["◫", "EQUIPO", "/equipo"], ["◈", "STATUS", "/status"], ["◉", "ASISTENTE", "/assistant"]].forEach(function (r) {
+    // Sólo en las casas de Admira: desde www.yokup.com las APIs de los players no aceptan el origen.
+    [["◫", "EQUIPO", "/equipo"], ["◈", "STATUS", "/status"]].concat(_live ? [] : [["◉", "ASISTENTE", "/assistant"]]).forEach(function (r) {
       var on = (_path === r[2] || _path === r[2] + ".html");
       var a = el("a", "yk-set-btn" + (on ? " on" : ""),
         '<span aria-hidden="true">' + r[0] + '</span> ' + r[1] + (_live && liveTarget(r[2]) ? " ↗" : ""));

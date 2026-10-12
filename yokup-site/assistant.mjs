@@ -25,6 +25,9 @@ const S = {
   stream: null, ctx: null, analizador: null, buf: null, dbs: [], db: null, frame: null,
   ojosOn: false, orejasOn: false, ojos: creaOjos(), orejas: creaOrejas(), guardia: creaGuardia(),
   vigilando: false, probando: false, calibrando: false, desde: null, sucesos: [], cerrojo: null, oculto: false,
+  calibrado: false,     // el oído sólo vigila con umbral medido (o puesto a mano) para ESTE aparato
+  audioMio: null,       // última orden de audio que mandé yo y con qué publicación del player convivía
+  decOkAt: 0, pidiendoDec: false, ctxAlarma: null, restaura: null, ciego: false, ciegoDesde: null,
   sim: null,   // ?simula=1 · sentidos fingidos para ensayar la vigilancia con un aparato virtual, sin cámara ni micro
 };
 const lienzo = document.createElement("canvas"); lienzo.width = 160; lienzo.height = 90;
@@ -70,10 +73,14 @@ function subtitulo(a) {
   return [r.virtual ? "virtual · navegador" : r.tinta ? "tinta electrónica" : "player", a.screen, enLinea(a) ? "en línea" : "sin señal"].join(" · ");
 }
 function elige(a) {
+  if (S.probando || S.calibrando) return;   // a mitad de una prueba no se cambia de aparato: las órdenes de vuelta irían a otro
+  if (S.vigilando) paraVigilancia();
   S.aparato = a; guarda("asst_screen", a.screen);
-  S.guardia = creaGuardia({ aparato: rasgos(a) }); S.ojos.reinicia(); S.orejas.reinicia();
-  const u = Number(lee("asst_umbral_" + a.screen)); if (Number.isFinite(u) && u < 0) S.orejas.ajusta(u);
-  S.now = null; S.dec = null; S.decAt = 0;
+  // Todo lo aprendido es de UN aparato: guardia, ojos y oído (con su umbral) se estrenan con cada uno.
+  S.guardia = creaGuardia({ aparato: rasgos(a) }); S.ojos = creaOjos(); S.orejas = creaOrejas(); S.calibrado = false; S.audioMio = null;
+  const u = Number(lee("asst_umbral_" + a.screen)); if (Number.isFinite(u) && u < 0) { S.orejas.ajusta(u); S.calibrado = true; }
+  if (S.sim) { S.orejas = creaOrejas({ aguante: 20 }); S.orejas.ajusta(-45); S.calibrado = true; }
+  S.now = null; S.dec = null; S.decAt = 0; S.decOkAt = 0;
   anota("Aparato elegido: " + nombre(a) + " (" + a.screen + ").");
   pintaElegido(); pintaPasos(); leeDeclarado().then(pintaTodo); pintaTodo();
 }
@@ -84,29 +91,38 @@ function pintaElegido() {
   const fila = nodo("div", "elegido ap" + (enLinea(a) ? " on" : ""));
   const tx = nodo("span", "tx"); tx.append(nodo("div", "nm", nombre(a)), nodo("div", "mt", subtitulo(a) + (S.dec && S.dec.titulo ? " · emite «" + S.dec.titulo + "»" : "")));
   const cambiar = nodo("button", "btn mini", "Cambiar"); cambiar.type = "button";
-  cambiar.onclick = () => { if (S.vigilando) paraVigilancia(); S.aparato = null; pintaElegido(); pintaTodo(); $("apQ").focus(); };
+  cambiar.disabled = S.probando || S.calibrando;
+  cambiar.onclick = () => { if (S.probando || S.calibrando) return; if (S.vigilando) paraVigilancia(); S.aparato = null; pintaElegido(); pintaTodo(); $("apQ").focus(); };
   fila.append(nodo("span", "d"), tx, cambiar); caja.replaceChildren(fila);
 }
 async function leeDeclarado() {
   if (!S.aparato) return null;
-  const id = S.aparato.screen; S.decAt = Date.now() / 1000;
-  try { const now = await json(API.ahora + "?screen=" + encodeURIComponent(id) + "&_=" + Date.now()); if (S.aparato && S.aparato.screen === id) { S.now = now; S.dec = declarado(now, S.aparato, Date.now()); } }
-  catch (_) { /* sin red en el móvil: se sigue con lo último que se supo */ }
+  const id = S.aparato.screen; S.decAt = Date.now() / 1000; S.pidiendoDec = true;
+  try {
+    const now = await json(API.ahora + "?screen=" + encodeURIComponent(id) + "&_=" + Date.now());
+    if (S.aparato && S.aparato.screen === id) { S.now = now; S.dec = declarado(now, S.aparato, Date.now()); S.decOkAt = Date.now() / 1000; }
+  } catch (_) { /* sin red en el móvil: lo último que se supo se queda viejo y la guardia no actúa con datos viejos */ }
+  finally { S.pidiendoDec = false; }
   return S.dec;
+}
+/** ¿Está silenciado? Lo que mandé yo vale más que lo que el player declara mientras no haya vuelto a publicar. */
+function estaMudo() {
+  const m = S.audioMio, d = S.dec;
+  if (m && (!d || d.dichoEn == null || d.dichoEn <= m.dichoEn)) return m.mudo;
+  return !!(d && d.silenciado === true);
 }
 
 // ── Órdenes ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // La cola es la del mando de admira.tv. El identificador de la cola es la PANTALLA, nunca el circuito: una orden
 // en la cola del circuito la reciben todos sus players.
-async function manda(cmd) {
-  const id = S.aparato.screen;
+async function manda(cmd, id) {
   const r = await fetch(API.orden, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, screen: id, cmd }) });
   const d = await r.json().catch(() => null);
   if (!r.ok || !d || !d.ok || !d.action) throw new Error("la cola de órdenes no ha dado recibo");
   return d;
 }
-async function esperaAcuse(action, tope = 20000) {
-  const id = S.aparato.screen, t0 = Date.now();
+async function esperaAcuse(action, tope = 20000, id) {
+  const t0 = Date.now();
   while (Date.now() - t0 < tope) {
     await pausa(600);
     const a = await json(API.orden + "/ack?id=" + encodeURIComponent(id) + "&action=" + encodeURIComponent(action) + "&_=" + Date.now()).catch(() => null);
@@ -117,8 +133,18 @@ async function esperaAcuse(action, tope = 20000) {
 }
 /** Manda y espera el acuse: 'executed' | 'failed' | null (sin acuse a tiempo) | 'sin-cola' (ni siquiera se encoló). */
 async function mandaYespera(cmd, tope) {
-  let d; try { d = await manda(cmd); } catch (_) { return "sin-cola"; }
-  return esperaAcuse(d.action, tope);
+  if (!S.aparato) return "sin-cola";
+  const id = S.aparato.screen;   // el destino se fija AL MANDAR: si luego se cambia de aparato, el acuse se sigue pidiendo al que era
+  let d; try { d = await manda(cmd, id); } catch (_) { return "sin-cola"; }
+  const a = await esperaAcuse(d.action, tope, id);
+  if (a === "executed" && (cmd === "audioon" || cmd === "audiooff") && S.aparato && S.aparato.screen === id) S.audioMio = { mudo: cmd === "audiooff", dichoEn: (S.dec && S.dec.dichoEn) || 0 };
+  return a;
+}
+/** Devuelve el aparato a como estaba y dice la verdad sobre si lo ha conseguido. */
+async function devuelve(estado) {
+  const a1 = await mandaYespera(estado.standby ? "standby" : "resume"), a2 = await mandaYespera(estado.mudo ? "audiooff" : "audioon");
+  S.restaura = null;
+  return a1 === "executed" && a2 === "executed";
 }
 const acuseTxt = a => a === "executed" ? "el player la ha ejecutado" : a === "failed" ? "el player la ha rechazado" : a === "sin-cola" ? "no se ha podido encolar" : "sin acuse del player todavía";
 
@@ -139,7 +165,9 @@ async function activaSentidos() {
       : "No he podido abrir la cámara o el micro (" + ((e && e.name) || "error") + ").";
     return;
   }
-  if (ojos && S.stream.getVideoTracks().length) { const v = $("vid"); v.srcObject = new MediaStream(S.stream.getVideoTracks()); await v.play().catch(() => {}); S.ojosOn = true; S.ojos.reinicia(); }
+  if (ojos && S.stream.getVideoTracks().length) { const v = $("vid"); v.srcObject = new MediaStream(S.stream.getVideoTracks()); await v.play().catch(() => {}); S.ojosOn = true; S.ojos.reinicia();
+    const encaja = () => { if (v.videoWidth) $("visor").style.aspectRatio = v.videoWidth + " / " + v.videoHeight; };   // el visor toma la forma de la cámara: el marco es lo que se analiza
+    encaja(); v.addEventListener("loadedmetadata", encaja); v.addEventListener("resize", encaja); }
   if (orejas && S.stream.getAudioTracks().length) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     S.ctx = new Ctx(); await S.ctx.resume().catch(() => {});
@@ -174,6 +202,13 @@ function miraFrame() {
 function escucha() {   // cuatro veces por segundo; el nivel del segundo es el pico (una pausa de un instante no es silencio)
   if (S.sim) { S.db = S.sim.silencio ? -72 : -24; return; }
   if (!S.orejasOn || !S.analizador) return;
+  // Sin audio de verdad no hay lectura (y sin lectura la guardia no actúa). Un contexto de audio suspendido —iOS lo
+  // hace al cambiar de app— o un micro que el sistema ha silenciado devuelven ceros, que parecerían silencio.
+  const pista = S.stream && S.stream.getAudioTracks()[0];
+  if (document.hidden || !S.ctx || S.ctx.state !== "running" || !pista || pista.muted || pista.readyState !== "live") {
+    S.db = null; S.dbs = []; if (S.ctx && S.ctx.state === "suspended" && !document.hidden) S.ctx.resume().catch(() => {});
+    return;
+  }
   S.analizador.getFloatTimeDomainData(S.buf);
   S.dbs.push(nivelDb(S.buf)); if (S.dbs.length > 4) S.dbs.shift();
   S.db = Math.max(...S.dbs);
@@ -188,24 +223,32 @@ async function calibra() {
   S.calibrando = true; $("bCalibra").disabled = true;
   const nota = t => { $("seCalNota").textContent = t; };
   try {
-    await leeDeclarado(); const estabaMudo = !!(S.dec && S.dec.silenciado === true);
+    await leeDeclarado(); const estabaMudo = estaMudo();
+    S.restaura = { mudo: estabaMudo, standby: !!(S.dec && S.dec.standby) };
     nota("Silenciando el aparato para medir el ruido del sitio…");
     const a1 = await mandaYespera("audiooff"); await pausa(1500); const ambiente = await mideDb(4000);
     nota("Poniendo el audio para medir cómo suena…");
     const a2 = await mandaYespera("audioon"); await pausa(2500); const sonando = await mideDb(6000);
-    const c = calibraOido(ambiente, sonando);
-    if (c.distingue) {
-      S.orejas.ajusta(c.umbralDb); guarda("asst_umbral_" + S.aparato.screen, String(c.umbralDb));
+    const confirmadas = a1 === "executed" && a2 === "executed";
+    const c = confirmadas ? calibraOido(ambiente, sonando) : { distingue: false, umbralDb: null, margenDb: 0 };
+    if (!confirmadas) {
+      nota("No he podido calibrar: el player no ha confirmado las órdenes de audio (" + acuseTxt(a1) + "; " + acuseTxt(a2) + "). Sin eso, cualquier diferencia que mida puede ser ruido del sitio.");
+      anota("Calibración sin resultado: el player no confirmó las órdenes de audio.", "mal");
+    } else if (c.distingue) {
+      S.orejas.ajusta(c.umbralDb); S.calibrado = true; guarda("asst_umbral_" + S.aparato.screen, String(c.umbralDb));
       nota("Calibrado: el sitio hace " + Math.round(ambiente) + " dB de ruido y el audio suena a " + Math.round(sonando) + " dB. Umbral de silencio: " + Math.round(c.umbralDb) + " dB.");
       anota("Oído calibrado: ambiente " + Math.round(ambiente) + " dB, sonando " + Math.round(sonando) + " dB.", "bien");
     } else {
-      nota("No distingo el audio del ruido del sitio (sólo " + Math.round(c.margenDb) + " dB de diferencia" + (a1 !== "executed" || a2 !== "executed" ? "; el player no ha confirmado las órdenes de audio" : "") + "). Acerca el móvil al altavoz o sube el volumen y vuelve a calibrar.");
+      nota("No distingo el audio del ruido del sitio (sólo " + Math.round(c.margenDb) + " dB de diferencia). Acerca el móvil al altavoz o sube el volumen y vuelve a calibrar. Mientras tanto no vigilo el audio.");
       anota("Calibración sin resultado: el audio no se distingue del ambiente.", "mal");
     }
     if (estabaMudo) await mandaYespera("audiooff");   // estaba silenciado antes de empezar: se deja como estaba
-  } finally { S.calibrando = false; $("bCalibra").disabled = false; S.orejas.reinicia(); pintaTodo(); }
+  } finally { S.restaura = null; S.calibrando = false; $("bCalibra").disabled = false; S.orejas.reinicia(); S.guardia.olvida(); pintaTodo(); }
 }
-function mueveUmbral(d) { S.orejas.ajusta(S.orejas.umbralDb + d); if (S.aparato) guarda("asst_umbral_" + S.aparato.screen, String(S.orejas.umbralDb)); pintaTodo(); }
+function mueveUmbral(d) {   // puesto a mano también vale: quien lo mueve se hace cargo del umbral
+  S.orejas.ajusta(S.orejas.umbralDb + d); S.calibrado = true;
+  if (S.aparato) guarda("asst_umbral_" + S.aparato.screen, String(S.orejas.umbralDb)); pintaTodo();
+}
 
 // ── Vigilancia ──────────────────────────────────────────────────────────────────────────────────────────────────
 let visto = { ojos: null, orejas: null, incs: [] };
@@ -219,13 +262,20 @@ function tic() {
   pintaSentidos(); pintaSemaforo();
 }
 function vigila(at, ojos, orejas) {
-  if (at - S.decAt > 5) leeDeclarado().then(pintaElegido);
+  if (at - S.decAt > 5 && !S.pidiendoDec) leeDeclarado().then(pintaElegido);
   if (document.hidden && !S.sim) { if (!S.oculto) { S.oculto = true; anota("Vigilancia en pausa: la pantalla de este móvil está apagada o en otra app.", "orden"); } return; }
-  if (S.oculto) { S.oculto = false; anota("Vigilancia reanudada."); }
-  const incs = diagnostica({ dec: S.dec, ojos, orejas }); visto.incs = incs;
+  if (S.oculto) { S.oculto = false; S.ojos.reinicia(); S.orejas.reinicia(); anota("Vigilancia reanudada."); return; }
+  const oido = S.orejasOn && S.calibrado;   // sin umbral medido para este aparato, el micro informa pero no vigila
+  const incs = diagnostica({ dec: S.dec, ojos, orejas: oido ? orejas : null }); visto.incs = incs;
+  // No ver no es ver que está bien: sin lectura de un sentido encendido, o sin saber qué dice el player, la guardia
+  // se queda quieta. Y con una avería a la vista, antes de mover un dedo se vuelve a preguntar al player: puede que
+  // lo hayan puesto en standby o silenciado hace un momento.
+  let ciego = !S.dec || !S.dec.conocido || (S.ojosOn && (!ojos || ojos.estado === "sin-datos")) || (oido && (!orejas || orejas.estado === "sin-datos"));
+  if (!ciego && incs.some(i => i.grave) && at - S.decOkAt > 4) { ciego = true; if (!S.pidiendoDec) leeDeclarado().then(pintaElegido); }
+  S.ciego = ciego; S.ciegoDesde = ciego ? (S.ciegoDesde != null ? S.ciegoDesde : at) : null;
   const antes = S.guardia.caso;
-  const paso = S.guardia.tic({ at, incidencias: incs, autoreparar: $("chReparar").checked });
-  if (!antes && S.guardia.caso) anota("Incidencia: " + S.guardia.caso.texto, "mal");
+  const paso = S.guardia.tic({ at, incidencias: incs, autoreparar: $("chReparar").checked, ciego });
+  if (!antes && S.guardia.caso) anota((S.guardia.caso.recaida ? "Vuelve a pasar: " : "Incidencia: ") + S.guardia.caso.texto, "mal");
   if (paso.tipo === "manda") {
     anota("Arreglo: " + paso.texto + " (orden «" + paso.cmd + "»).", "orden");
     mandaYespera(paso.cmd, paso.cmd === "hardreload" ? 8000 : 20000).then(a => anota("Orden «" + paso.cmd + "»: " + acuseTxt(a) + ".", a === "executed" ? "" : "orden"));
@@ -256,7 +306,7 @@ async function pideCerrojo() {   // que el móvil no apague la pantalla mientras
 function alarma() {
   try { if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]); } catch (_) {}
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext, ctx = S.ctx || new Ctx();
+    const Ctx = window.AudioContext || window.webkitAudioContext, ctx = S.ctx || (S.ctxAlarma = S.ctxAlarma || new Ctx());
     [0, 0.35, 0.7].forEach(t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.value = 0.25;
       o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.22); });
   } catch (_) {}
@@ -291,28 +341,41 @@ async function pruebaPaso(paso) {
 }
 const marca = v => v === true ? "sí" : v === false ? "no" : "sin dato";
 async function pruebaTodo() {
-  if (!S.aparato || S.probando) return;
+  if (!S.aparato || S.probando || S.calibrando) return;
   S.probando = true; pintaTodo();
   await leeDeclarado();
-  const estabaMudo = !!(S.dec && S.dec.silenciado === true), estabaStandby = !!(S.dec && S.dec.standby);
-  let cuenta = { pasa: 0, falla: 0, parcial: 0, "sin-comprobar": 0 };
+  const estado = { mudo: estaMudo(), standby: !!(S.dec && S.dec.standby) }; S.restaura = estado;
+  const cuenta = { pasa: 0, falla: 0, parcial: 0, "sin-comprobar": 0 };
   try {
-    if (estabaStandby) { anota("El aparato está en standby: se enciende para probar y se vuelve a apagar al terminar.", "orden"); await mandaYespera("resume"); await pausa(3000); }
+    if (estado.standby) { anota("El aparato está en standby: se enciende para probar y se vuelve a apagar al terminar.", "orden"); await mandaYespera("resume"); await pausa(3000); }
     for (const paso of PASOS) { const j = await pruebaPaso(paso); cuenta[j.veredicto]++; }
   } finally {
-    // Dejarlo como estaba, pase lo que pase en medio: pantalla encendida (o apagada si lo estaba) y audio como estaba.
-    await mandaYespera(estabaStandby ? "standby" : "resume").catch(() => {});
-    await mandaYespera(estabaMudo ? "audiooff" : "audioon").catch(() => {});
-    S.probando = false; S.ojos.reinicia(); S.orejas.reinicia(); S.guardia.olvida();
+    const vuelto = await devuelve(estado).catch(() => false);   // pase lo que pase en medio
     $("prEstado").textContent = cuenta.pasa + " pasan · " + cuenta.falla + " fallan" + (cuenta.parcial ? " · " + cuenta.parcial + " a medias" : "");
-    anota("Pruebas terminadas: " + $("prEstado").textContent + ". Aparato devuelto a su estado.", cuenta.falla ? "mal" : "bien");
-    pintaTodo();
+    anota("Pruebas terminadas: " + $("prEstado").textContent + ". " + (vuelto ? "Aparato devuelto a su estado." : "OJO: el player no ha confirmado la vuelta a su estado (pantalla " + (estado.standby ? "apagada" : "encendida") + ", audio " + (estado.mudo ? "quitado" : "puesto") + "): compruébalo."), cuenta.falla || !vuelto ? "mal" : "bien");
+    finPrueba();
   }
 }
 async function pruebaSuelta(paso) {
-  if (!S.aparato || S.probando) return;
+  if (!S.aparato || S.probando || S.calibrando) return;
   S.probando = true; pintaTodo();
-  try { await pruebaPaso(paso); } finally { S.probando = false; S.ojos.reinicia(); S.orejas.reinicia(); S.guardia.olvida(); pintaTodo(); }
+  await leeDeclarado();
+  const estado = { mudo: estaMudo(), standby: !!(S.dec && S.dec.standby) }; S.restaura = estado;
+  try { await pruebaPaso(paso); }
+  finally {
+    const vuelto = await devuelve(estado).catch(() => false);
+    if (!vuelto) anota("OJO: el player no ha confirmado la vuelta a su estado tras la prueba: compruébalo.", "mal");
+    finPrueba();
+  }
+}
+function finPrueba() { S.probando = false; S.restaura = null; S.ojos.reinicia(); S.orejas.reinicia(); S.guardia.olvida(); pintaTodo(); }
+/* Si se cierra la página a mitad de una prueba o de una calibración, las órdenes de vuelta salen igualmente. */
+function vuelveAlSalir() {
+  const e = S.restaura; if (!e || !S.aparato) return;
+  const id = S.aparato.screen;
+  [e.standby ? "standby" : "resume", e.mudo ? "audiooff" : "audioon"].forEach(cmd => {
+    try { fetch(API.orden, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, screen: id, cmd }) }); } catch (_) {}
+  });
 }
 
 // ── Pantalla ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -344,12 +407,13 @@ function pintaSemaforo() {
   let clase = "", tit = "Sin vigilar", det = !S.aparato ? "Elige un aparato." : !(S.ojosOn || S.orejasOn) ? "Activa los ojos o las orejas." : "Todo listo: pulsa «Empezar a vigilar».";
   if (S.vigilando) {
     if (S.probando || S.calibrando) { clase = "ojo"; tit = S.probando ? "Probando…" : "Calibrando el oído…"; det = "La vigilancia espera a que termine."; }
+    else if (S.ciego && S.ciegoDesde != null && Date.now() / 1000 - S.ciegoDesde >= 3) { clase = "ojo"; tit = "Sin datos"; det = !S.dec || !S.dec.conocido ? "No sé qué dice el player (sin conexión o aparato desconocido). Mientras tanto no toco nada." : "Esperando una lectura fiable de la cámara, del micro o del player. Mientras tanto no toco nada."; }
     else if (caso && caso.escalada) { clase = "mal"; tit = "Hay que ir"; det = caso.texto + (caso.probados.length ? " Probado sin éxito: " + caso.probados.join(", ") + "." : ""); }
     else if (caso) { clase = "ojo"; tit = "Arreglando…"; det = caso.texto + (caso.probados.length ? " Última orden: «" + caso.probados[caso.probados.length - 1] + "»." : ""); }
-    else if (leves.length) { clase = "ojo"; tit = "En standby"; det = leves[0].texto; }
+    else if (leves.length) { clase = "ojo"; tit = leves[0].codigo === "standby" ? "En standby" : "Silenciado"; det = leves[0].texto; }
     else {
       clase = "bien"; tit = "Todo bien";
-      det = [S.dec && S.dec.titulo ? "Emite «" + S.dec.titulo + "»" : "", S.ojosOn && S.frame ? "brillo " + Math.round(S.frame.brillo * 100) + " %" : "", S.orejasOn && S.db != null ? "sonido " + Math.round(S.db) + " dB" : ""].filter(Boolean).join(" · ") || "Vigilando.";
+      det = [S.dec && S.dec.titulo ? "Emite «" + S.dec.titulo + "»" : "", S.ojosOn && S.frame ? "brillo " + Math.round(S.frame.brillo * 100) + " %" : "", S.orejasOn && S.db != null ? "sonido " + Math.round(S.db) + " dB" : "", S.orejasOn && !S.calibrado ? "oído sin calibrar: el audio no se vigila" : ""].filter(Boolean).join(" · ") || "Vigilando.";
     }
     $("viTiempo").textContent = S.desde ? "vigilando " + duracion((Date.now() - S.desde) / 1000) : "";
   } else $("viTiempo").textContent = "";
@@ -376,12 +440,14 @@ function pintaTodo() {
   $("seVisor").hidden = !S.ojosOn; $("seOido").hidden = !S.orejasOn; $("visor").hidden = !!S.sim;
   $("chOjos").disabled = $("chOrejas").disabled = !!S.stream;
   $("seEstado").textContent = sentidos ? [S.ojosOn ? "ojos" : "", S.orejasOn ? "orejas" : ""].filter(Boolean).join(" + ") : "apagados";
-  $("bSentidos").textContent = S.stream ? "Apagar los sentidos" : "Activar ojos y orejas"; $("bSentidos").className = "btn" + (S.stream ? "" : " solid");
+  $("bSentidos").textContent = S.stream ? "Apagar los sentidos" : "Activar los sentidos"; $("bSentidos").className = "btn" + (S.stream ? "" : " solid");
   $("bSentidos").hidden = !!S.sim; $("seSim").hidden = !S.sim;
   $("bCalibra").disabled = !hay || !S.orejasOn || ocupado;
   $("bVigilar").disabled = !S.vigilando && (!hay || !sentidos);
   $("bVigilar").textContent = S.vigilando ? "Dejar de vigilar" : "Empezar a vigilar"; $("bVigilar").className = "btn" + (S.vigilando ? " alerta" : " solid");
   $("bProbarTodo").disabled = !hay || ocupado; $("bProbarTodo").textContent = S.probando ? "Probando…" : "Probar todo";
+  const cambiar = document.querySelector("#apElegido button"); if (cambiar) cambiar.disabled = ocupado;
+  $("seCalAviso").hidden = !S.orejasOn || S.calibrado;
   document.querySelectorAll("#pasos button").forEach(b => { b.disabled = !hay || ocupado; });
   pintaSentidos(); pintaSemaforo();
 }
@@ -399,9 +465,9 @@ async function arranca() {
   $("bUmbMenos").onclick = () => mueveUmbral(-3); $("bUmbMas").onclick = () => mueveUmbral(3);
   $("bVigilar").onclick = empiezaVigilancia; $("bProbarTodo").onclick = pruebaTodo; $("bInforme").onclick = comparte;
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pideCerrojo(); });
-  window.addEventListener("pagehide", apagaSentidos);
+  window.addEventListener("pagehide", () => { vuelveAlSalir(); apagaSentidos(); });
   if (new URLSearchParams(location.search).has("simula")) {
-    S.sim = { negro: false, silencio: false }; S.ojosOn = S.orejasOn = true; S.orejas.ajusta(-45);
+    S.sim = { negro: false, silencio: false }; S.ojosOn = S.orejasOn = true; S.orejas = creaOrejas({ aguante: 20 }); S.orejas.ajusta(-45); S.calibrado = true;
     $("simNegro").onchange = e => { S.sim.negro = e.target.checked; anota(S.sim.negro ? "Ensayo: finjo que la pantalla se queda en negro." : "Ensayo: la pantalla vuelve a verse.", "orden"); };
     $("simSilencio").onchange = e => { S.sim.silencio = e.target.checked; anota(S.sim.silencio ? "Ensayo: finjo que el audio deja de sonar." : "Ensayo: el audio vuelve a sonar.", "orden"); };
     $("seAyuda").textContent = "Modo ensayo: los ojos y las orejas son fingidos. Sirve para ver cómo reacciona el asistente con un aparato virtual; las órdenes que manda son de verdad.";

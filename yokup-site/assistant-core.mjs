@@ -41,7 +41,7 @@ export function diferencia(a, b) {
  * cuando el contenido debería moverse (un vídeo), congelada. Un hueco de muestras rompe la continuidad: no se
  * acusa a una pantalla de algo que no se ha estado mirando.
  */
-export function creaOjos({ negro = UMBRAL.negro, movimiento = UMBRAL.movimiento, aguante = 15, hueco = 4 } = {}) {
+export function creaOjos({ negro = UMBRAL.negro, movimiento = UMBRAL.movimiento, aguante = 20, hueco = 4 } = {}) {
   let prev = null, prevAt = null, negroDesde = null, quietoDesde = null;
   const reinicia = () => { prev = null; prevAt = null; negroDesde = null; quietoDesde = null; };
   return {
@@ -50,7 +50,10 @@ export function creaOjos({ negro = UMBRAL.negro, movimiento = UMBRAL.movimiento,
       if (prevAt != null && at - prevAt > hueco) reinicia();
       const cambio = diferencia(prev, gray);
       if (brillo < negro) { if (negroDesde == null) negroDesde = at; } else negroDesde = null;
-      if (cambio != null) { if (cambio < movimiento) { if (quietoDesde == null) quietoDesde = prevAt; } else quietoDesde = null; }
+      // La quietud sólo se cuenta mientras se espera movimiento: un cartel que lleva un minuto fijo no convierte en
+      // «congelado» al vídeo que entra detrás.
+      if (!esperaMovimiento) quietoDesde = null;
+      else if (cambio != null) { if (cambio < movimiento) { if (quietoDesde == null) quietoDesde = prevAt; } else quietoDesde = null; }
       prev = gray; prevAt = at;
       const negroSeg = negroDesde == null ? 0 : at - negroDesde, quietoSeg = quietoDesde == null ? 0 : at - quietoDesde;
       let estado = cambio == null ? "sin-datos" : "viendo";
@@ -83,8 +86,12 @@ export function calibraOido(ambienteDb, sonandoDb, margen = UMBRAL.margenDb) {
   return { distingue: true, umbralDb: ambienteDb + margenDb / 2, margenDb };
 }
 
-/** Vigilante de sonido: silencio sostenido durante `aguante` segundos (una pausa entre canciones no cuenta). */
-export function creaOrejas({ umbralDb = UMBRAL.silencioDb, aguante = 12, hueco = 4 } = {}) {
+/**
+ * Vigilante de sonido: silencio sostenido durante `aguante` segundos. Son 75 a propósito: una pausa entre canciones
+ * no cuenta y, sobre todo, da tiempo a que el player declare en su latido (hasta un minuto) que lo han silenciado
+ * desde el mando, que no es una avería.
+ */
+export function creaOrejas({ umbralDb = UMBRAL.silencioDb, aguante = 75, hueco = 4 } = {}) {
   let umbral = umbralDb, prevAt = null, silencioDesde = null;
   const reinicia = () => { prevAt = null; silencioDesde = null; };
   return {
@@ -127,6 +134,7 @@ export function declarado(now, fila, ahoraMs = Date.now()) {
     conSonido: item ? CON_SONIDO.has(item.type) : null,
     silenciado: audio ? audio.muted === true : null,
     volumen,
+    empezoEn: num(item && item.startedAt),   // cuándo arrancó la pieza en antena: si la lista tiene una sola, «siguiente» la reinicia
     dichoEn: num(item && item.ts),   // cuándo publicó el player lo que declara (su reloj): sirve para saber si es de antes o de después de una orden
     atascos: now && now.health && num(now.health.stalls) != null ? num(now.health.stalls) : null,
   };
@@ -152,6 +160,7 @@ export function rasgos(fila) {
  */
 export function diagnostica({ dec = null, ojos = null, orejas = null } = {}) {
   const lista = [];
+  if (!dec || !dec.conocido) return lista;   // sin saber qué dice el player no se acusa a nadie (la guardia se queda quieta: ver `ciego`)
   const standby = !!(dec && dec.standby);
   if (dec && dec.conocido && !dec.enLinea) {
     lista.push({ codigo: "sin-latido", grave: true, texto: "El player no da señales" + (dec.edadSeg != null ? " desde hace " + duracion(dec.edadSeg) : "") + ": no le llegan las órdenes." });
@@ -161,11 +170,12 @@ export function diagnostica({ dec = null, ojos = null, orejas = null } = {}) {
     if (ojos.estado === "negro") lista.push({ codigo: "pantalla-negra", grave: true, texto: "La pantalla lleva " + duracion(ojos.negroSeg) + " en negro" + (dec && dec.titulo ? " y el player dice que emite «" + dec.titulo + "»" : "") + "." });
     else if (ojos.estado === "congelada") lista.push({ codigo: "pantalla-congelada", grave: true, texto: "La imagen lleva " + duracion(ojos.quietoSeg) + " sin moverse y debería ser un vídeo." });
   }
-  if (orejas && !standby && orejas.estado === "silencio") {
-    const causa = dec && (dec.silenciado === true || dec.volumen === 0);
-    lista.push(causa
-      ? { codigo: "audio-silenciado", grave: true, texto: "No se oye nada desde hace " + duracion(orejas.silencioSeg) + ": el player está " + (dec.silenciado ? "silenciado" : "con el volumen a cero") + "." }
-      : { codigo: "audio-mudo", grave: true, texto: "No se oye nada desde hace " + duracion(orejas.silencioSeg) + (dec && dec.silenciado === false ? " y el player dice que tiene el audio puesto." : ".") });
+  // El silencio sólo es avería si el player dice que está emitiendo algo con sonido y con el audio puesto. Silenciado
+  // desde el mando o con el volumen a cero es una decisión, como el standby: se informa y no se toca. Y con una imagen
+  // en antena (o sin saber qué hay) no se puede afirmar que tenga que sonar nada.
+  if (orejas && !standby && orejas.estado === "silencio" && dec) {
+    if (dec.silenciado === true || dec.volumen === 0) lista.push({ codigo: "audio-silenciado", grave: false, texto: "No se oye nada: el player está " + (dec.silenciado ? "silenciado" : "con el volumen a cero") + " (a propósito, desde el mando)." });
+    else if (dec.conSonido === true && dec.silenciado === false) lista.push({ codigo: "audio-mudo", grave: true, texto: "No se oye nada desde hace " + duracion(orejas.silencioSeg) + " y el player dice que emite «" + dec.titulo + "» con el audio puesto." });
   }
   return lista.sort((a, b) => Number(b.grave) - Number(a.grave));
 }
@@ -181,16 +191,16 @@ export function duracion(seg) {
 // De la orden más suave a la más fuerte. Todas son del vocabulario de canal.html y ninguna cambia la programación:
 // pasan de pieza, vuelven a poner el audio o recargan la página del player.
 const ORDEN = Object.freeze({
-  next: { cmd: "next", texto: "pasar a la pieza siguiente", espera: 20 },
-  audioon: { cmd: "audioon", texto: "volver a poner el audio", espera: 15 },
-  volumen: { cmd: "volume 50", texto: "subir el volumen al 50 %", espera: 15 },
-  hardreload: { cmd: "hardreload", texto: "recargar el player", espera: 60 },
+  next: { cmd: "next", texto: "pasar a la pieza siguiente", espera: 30 },
+  audioon: { cmd: "audioon", texto: "volver a poner el audio", espera: 90 },
+  hardreload: { cmd: "hardreload", texto: "recargar el player", espera: 75 },
 });
+// El audio sólo tiene un peldaño, y es inofensivo: muchas piezas de vídeo no llevan sonido y desde fuera no se
+// distinguen de un altavoz averiado, así que por un silencio no se pasa de pieza ni se recarga nada. Se avisa.
 export const ESCALERA = Object.freeze({
   "pantalla-negra": ["next", "hardreload"],
   "pantalla-congelada": ["next", "hardreload"],
-  "audio-silenciado": ["audioon", "volumen"],
-  "audio-mudo": ["audioon", "next", "hardreload"],
+  "audio-mudo": ["audioon"],
 });
 
 /** El siguiente peldaño para esta incidencia, o null si ya no queda nada que probar (toca avisar a una persona). */
@@ -210,10 +220,16 @@ export function siguienteArreglo(codigo, probados = [], aparato = {}) {
  *   {tipo:'nada'} · {tipo:'manda', cmd, texto, codigo} · {tipo:'comprobando'} ·
  *   {tipo:'resuelto', codigo, con, seg} · {tipo:'escala', codigo, probados, motivo}
  * No manda más de `maxHora` órdenes por hora ni repite una orden dentro de la misma incidencia, y tras cada orden
- * espera a ver el efecto antes de probar la siguiente. Sólo da algo por arreglado tras `estable` segundos limpios.
+ * espera a ver el efecto antes de probar la siguiente. Sólo da algo por arreglado tras `estable` segundos limpios,
+ * que tienen que ser MÁS de lo que tarda en detectarse la avería: si no, una pantalla que se vuelve a caer a los 15 s
+ * contaría cada vez como arreglada y recibiría la misma orden sin fin. Y si la misma avería reaparece en menos de
+ * `memoria` segundos, la escalera sigue donde iba en vez de empezar de cero.
+ *
+ * `ciego: true` (no hay lectura de un sentido, o no se sabe qué dice el player) congela la guardia: ni manda, ni da
+ * nada por arreglado. No ver no es lo mismo que ver que está bien.
  */
-export function creaGuardia({ estable = 8, maxHora = 6, aparato = {} } = {}) {
-  let caso = null, limpioDesde = null;
+export function creaGuardia({ estable = 35, maxHora = 6, memoria = 900, aparato = {} } = {}) {
+  let caso = null, limpioDesde = null, ultimo = null;
   const mandadas = [];
   const actua = (at, autoreparar) => {
     const estaHora = mandadas.filter(t => at - t < 3600).length;
@@ -227,19 +243,21 @@ export function creaGuardia({ estable = 8, maxHora = 6, aparato = {} } = {}) {
   };
   return {
     get caso() { return caso ? { ...caso, probados: [...caso.probados] } : null; },
-    olvida() { caso = null; limpioDesde = null; },
-    tic({ at, incidencias = [], autoreparar = true }) {
+    olvida() { caso = null; limpioDesde = null; ultimo = null; },
+    tic({ at, incidencias = [], autoreparar = true, ciego = false }) {
+      if (ciego) { limpioDesde = null; return { tipo: "ciego" }; }
       const inc = incidencias.find(i => i.grave) || null;
       if (!caso) {
         if (!inc) return { tipo: "nada" };
-        caso = { codigo: inc.codigo, texto: inc.texto, desde: at, probados: [], mandadaEn: null, espera: 0, escalada: false };
+        const sigue = ultimo && ultimo.codigo === inc.codigo && at - ultimo.at < memoria;
+        caso = { codigo: inc.codigo, texto: inc.texto, desde: at, probados: sigue ? [...ultimo.probados] : [], mandadaEn: null, espera: 0, escalada: false, recaida: !!sigue };
         limpioDesde = null;
         return actua(at, autoreparar);
       }
       if (!inc) {
         if (limpioDesde == null) limpioDesde = at;
         if (at - limpioDesde < estable) return { tipo: "comprobando" };
-        const c = caso; caso = null; limpioDesde = null;
+        const c = caso; caso = null; limpioDesde = null; ultimo = { codigo: c.codigo, probados: c.probados, at };
         return { tipo: "resuelto", codigo: c.codigo, con: c.probados.length ? c.probados[c.probados.length - 1] : null, seg: at - c.desde, escalada: c.escalada };
       }
       limpioDesde = null;
@@ -276,7 +294,8 @@ export function juzgaPaso(paso, { acuse = null, antes = {}, despues = {}, umbral
   const cambio = diferencia(antes.gray, despues.gray);
   switch (paso.espera) {
     case "cambia-pieza":
-      dicho = a && d && a.id && d.id ? a.id !== d.id : null;
+      // Otra pieza, o la misma vuelta a empezar (una lista de una sola pieza: «siguiente» la reinicia).
+      dicho = a && d && a.id && d.id ? a.id !== d.id || (a.empezoEn != null && d.empezoEn != null && d.empezoEn > a.empezoEn) : null;
       real = cambio == null ? null : cambio >= UMBRAL.cambio;
       break;
     case "calla":
@@ -297,7 +316,10 @@ export function juzgaPaso(paso, { acuse = null, antes = {}, despues = {}, umbral
       break;
   }
   const rancio = !!(a && d && a.dichoEn != null && d.dichoEn != null && d.dichoEn <= a.dichoEn);
-  if (rancio && dicho === false) dicho = null;
+  // El audio se declara en el latido: mientras el player no vuelva a publicar, lo que dice no prueba nada, ni a favor
+  // (ya estaba silenciado antes de mandarle silenciar) ni en contra.
+  if (rancio && (paso.espera === "calla" || paso.espera === "suena")) dicho = null;
+  else if (rancio && dicho === false) dicho = null;
   const vias = { acuse: acuse === "executed" ? true : acuse == null ? null : false, dicho, real };
   const valores = Object.values(vias);
   const veredicto = valores.includes(false) ? "falla" : valores.every(v => v === true) ? "pasa" : valores.some(v => v === true) ? "parcial" : "sin-comprobar";
