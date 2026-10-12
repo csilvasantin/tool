@@ -1,0 +1,134 @@
+/* ⌘ EXPERTO · CLI — piel compartida de la suite AdmiraNeXT (studio, store, app, tv, biz).
+   Carlos, 4-oct-2026: el modo Experto de todas las patas con el look de digitalavatar.ai.
+   Fuente: csilvasantin/digitalavatar.ai assets/da-shell.css (#daExpert .yk-cli + generator-console).
+   Solo dentro del panel Experto: cian #50c8ff + verde consola #3df08a (excepción explícita a la paleta).
+   Uso:  <link rel="stylesheet" href="https://admiranext.com/suite/experto.css?v=…">
+         <script defer src="https://admiranext.com/suite/experto.js?v=…" data-engine="ADMIRA BIZ ENGINE" data-pata="admira.biz"></script>
+   experto.js marca el panel con .ax-experto y las piezas con .ax-*; esta hoja no toca nada más. */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap");
+
+html[data-ax-experto] .ax-experto{
+  --ax-bg:#0a0c12;--ax-bg2:#10141e;--ax-text:#f0e6ff;--ax-muted:rgba(216,200,255,.72);
+  --ax-cyan:#50c8ff;--ax-green:#3df08a;--ax-err:#ffbc8c;
+  --ax-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:linear-gradient(180deg,var(--ax-bg),var(--ax-bg2))!important;
+  border:1px solid rgba(80,200,255,.35)!important;border-bottom:0!important;border-radius:0!important;
+  box-shadow:0 0 40px rgba(0,0,0,.6),inset 0 0 40px rgba(80,200,255,.03)!important;
+  color:var(--ax-text);font:12px/1.45 var(--ax-mono);
+  padding:14px 16px calc(16px + env(safe-area-inset-bottom))!important;gap:0!important;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+html[data-ax-experto] .ax-experto *{box-sizing:border-box}
+
+/* Cabecera «⌘ EXPERTO · CLI» */
+html[data-ax-experto] .ax-experto .ax-hd{display:flex;align-items:center;gap:10px;flex:0 0 auto;margin:0 0 10px;padding:0 2px 12px;
+  border-bottom:1px solid rgba(80,200,255,.22);background:none;min-height:0}
+html[data-ax-experto] .ax-experto .ax-title{flex:1;min-width:0;font:700 11px/1.3 var(--ax-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ax-cyan)}
+html[data-ax-experto] .ax-experto .ax-hd button,html[data-ax-experto] .ax-experto .ax-hd summary{color:var(--ax-cyan);border-color:rgba(80,200,255,.35)}
+html[data-ax-experto] .ax-experto .ax-extras-btn{padding:3px 9px;border:1px solid rgba(80,200,255,.35);border-radius:999px;background:transparent;
+  color:var(--ax-cyan);font:600 10px/1.3 var(--ax-mono);letter-spacing:.08em;cursor:pointer}
+html[data-ax-experto] .ax-experto .ax-extras-btn:hover,html[data-ax-experto] .ax-experto.ax-extras-on .ax-extras-btn{background:rgba(80,200,255,.12);border-color:var(--ax-cyan)}
+
+/* Cuerpo: ficha del motor (izquierda) + CLI (derecha) */
+html[data-ax-experto] .ax-experto .ax-body{flex:1;min-height:0;display:flex!important;flex-direction:row;gap:14px;margin:0;
+  border:0!important;border-radius:0!important;overflow:hidden;background:none}
+html[data-ax-experto] .ax-experto .ax-engine-slot{flex:0 0 min(34%,420px);display:flex;min-width:0;min-height:0;margin:0;padding:0}
+html[data-ax-experto] .ax-experto .ax-engine{flex:1;margin:0;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+  border:1px solid rgba(61,240,138,.28);border-radius:10px;padding:12px 14px;background:#03080c;color:var(--ax-green);
+  font:700 11px/1.6 var(--ax-mono);text-align:left}
+html[data-ax-experto] .ax-experto .ax-cli-module{flex:1 1 0!important;display:flex!important;flex-direction:column;min-width:0;min-height:0;
+  border:0!important;background:none!important;overflow:hidden;padding:0;margin:0}
+html[data-ax-experto] .ax-experto .ax-cli{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:0!important;overflow:hidden;font:inherit}
+html[data-ax-experto] .ax-experto .ax-cli-out{flex:1;min-height:60px;overflow:auto;margin:0;padding:8px 10px!important;list-style:none;
+  font:11.5px/1.5 var(--ax-mono)!important;color:var(--ax-muted)!important;white-space:pre-wrap;word-break:break-word;text-align:left;
+  background:#05090f!important;border:1px solid rgba(80,200,255,.16)!important;border-radius:10px}
+html[data-ax-experto] .ax-experto .ax-cli-out > *{margin:0;padding:0;border:0!important;background:none}
+html[data-ax-experto] .ax-experto .ax-cli-out :is(code,.expert-log-cmd,.yk-cli-cmd,.cmd){display:block;color:var(--ax-cyan);background:none;font:inherit;padding:0}
+html[data-ax-experto] .ax-experto .ax-cli-out :is(.expert-log-title){color:var(--ax-cyan);font-weight:700;letter-spacing:.08em;margin-top:2px}
+html[data-ax-experto] .ax-experto .ax-cli-out :is(.expert-log-line,div,p,span){color:inherit}
+html[data-ax-experto] .ax-experto .ax-cli-out :is(.error,.err,.yk-cli-err) :is(div,.expert-log-line){color:var(--ax-err)}
+html[data-ax-experto] .ax-experto .ax-cli-out a{color:var(--ax-cyan)}
+html[data-ax-experto] .ax-experto .ax-cli-form{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center;gap:8px;flex:0 0 auto;margin:0;padding:0 10px!important;
+  border:1px solid rgba(80,200,255,.55);border-radius:10px;background:#050a12;
+  box-shadow:0 0 0 1px rgba(80,200,255,.08),0 0 12px rgba(80,200,255,.18);grid-template-columns:none}
+html[data-ax-experto] .ax-experto .ax-cli-form:focus-within{border-color:var(--ax-cyan);box-shadow:0 0 0 1px rgba(80,200,255,.25),0 0 16px rgba(80,200,255,.35)}
+html[data-ax-experto] .ax-experto .ax-cli-prompt{display:inline!important;margin:0;font:700 14px/1 var(--ax-mono)!important;color:var(--ax-cyan)!important;-webkit-text-fill-color:var(--ax-cyan);opacity:1!important;visibility:visible!important;filter:none!important;cursor:text}
+html[data-ax-experto] .ax-experto .ax-cli-input{flex:1;min-width:0;width:auto!important;display:block;height:auto;margin:0;padding:10px 0!important;
+  font:13px/1.2 var(--ax-mono)!important;color:var(--ax-text)!important;letter-spacing:normal;text-transform:none;
+  background:transparent!important;border:0!important;border-radius:0!important;outline:none!important;box-shadow:none!important;appearance:none}
+html[data-ax-experto] .ax-experto .ax-cli-input::placeholder{color:rgba(216,200,255,.45)}
+html[data-ax-experto] .ax-experto .ax-cli-form :is(button,[type=submit]){position:absolute!important;width:1px!important;min-width:0!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;border:0!important;opacity:0!important}
+html[data-ax-experto] .ax-experto .ax-cli-hint{margin:0;font:10px/1.3 var(--ax-mono);color:rgba(216,200,255,.45);flex:0 0 auto}
+
+/* Lo que cada pata tenía de más (verbos, rutinas…) queda tras «＋ verbos»; las asas de bloque sobran. */
+html[data-ax-experto] .ax-experto:not(.ax-extras-on) .ax-extra{display:none!important}
+html[data-ax-experto] .ax-experto.ax-extras-on .ax-extra{flex:0 0 min(26%,320px)!important;display:flex!important;flex-direction:column;min-width:0;
+  border:1px solid rgba(80,200,255,.16)!important;border-radius:10px;background:rgba(2,8,13,.55)!important;overflow:hidden}
+html[data-ax-experto] .ax-experto.ax-extras-on .ax-engine-slot{flex-basis:min(22%,300px)}
+html[data-ax-experto] .ax-experto.ax-extras-on .ax-extra{flex-basis:min(22%,300px)!important}
+html[data-ax-experto] .ax-experto .ax-chrome{display:none!important}
+
+@media (max-width:720px){
+  html[data-ax-experto] .ax-experto .ax-body{flex-direction:column;overflow:auto}
+  html[data-ax-experto] .ax-experto .ax-engine-slot{flex:0 0 auto}
+  html[data-ax-experto] .ax-experto .ax-engine{max-height:150px}
+  html[data-ax-experto] .ax-experto .ax-cli-module{min-height:220px}
+  html[data-ax-experto] .ax-experto.ax-extras-on .ax-extra{flex:0 0 auto!important}
+}
+
+/* Modo propio (patas sin CLI, p. ej. admira.tv): experto.js monta cabecera, ficha y CLI en el cuerpo del panel. */
+html[data-ax-experto] .ax-experto .ax-own-panel{display:flex!important;flex-direction:column;flex:1;min-height:0;height:100%;margin:0;padding:0!important;overflow:hidden;background:none;border:0}
+html[data-ax-experto] .ax-experto .ax-own-extra{overflow:auto;padding:8px 10px;color:var(--ax-text)}
+html[data-ax-experto] .ax-experto .ax-cli-out li{list-style:none}
+html[data-ax-experto] .ax-experto .ax-cli-out li.cmd{color:var(--ax-cyan)}
+html[data-ax-experto] .ax-experto .ax-cli-out li.err{color:var(--ax-err)}
+html[data-ax-experto] .ax-experto .ax-cli-out :is(li.cmd,.yk-lcli-in){color:var(--ax-cyan)!important;font-weight:700}
+html[data-ax-experto] .ax-experto .ax-cli-out :is(li.err,.yk-lcli-err){color:var(--ax-err)!important}
+
+/* Etiquetas propias de la orden («EXPERT ›»…): manda el «›» de la suite. */
+html[data-ax-experto] .ax-experto .ax-cli-form label:not(.ax-cli-prompt){display:none!important}
+/* Patas que pliegan el panel a una sola línea (registro [hidden]): solo queda la orden. */
+html[data-ax-experto] .ax-experto:has(.ax-cli-out[hidden]){padding:4px 12px!important}
+html[data-ax-experto] .ax-experto:has(.ax-cli-out[hidden]) :is(.ax-hd,.ax-engine-slot){display:none!important}
+
+/* Anclado abajo (Carlos, 4-oct-2026 23:08/23:11). Manda sobre la geometría y la visibilidad propias
+   de cada pata (hidden, fuera de pantalla, visibility…). Minimizado = una sola línea de orden escribible. */
+html[data-ax-experto] .ax-experto.ax-dock{display:flex!important;flex-direction:column!important;position:fixed!important;
+  left:0!important;right:0!important;bottom:0!important;top:auto!important;width:auto!important;max-width:none!important;
+  height:var(--ax-dock-h,min(46vh,440px))!important;min-height:0!important;max-height:none!important;margin:0!important;
+  transform:none!important;translate:none!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;
+  z-index:9000!important;overflow:hidden!important;transition:none!important}
+html[data-ax-experto] .ax-experto.ax-dock .ax-form-path{visibility:visible!important;opacity:1!important;transform:none!important}
+html[data-ax-experto] .ax-experto.ax-dock .ax-hd{display:flex!important;flex-direction:row;visibility:visible!important}
+html[data-ax-experto] .ax-experto.ax-dock .ax-fold{margin-left:auto;padding:2px 10px;border:1px solid rgba(80,200,255,.35);border-radius:999px;
+  background:transparent;color:var(--ax-cyan);font:700 11px/1.2 var(--ax-mono);cursor:pointer}
+html[data-ax-experto] .ax-experto.ax-dock .ax-fold:hover{background:rgba(80,200,255,.12);border-color:var(--ax-cyan)}
+html[data-ax-experto] .ax-experto.ax-dock:not(.ax-min) .ax-cli-out[hidden]{display:block!important}
+html[data-ax-experto] .ax-experto.ax-dock:not(.ax-min):has(.ax-cli-out[hidden]){padding:14px 16px calc(16px + env(safe-area-inset-bottom))!important}
+html[data-ax-experto] .ax-experto.ax-dock:has(.ax-cli-out[hidden]) :is(.ax-hd){display:flex!important}
+html[data-ax-experto] .ax-experto.ax-dock:not(.ax-min):has(.ax-cli-out[hidden]) :is(.ax-engine-slot){display:flex!important}
+/* Asa: solo en minimizado, centrada justo encima de la orden. */
+html[data-ax-experto] .ax-experto.ax-dock .ax-grip{display:none}
+html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-grip{display:block!important;flex:0 0 auto;align-self:center;width:56px;height:14px;margin:0 auto 2px;padding:0;
+  border:0;background:transparent;cursor:pointer;position:relative}
+html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-grip::before{content:"";position:absolute;left:12px;right:12px;top:5px;height:4px;border-radius:999px;background:rgba(80,200,255,.55)}
+html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-grip:hover::before,html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-grip:focus-visible::before{background:var(--ax-cyan)}
+/* Minimizado: solo asa + orden «› /help». */
+html[data-ax-experto] .ax-experto.ax-dock.ax-min{height:auto!important;padding:4px 16px calc(10px + env(safe-area-inset-bottom))!important}
+html[data-ax-experto] .ax-experto.ax-dock.ax-min > :not(.ax-form-path):not(.ax-cli-form):not(.ax-grip),
+html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-form-path > :not(.ax-form-path):not(.ax-cli-form){display:none!important}
+html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-form-path{display:flex!important;flex-direction:column!important;flex:0 0 auto!important;
+  height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;gap:0!important;border:0!important;
+  background:none!important;box-shadow:none!important;overflow:visible!important}
+html[data-ax-experto] .ax-experto.ax-dock.ax-min .ax-cli-form{flex:0 0 auto;width:100%}
+/* La página reserva abajo el alto de la orden minimizada para que no tape contenido. */
+.ax-dock-spacer{display:block;height:var(--ax-dock-pad,62px);flex:0 0 auto;pointer-events:none}
+/* data-min="hide": cerrado = fuera del todo (ni orden ni asa). */
+html[data-ax-experto] .ax-experto.ax-dock.ax-hide{display:none!important}
+html[data-ax-dock="hidden"] .ax-dock-spacer{display:none}
+
+/* Las hojas de marca de cada pata (p. ej. pixeria «:root[data-mb-marca][…] .rail{background…!important}») no aclaran el panel. */
+html[data-ax-experto][data-ax-experto] .ax-experto.ax-experto.ax-experto{background:linear-gradient(180deg,var(--ax-bg),var(--ax-bg2))!important;
+  border-color:rgba(80,200,255,.35)!important;color:var(--ax-text)!important;font-family:var(--ax-mono)!important}
+/* Orden en textarea (admira.store): una línea, sin asa de redimensionar. */
+html[data-ax-experto] .ax-experto textarea.ax-cli-input{height:38px!important;min-height:38px!important;max-height:38px!important;resize:none!important;overflow:hidden!important;line-height:18px!important}

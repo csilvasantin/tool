@@ -263,3 +263,15 @@ test('emisión ykm_: por defecto sin incidencias; --scopes las pide explícitame
  assert.deepEqual(parseScopes(FLEET_SCOPES.join(',')),[...FLEET_SCOPES]);
  for(const bad of ['incidents:write','read,admin','',' , ']) assert.throws(()=>parseScopes(bad));
 });
+
+test('native player documentation is authenticated, discoverable and read only',async()=>{
+ const h=await setup();
+ const req=(method,params)=>h.request({jsonrpc:'2.0',id:71,method,params});
+ const resource=(await(await handleMcp(req('resources/list'),h.env)).json()).result.resources.find(x=>x.name==='native-players');
+ assert.equal(resource.uri,'https://www.yokup.com/mcp/native-players.md');
+ const data=(await(await handleMcp(req('resources/read',{uri:resource.uri}),h.env)).json()).result.contents[0];
+ for(const c of ['/demo android','/demo android Fold8','/demo android watch'])assert.ok(data.text.includes(c));
+ assert.equal((await(await handleMcp(req('resources/read',{uri:'file:///etc/passwd'}),h.env)).json()).error.code,-32602);
+ assert.equal((await handleMcp(h.request({jsonrpc:'2.0',id:72,method:'resources/list'},{headers:{Authorization:'Bearer bad'}}),h.env)).status,401);
+ assert.equal(h.state.calls.length,0);
+});

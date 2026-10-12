@@ -21,6 +21,7 @@ test("el artefacto Worker contiene sólo runtime público y el sello exacto", as
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(await readFile(join(target, "version.json"), "utf8")), release);
     await assert.rejects(access(join(target, "deploy.mjs")));
+    assert.match(await readFile(join(target, "mcp/native-players.md"), "utf8"), /demo android Fold8/);
     await assert.rejects(access(join(target, "functions", "api", "fleet-census.js")));
     await assert.rejects(access(join(target, "deploy-version.test.mjs")));
     await assert.rejects(access(join(target, "_redirects")));

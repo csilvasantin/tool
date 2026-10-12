@@ -2334,15 +2334,15 @@
       nativeAppDemo = /^(www\.)?(admira\.app|yokup\.com)$/.test(location.hostname) &&
         new URLSearchParams(location.search).get("ax_demo") === "app";
     } catch (_) {}
-    if (!document.getElementById("ax-experto-js") &&
-        (!nativeAppDemo || !document.querySelector('script[src^="https://www.admiranext.com/suite/experto.js"]'))) {
+    if (!FLEET_MODE && !document.getElementById("ax-experto-js") &&
+        (!nativeAppDemo || !document.querySelector('script[src^="/suite/experto.js"],script[src^="https://www.admiranext.com/suite/experto.js"]'))) {
       var axCss = document.createElement("link");
       axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261006-experto-cerrado-1";
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261012-unified-1" :
-        "https://www.admiranext.com/suite/experto.js?v=20261012-unified-1";
+      ax.src = nativeAppDemo ? "/suite/experto.js?v=20261012-android-five-1" :
+        "/suite/experto.js?v=20261012-android-five-1";
       if (nativeAppDemo) {
         ax.setAttribute("data-admira-demo-engine", "");
         ax.setAttribute("data-pata", "admira.app");
