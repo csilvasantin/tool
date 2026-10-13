@@ -87,3 +87,9 @@ test("GrokBot firma como persona de la flota con su apellido físico (Carlos, 7-
   assert.throws(()=>validateDeployIdentity("grokbotMBP16","MacBookPro16"),/runtime o identidad interna/);
   assert.throws(()=>validateDeployIdentity("GrokCypherMacMini","MacMini"),/runtime o identidad interna/);
 });
+
+test("el Mac Studio puede firmar un despliegue con su apellido",()=>{
+  const firma=validateDeployIdentity("NeoMacStudio","Mac Studio");
+  assert.ok(firma,"la firma del Studio se acepta");
+  assert.throws(()=>validateDeployIdentity("NeoMBP14","MacStudio"));
+});

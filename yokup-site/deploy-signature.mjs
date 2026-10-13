@@ -13,6 +13,7 @@ const MACHINES = [
   { name:"MacMini", suffix:"MacMini", legacySuffixes:["Mini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
   { name:"MacBookPro14", suffix:"MBP14", legacySuffixes:["14"], aliases:["macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"] },
   { name:"MacBookPro16", suffix:"MBP16", legacySuffixes:["16"], aliases:["macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"] },
+  { name:"MacStudio", suffix:"MacStudio", aliases:["macstudio","mac studio","mac studio carlos","mac studio de carlos","admira-macstudio","macstudio.local","mac-studio"] },
   { name:"MacBookAirAzul", suffix:"MBAAzul", legacySuffixes:["Azul"], aliases:["macbookairazul","macbook air azul","mba azul","admira-macbookairazul"] },
   { name:"MacBookAirRosa", suffix:"MBARosa", legacySuffixes:["Rosa"], aliases:["macbookairrosa","macbook air rosa","mba rosa","admira-macbookairrosa"] },
   { name:"MacBookAirCrema", suffix:"MBACrema", legacySuffixes:["Crema"], aliases:["macbookaircrema","macbook air crema","mba crema","admira-macbookaircrema"] },

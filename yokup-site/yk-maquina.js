@@ -31,6 +31,7 @@
     "macbookair16": "MBA 16 Plata",
     "macbookairluna": "MBA Luna",
     "macmini": "Mac Mini",
+    "macstudio": "Mac Studio",
     "thinkstationpgx": "ThinkStation",
     "asuszenbook": "Zenbook"
   };

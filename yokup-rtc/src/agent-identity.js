@@ -10,6 +10,13 @@ const MACHINES = [
   ["MacMini", ["macmini", "mac mini", "mac mini carlos", "admira-macmini", "macmini.local"]],
   ["MBP14", ["mbp14", "macbookpro14", "macbook pro 14", "macbookpronegro14", "macbook pro negro 14", "admira-macbookpronegro14"]],
   ["MBP16", ["mbp16", "macbookpro16", "macbook pro 16", "admira-macbookpro16", "macbook-pro-16"]],
+  // Mac Studio de Gran de Gràcia (Carlos, 13-oct-2026, misión DCL-07f932173c0469c14dcc31e1).
+  // Carlos trabaja por la mañana en el MBP14 y por la tarde aquí, con las mismas personas:
+  // NeoMacStudio y TrinityMacStudio son agentes distintos de NeoMBP14 y TrinityMBP14. El
+  // apellido no se abrevia (normativa 02), como MacMini. Sin esta fila machineSuffix
+  // devolvía "" y parseAgentIdentity("NeoMacStudio") salía con suffix vacío: el mismo
+  // 403 owner_mismatch con expected y received idénticos que destapó Niobe.
+  ["MacStudio", ["macstudio", "mac studio", "mac studio carlos", "mac studio de carlos", "admira-macstudio", "macstudio.local", "mac-studio"]],
   ["MBAAzul", ["mbaazul", "macbookairazul", "macbook air azul", "mba azul", "admira-macbookairazul"]],
   ["MBARosa", ["mbarosa", "macbookairrosa", "macbook air rosa", "mba rosa", "admira-macbookairrosa"]],
   ["MBACrema", ["mbacrema", "macbookaircrema", "macbook air crema", "mba crema", "admira-macbookaircrema"]],
