@@ -1,4 +1,4 @@
-import { publicOriginFor, esEspejo } from '../_shared/casas.mjs';
+import { publicOriginFor, apexDe } from '../_shared/casas.mjs';
 
 // Entrada de agentes (TG#5064 / FLT-101509): mismo contrato que admira.store/auth/agente.
 // La lógica y el secret viven en api.admira.biz / api.yokup.com (yokup-rtc). Aquí solo
@@ -6,7 +6,8 @@ import { publicOriginFor, esEspejo } from '../_shared/casas.mjs';
 function apiFor(request) {
   let host = '';
   try { host = new URL(request.url).hostname; } catch (_) {}
-  return esEspejo(host) ? 'https://api.admira.biz' : 'https://api.yokup.com';
+  const apex=apexDe(host);
+  return apex ? 'https://api.'+apex : 'https://api.yokup.com';
 }
 
 export async function onRequest(context) {
