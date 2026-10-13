@@ -27,6 +27,7 @@ MACHINE="$(/usr/sbin/scutil --get ComputerName 2>/dev/null || scutil --get Compu
 # consumidores que la comparan (fondos, avatares, whitelists).
 case "$(echo "$MACHINE" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9')" in
   *macmini*|macmini*)      MACHINE_SUFFIX="MacMini" ;;
+  *macstudio*)             MACHINE_SUFFIX="MacStudio" ;;
   *macbookairazul*)        MACHINE_SUFFIX="MBAAzul" ;;
   *macbookairrosa*)        MACHINE_SUFFIX="MBARosa" ;;
   *macbookaircrema*)       MACHINE_SUFFIX="MBACrema" ;;

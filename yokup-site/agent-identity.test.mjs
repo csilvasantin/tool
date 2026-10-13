@@ -75,3 +75,10 @@ assert.doesNotMatch(status, /ORACULO_TRIAD_PRESENCE/);
 assert.doesNotMatch(status, /_synthetic\s*:\s*true/);
 assert.match(status, /Las capas se muestran únicamente cuando existe presencia real/);
 console.log("yk agent identity matrix: ok");
+
+// Mac Studio (Carlos, 13-oct-2026): mismo diccionario que yokup-rtc/src/agent-identity.js.
+assert.equal(id.scoped("Neo","Mac Studio"),"NeoMacStudio");
+assert.equal(id.scoped("Trinity","MacStudio","sub"),"SubTrinityMacStudio");
+assert.equal(id.display("Neo","Mac Studio de Carlos"),"NeoMacStudio");
+assert.equal(id.parse("TrinityMacStudio").persona,"Trinity");
+assert.notEqual(id.scoped("Neo","MacStudio"),id.scoped("Neo","MacMini"));

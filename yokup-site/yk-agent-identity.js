@@ -21,6 +21,7 @@
     ["MacMini",["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"]],
     ["MBP14",["mbp14","macbookpro14","macbook pro 14","macbookpronegro14","macbookpro14negro","macbook pro negro 14","admira-macbookpro14","admira-macbookpronegro14"]],
     ["MBP16",["mbp16","macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"]],
+    ["MacStudio",["macstudio","mac studio","mac studio carlos","mac studio de carlos","admira-macstudio","macstudio.local","mac-studio"]],
     ["MBA16",["mba16","macbookair16plata","macbookair16","macbook air 16 dg","mba 16 plata","admira-macbookair16"]],
     ["MBAAzul",["mbaazul","macbookairazul","macbook air azul","mba azul","admira-macbookairazul"]],
     ["MBARosa",["mbarosa","macbookairrosa","macbook air rosa","mba rosa","admira-macbookairrosa"]],
@@ -71,7 +72,7 @@
      MacBookProNegro14 es una sola máquina, y se normaliza antes de comparar — nunca
      se cotejan literales, o el equipo se parte en dos filas. */
   var CANONICAL_MACHINES = {
-    MacMini:"Mac Mini", MBP14:"MacBookPro14", MBP16:"MacBook Pro 16",
+    MacMini:"Mac Mini", MacStudio:"Mac Studio", MBP14:"MacBookPro14", MBP16:"MacBook Pro 16",
     MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
     DGX:"DGX Spark", PGX:"ThinkStation PGX", GrokBot:"GrokBot", GrokBotBox:"GrokBotBox", GrokBotBox:"GrokBotBox"

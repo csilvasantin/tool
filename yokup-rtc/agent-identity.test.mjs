@@ -119,3 +119,24 @@ test("Niobe está en el diccionario y su apellido case con su máquina", () => {
   assert.equal(sameAgentFamily("NiobeMacMini", "OraculoMacMini"), false,
     "Niobe y Oraculo son familias distintas aunque compartan el mismo equipo");
 });
+
+// Mac Studio de Gran de Gràcia (Carlos, 13-oct-2026). Carlos trabaja por la mañana en el
+// MBP14 y por la tarde aquí con las mismas personas: son agentes distintos y cada uno
+// cierra lo suyo. Antes de esta fila parseAgentIdentity("NeoMacStudio") devolvía suffix
+// vacío y machineSuffix("MacStudio") también: validateMissionActor no podía casarlos.
+test("el Mac Studio es un equipo de la flota con apellido propio", () => {
+  for (const nombre of ["MacStudio", "Mac Studio", "Mac Studio de Carlos", "Mac Studio (Carlos)", "macstudio.local", "mac-studio", "admira-macstudio"]) {
+    assert.equal(machineSuffix(nombre), "MacStudio", nombre);
+  }
+  assert.equal(scopedAgentIdentity("Neo", "Mac Studio"), "NeoMacStudio");
+  assert.equal(scopedAgentIdentity("Trinity", "MacStudio", "sub"), "SubTrinityMacStudio");
+  assert.equal(scopedAgentIdentity("Trinity", "MacStudio", "infra"), "InfraTrinityMacStudio");
+  const neo = parseAgentIdentity("NeoMacStudio");
+  assert.deepEqual({ persona: neo.persona, suffix: neo.suffix, legacy: neo.legacy }, { persona: "Neo", suffix: "MacStudio", legacy: false });
+  assert.equal(parseAgentIdentity("TrinityMacStudio").suffix, machineSuffix("Mac Studio de Carlos"));
+  // No se confunde con el Mac Mini ni con el MBP14, y sigue siendo la misma familia Neo.
+  assert.notEqual(machineSuffix("MacStudio"), machineSuffix("MacMini"));
+  assert.equal(parseAgentIdentity("NeoMacMini").suffix, "MacMini");
+  assert.equal(parseAgentIdentity("NeoMBP14").suffix, "MBP14");
+  assert.equal(sameAgentFamily("NeoMacStudio", "NeoMBP14"), true);
+});
