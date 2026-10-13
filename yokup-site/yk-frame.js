@@ -2341,8 +2341,8 @@
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = nativeAppDemo ? "/suite/experto.js?v=20261012-android-five-1" :
-        "/suite/experto.js?v=20261012-android-five-1";
+      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261013-alsea-1" :
+        "https://www.admiranext.com/suite/experto.js?v=20261013-alsea-1";
       if (nativeAppDemo) {
         ax.setAttribute("data-admira-demo-engine", "");
         ax.setAttribute("data-pata", "admira.app");
