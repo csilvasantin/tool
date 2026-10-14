@@ -294,7 +294,7 @@
       verb(Object.assign({},action,{name:String(action.name).toLowerCase(),alias:aliases.map(function(alias){return String(alias).toLowerCase();})}));
     });
     (def.demos || []).forEach(function(action){
-      if (!/^[a-z0-9-]*$/i.test(action.name || '') || /^(ios|editor|global|help|ayuda|lista|list)$/.test(action.name)) throw Error('Reserved demo action');
+      if (!/^[a-z0-9-]*$/i.test(action.name || '') || /^(android|ios|editor|global|help|ayuda|lista|list|alsea)$/.test(action.name)) throw Error('Reserved demo action');
       localDemos[action.name]=action;
     });
   }
@@ -456,6 +456,11 @@
       url: ['https://www.admira.biz/']}
   ];
   function demoUrl(d) { return d.url[lang() === 'en' && d.url[1] ? 1 : 0]; }
+  // Client presentations open the existing generator's room. Keep the first
+  // release behind /pruebas and use the same dispatch on every suite host.
+  function alseaPresentationUrl() {
+    return 'https://www.admiranext.com/pruebas/alsea/?lang=' + (lang() === 'en' ? 'en' : 'es');
+  }
   function demoLaunchUrl(d) {
     var u = new URL(demoUrl(d));
     u.searchParams.set('lang',lang());
@@ -659,6 +664,7 @@
     if (/^android(?:\s|$)/i.test(String(m[1] || ''))) return {android: String(text).trim()};
     if (/^ios(?:\s|$)/i.test(String(m[1] || ''))) return {ios: String(text).trim()};
     var arg = norm(m[1]).replace(/^admira\./, ''), L = localM();
+    if (arg === 'alsea') return {presentation: 'alsea'};
     // /demo <funcionalidad>: hoy (castellano) y today (pone la web en inglés). El resto de nombres
     // desconocidos sigue siendo de la pata. Los pasos viven en suite/demo-control.js.
     if (arg === 'hoy' || arg === 'today') return {funcion: 'hoy', lang: arg === 'today' ? 'en' : 'es'};
@@ -708,7 +714,7 @@
       '\n' + T('/demo proyectos, /demo idioma, /demo marcas y /demo roadmap recorren esa página y resumen bien o mal. En inglés: /demo projects, /demo language, /demo brands y /demo roadmap.',
         '/demo projects, /demo language, /demo brands and /demo roadmap walk that page and mark each step ok or fail. In Spanish: /demo proyectos, /demo idioma, /demo marcas y /demo roadmap.') +
       '\n' + T('/demo editor abre el editor de demos. /demos editar y /demos edit también.', '/demo editor opens the demo editor. /demos editar and /demos edit do too.') +
-      '\n' + T('/demo lista muestra las demos y las macros. /demo alsea-biz-app recorre biz y luego app.', '/demo list shows the demos and the macros. /demo alsea-biz-app walks biz and then app.') +
+      '\n' + T('/demo alsea abre la presentación web de Alsea (cinco bloques de 15 min).\n','/demo alsea opens the Alsea web presentation (five 15-minute chapters).\n') + T('/demo lista muestra las demos y las macros. /demo alsea-biz-app recorre biz y luego app.', '/demo list shows the demos and the macros. /demo alsea-biz-app walks biz and then app.') +
       '\n' + T('/demo <nombre> recorre esa macro. /demo <nombre> <subdemo> o /demo <nombre>.<subdemo> abre solo esa pieza. Tab completa el nombre.', '/demo <name> runs that macro. /demo <name> <subdemo> or /demo <name>.<subdemo> opens just that piece. Tab completes the name.');
   }
   function localLista() {
@@ -724,7 +730,7 @@
       '\n' + T('/demo proyectos, /demo idioma, /demo marcas y /demo roadmap recorren esa página y resumen bien o mal. En inglés: /demo projects, /demo language, /demo brands y /demo roadmap.',
         '/demo projects, /demo language, /demo brands and /demo roadmap walk that page and mark each step ok or fail. In Spanish: /demo proyectos, /demo idioma, /demo marcas y /demo roadmap.') +
       '\n' + T('/demo editor abre el editor de demos. /demos editar y /demos edit también.', '/demo editor opens the demo editor. /demos editar and /demos edit do too.') +
-      '\n' + T('/demo lista muestra las demos y las macros. /demo alsea-biz-app recorre biz y luego app.', '/demo list shows the demos and the macros. /demo alsea-biz-app walks biz and then app.') +
+      '\n' + T('/demo alsea abre la presentación web de Alsea (cinco bloques de 15 min).\n','/demo alsea opens the Alsea web presentation (five 15-minute chapters).\n') + T('/demo lista muestra las demos y las macros. /demo alsea-biz-app recorre biz y luego app.', '/demo list shows the demos and the macros. /demo alsea-biz-app walks biz and then app.') +
       '\n' + T('/demo <nombre> recorre esa macro. /demo <nombre> <subdemo> o /demo <nombre>.<subdemo> abre solo esa pieza. Tab completa el nombre.', '/demo <name> runs that macro. /demo <name> <subdemo> or /demo <name>.<subdemo> opens just that piece. Tab completes the name.');
   }
   // Modo muestra (default_mode): panel con el resultado preparado y enlace a la página de la función.
@@ -1102,6 +1108,14 @@
       import(moduleURL).then(function(m){return m.runIOS(p.ios,root);}).then(function(r){out(log,T('Solicitud enviada al lanzador del Mac: ','Request sent to the Mac launcher: ')+r.project+' · '+r.playlist.name+' · '+r.device);}).catch(function(e){out(log,String(e.message||e),'err');});
       return {id:'ios',native:true};
     }
+    if (p.presentation) {
+      var presentationUrl = alseaPresentationUrl();
+      if (root.AdmiraDemoControl && root.AdmiraDemoControl.state().activo) root.AdmiraDemoControl.control('stop');
+      cerrarMuestra();
+      out(log, T('Abriendo la presentación web de Alsea · cinco bloques de 15 minutos.', 'Opening the Alsea web presentation · five 15-minute chapters.'));
+      location.assign(presentationUrl);
+      return {id:p.presentation,presentation:true,url:presentationUrl};
+    }
     if (p.updates) { var updatesUrl=updatesDemoUrl(p.lang); out(log,T('Abriendo Pixeria · novedades, recorrido preparado…','Opening Pixeria updates, prepared tour…')); location.assign(updatesUrl); return {id:'pixeria-novedades-20261009',url:updatesUrl}; }
     if (p.idiomaDemo) return demoIdioma(log);
     if(p.global){var globalUrl='https://www.admira.biz/demo/?lang='+T('es','en');out(log,T('Abriendo demo global · Sneakers Store…','Opening global demo · Sneakers Store…'));location.assign(globalUrl);return {id:'global',url:globalUrl};}
@@ -1148,9 +1162,9 @@
     log = log || (panel && panel.querySelector('.ax-cli-out')) || {appendChild: function () {}, children: [], removeChild: function () {}};
     return execute(text, log, {echo:false});
   }
-  verb({name: 'demo', args: 'android [Fold8|watch] [playlist|#tag] | ios [iphone|watch] [playlist|#tag] | [global|help|hoy|today|proyectos|projects|idioma|language|marcas|brands|roadmap|editor|número|nombre|auto|pausa|reanudar|stop|studio|store|tv|app|biz|siguiente]', desc: ['enseña una demo o encadena los ensayos locales sin operaciones reales (sin argumento: lista)', 'show a demo or run local rehearsals without real operations (no argument: list)'], run: function (a, log) {
+  verb({name: 'demo', args: 'android [Fold8|watch] [playlist|#tag] | ios [iphone|watch] [playlist|#tag] | [alsea|global|help|hoy|today|proyectos|projects|idioma|language|marcas|brands|roadmap|editor|número|nombre|auto|pausa|reanudar|stop|studio|store|tv|app|biz|siguiente]', desc: ['enseña una demo o encadena los ensayos locales sin operaciones reales (sin argumento: lista)', 'show a demo or run local rehearsals without real operations (no argument: list)'], run: function (a, log) {
     var localAction=localDemoAction(a,log); if(localAction)return localAction.result;
-    if (!catalogReady && !/^(?:android|ios|pausa|pause|reanudar|resume|stop|off|estado|status)(?:\s|$)/i.test(a.join(' '))) return localListo.then(function(){return execute('/demo '+a.join(' '),log,{echo:false,record:false});});
+    if (!catalogReady && !/^(?:alsea|android|ios|pausa|pause|reanudar|resume|stop|off|estado|status)(?:\s|$)/i.test(a.join(' '))) return localListo.then(function(){return execute('/demo '+a.join(' '),log,{echo:false,record:false});});
     var p = parseDemo('/demo ' + a.join(' '));
     if (!p) { out(log, T('Demo desconocida: ', 'Unknown demo: ') + a.join(' ') + '\n' + demoLista(), 'err'); return; }
     return demoRun(p, log);
@@ -1164,7 +1178,7 @@
   // Avatar conversacional. Un solo cargador (admiranext.com/assets/avatar.js): good = Admirito (nube animada),
   // better = chica Ready Player Me, best = Neo. En modo piel el CLI de la pata ya lo tiene;
   // aquí entra el modo propio (data-mount), que es el dock de las patas sin consola.
-  var AVATAR_SRC = 'https://www.admiranext.com/assets/avatar.js?v=20261007-demo-1';
+  var AVATAR_SRC = 'https://www.admiranext.com/assets/avatar.js?v=20261014-personajes-1';
   function avatarApi() {
     if (root.AdmiraAvatar && root.AdmiraAvatar.handle) return Promise.resolve(root.AdmiraAvatar);
     var tag = document.querySelector('script[data-admira-avatar]');
@@ -1201,6 +1215,31 @@
   verb({name: 'admirito', desc: ['muestra u oculta a Admirito, la mascota nube', 'show or hide Admirito, the cloud mascot'], run: function (a, log) {
     return avatarRun('/admirito' + (a.length ? ' ' + a.join(' ') : ''), log);
   }});
+  // PERSONAJES (Carlos, 14-oct-2026): pieles de Admirito con verbo propio, por el mismo camino que /admirito
+  // (avatar.js). Fuera de su página la abren; dentro, lo muestran u ocultan y «/<id> <arg>» se lo pasa (Bugito:
+  // lanza esa incidencia en el player virtual de laboratorio). Con un avatar.js anterior en la página (sin el
+  // personaje), su página se abre igual. Añadir el Arquitecto = una entrada más en PERSONAJES_SUITE.
+  var PERSONAJES_SUITE = [
+    {name: 'bugito', gancho: 'AdmiraBugito', pagina: 'https://www.admira.biz/bugito.html', args: '[girar|resolucion|popup|medias|normal]',
+      desc: ['sin nada, abre el banco de pruebas de Bugito en admira.biz (si ya estás en él, lo muestra u oculta); con una incidencia, la lanza en el player virtual de laboratorio',
+        'alone, opens Bugito\'s test bench on admira.biz (if you are already there, shows or hides him); with an incident, launches it on the lab virtual player'],
+      abriendo: ['Bugito: abriendo su banco de pruebas en admira.biz…', 'Bugito: opening his test bench on admira.biz…']}
+  ];
+  function personajeRun(p, a, log) {
+    var text = '/' + p.name + (a.length ? ' ' + a.join(' ') : '');
+    return avatarApi().then(function (A) {
+      if (A && typeof A.personaje === 'function' && A.personaje(p.name)) return avatarRun(text, log);
+      var B = root[p.gancho];
+      if (B && typeof B.toggle === 'function') return Promise.resolve(a.length ? B.lanzar(a.join('-')) : B.toggle()).then(function (msg) { if (msg) out(log, String(msg)); });
+      out(log, T(p.abriendo[0], p.abriendo[1]));
+      setTimeout(function () { location.assign(p.pagina + '?lang=' + lang()); }, 400);
+    });
+  }
+  PERSONAJES_SUITE.forEach(function (p) {
+    verb({name: p.name, args: p.args, desc: p.desc, run: function (a, log) { return personajeRun(p, a, log); }});
+  });
+  // Los verbos de personaje son de la suite también donde la pata conserva su propio CLI (sharedCommand).
+  var PERSONAJE_RE = new RegExp('^\\/(' + PERSONAJES_SUITE.map(function (p) { return p.name; }).join('|') + ')(?:\\s|$)', 'i');
   verb({name: 'cli', args: 'ayudante|helper', desc: ['interruptor del avatar en esta consola', 'avatar switch on this console'], run: function (a, log) {
     if (/^(ayudante|helper)$/i.test(a[0] || '')) return avatarRun('/cli ' + a.join(' '), log);
     out(log, T('En esta consola, /cli ayudante es el avatar. /avatar good, /avatar better o /avatar best elige la cara.', 'On this console, /cli helper is the avatar. /avatar good, /avatar better or /avatar best picks the face.'), 'err');
@@ -1209,7 +1248,8 @@
   // opts.echo === false: quien llama ya pintó la orden (p. ej. el CLI del armazón de admiranext.com).
   function sharedCommand(text) {
     var t = String(text || '').trim();
-    return !!(parseLangCommand(t) || (t.charAt(0) === '/' && (parseArquitectura(t) || parseDemo(t))));
+    // Los personajes (/bugito…) son de la suite en las cinco patas, también donde la pata conserva su propio CLI.
+    return !!(parseLangCommand(t) || (t.charAt(0) === '/' && (parseArquitectura(t) || parseDemo(t) || PERSONAJE_RE.test(t))));
   }
   function execute(text, log, opts) {
     var t = String(text || '').trim();
@@ -1518,7 +1558,7 @@
     parseArquitectura: parseArquitectura, arquitecturaUrl: arquitecturaUrl,
     // /demo (7-oct-2026): catálogo de las cinco soluciones y lanzador, para el avatar digital.
     demos: function () { return DEMOS.map(function (d) { return {id: d.id, nombre: d.nombre, alias: d.alias.slice(), desc: T(d.desc[0], d.desc[1]), url: demoUrl(d)}; }); },
-    parseDemo: function (t) { var p = parseDemo(t); if (!p) return null; if(p.android) return {id:'android',native:true,command:p.android}; if(p.ios) return {id:'ios',native:true,command:p.ios}; if(p.updates) return {id:'pixeria-novedades-20261009',lang:p.lang,url:updatesDemoUrl(p.lang)}; if (p.idiomaDemo) return {idiomaDemo: true}; if (p.funcion) return {funcion: p.funcion, lang: p.lang, id: p.funcion, url: funcionDemoUrl(p.funcion, p.lang)}; if (p.global) return {id:'global',url:'https://www.admira.biz/demo/'}; if (p.control) return {control: p.control}; if (p.auto) return {auto: true, local: true}; if (p.catalogo) { var cat = {catalogo: p.catalogo, id: p.catalogo}; if (p.pieza) cat.pieza = p.pieza; return cat; } if (p.lista) return p.local ? {lista: true, local: true} : {lista: true}; if (p.desconocida != null) return {desconocida: p.desconocida}; if (p.local) return {id: plataforma + '/' + p.sub.id, i: p.n - 1, url: abs(subUrl(p.sub)), local: true}; return {id: p.demo.id, i: p.i, url: demoUrl(p.demo)}; },
+    parseDemo: function (t) { var p = parseDemo(t); if (!p) return null; if(p.android) return {id:'android',native:true,command:p.android}; if(p.ios) return {id:'ios',native:true,command:p.ios}; if(p.presentation) return {id:p.presentation,presentation:true,url:alseaPresentationUrl()}; if(p.updates) return {id:'pixeria-novedades-20261009',lang:p.lang,url:updatesDemoUrl(p.lang)}; if (p.idiomaDemo) return {idiomaDemo: true}; if (p.funcion) return {funcion: p.funcion, lang: p.lang, id: p.funcion, url: funcionDemoUrl(p.funcion, p.lang)}; if (p.global) return {id:'global',url:'https://www.admira.biz/demo/'}; if (p.control) return {control: p.control}; if (p.auto) return {auto: true, local: true}; if (p.catalogo) { var cat = {catalogo: p.catalogo, id: p.catalogo}; if (p.pieza) cat.pieza = p.pieza; return cat; } if (p.lista) return p.local ? {lista: true, local: true} : {lista: true}; if (p.desconocida != null) return {desconocida: p.desconocida}; if (p.local) return {id: plataforma + '/' + p.sub.id, i: p.n - 1, url: abs(subUrl(p.sub)), local: true}; return {id: p.demo.id, i: p.i, url: demoUrl(p.demo)}; },
     demoEstado: function () { if(root.PixeriaUpdatesDemo) return root.PixeriaUpdatesDemo.state(); return root.AdmiraDemoControl && root.AdmiraDemoControl.state().activo ? root.AdmiraDemoControl.state() : estadoRecorrido(); },
     demoLaunchUrl: function(id) { var d=DEMOS.filter(function(x){return x.id===id;})[0];return d?demoLaunchUrl(d):''; },
     demo: demoTexto, plataforma: function () { return plataforma; }, subdemos: function () { return localM(); }, listo: function () { return localListo; }, resolverDemo: resolverDemo, anotarNombres: anotarNombres,
