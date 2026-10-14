@@ -212,11 +212,18 @@ $('#arq-import-file').onchange = async e => {
 };
 if (!tomarFragmento()) { try { const g = sessionStorage.getItem(GUARDA); if (g && T.leerFragmento('#arquitecto=' + g)) pendiente = g; } catch (_) {} }
 window.addEventListener('hashchange', () => { if (tomarFragmento() && autenticado) abrir(pendiente); });
-document.addEventListener('portal-auth', e => {
-  if (e.detail?.kind !== 'retailer') return;
-  autenticado = !!e.detail.authenticated;
+function alAutenticar(si) {
+  autenticado = si;
   $('#arq-import-open').hidden = !autenticado;
   if (!autenticado) { desarmar(); inv = null; sites = []; sesion = null; $('#arquitecto-import').hidden = true; return; }
   if (pendiente) abrir(pendiente);
+}
+document.addEventListener('portal-auth', e => {
+  if (e.detail?.kind !== 'retailer') return;
+  alAutenticar(!!e.detail.authenticated);
 });
+// retailer-portal.js se carga antes (defer, en orden) y puede confirmar la sesión antes de que este
+// script escuche: el 14-oct-2026 el «portal-auth» se perdió, el botón siguió oculto y el enlace del
+// Arquitecto no abrió el panel. Si al cargar el área de trabajo ya está visible, la sesión ya entró.
+if (document.getElementById('workspace') && !document.getElementById('workspace').hidden) alAutenticar(true);
 })();
