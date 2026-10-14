@@ -59,7 +59,11 @@ Un superusuario que abre una cuenta de marca con «Abrir como retailer» puede e
 - Fuera del filtro: `/inventory` y `/alerts` (listas de ciclo de vida para el MCP del comercio) y la ficha `/retailer/incidencia`, que ya trae una incidencia concreta.
 - `yokup-site/retailer-proyecto.js` guarda la elección en `sessionStorage` (`yk_retailer_proyecto`), añade `?proyecto=` y pinta el aviso «Proyecto Starbucks · Quitar filtro». Ante un rechazo del filtro (403 `superuser-required` o 400 «Proyecto desconocido») quita el filtro, avisa y recarga sin él. Al cambiar de proyecto emite `portal-proyecto` y `retailer-itil.js` vuelve a pedir el inventario.
 
-Pruebas: `api/admira-xpacios.test.mjs` (servidor) y `yokup-site/retailer-proyecto.test.mjs` (pantalla).
+Pruebas: `api/admira-xpacios.test.mjs` (servidor) y `yokup-site/retailer-proyecto.test.mjs` (pantalla), `api/demo-proyecto.test.mjs` (demo).
+
+**Demo navegable sin login**: `node api/tools/demo-proyecto.mjs` y abrir http://localhost:8788/. Arranca la API real de este checkout sobre una D1 en memoria, con datos de prueba (Starbucks Paseo de Gracia y Tijuana, una incidencia en cada uno, más un estanco), y sirve `yokup-site` en el mismo origen. `/demo/superusuario` entra como superusuario de prueba en la cuenta Alsea; `/demo/comercio` entra como comercio normal. El servidor de demo guarda las cookies de sesión y las pone él en cada `/api/*`, así que el navegador no recibe ninguna. Capturas: `docs/evidencias/5980/`.
+
+No hay vista previa en `*.pages.dev` porque la API no la admite. `ORIGINS` (`api/src/installer-portal.js`) no incluye `pages.dev`, así que el navegador bloquea la llamada por CORS. Además, las sesiones de `data.yokup.com` son `SameSite=Strict` y no viajan desde otro sitio. Para tener una URL pública haría falta publicar esta misma demo como un Worker aparte de pruebas (sin D1 ni secretos de producción) con un nombre propio, y para eso hace falta la orden de Carlos.
 
 ## Contrato servidor a servidor con Admira
 
