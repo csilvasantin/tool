@@ -44,7 +44,7 @@ Base `https://data.yokup.com/api/retailer`. JSON con cookies y Origin permitido.
 | GET | `/inventory?site_id=&status=&warranty_within_days=&maintenance_due=` | Inventario con ficha y estado de garantía/mantenimiento |
 | GET | `/alerts` | Avisos de garantía y mantenimiento del barrido diario |
 | GET | `/accounts` · POST `/switch` | «Ver como»: cuentas de marca accesibles (ver `docs/xpacios-yokup.md`) |
-| GET | `/dashboard?proyecto=` · `/incidents?proyecto=` | Filtro por cliente, solo superusuario (ver «Filtro por proyecto») |
+| GET | `/dashboard?proyecto=` · `/incidents?proyecto=` · `/itil?proyecto=` · `/itil/inventory?proyecto=` | Filtro por cliente, solo superusuario (ver «Filtro por proyecto») |
 
 `kind`: kiosk, tobacco, supermarket, hospitality, other. `skill`: screen, audio, hvac, player, network, kiosk, sensor. Coordenadas del establecimiento determinan los técnicos cercanos; una alerta autenticada puede actualizar las coordenadas del equipo.
 
@@ -52,10 +52,12 @@ Base `https://data.yokup.com/api/retailer`. JSON con cookies y Origin permitido.
 
 Un superusuario que abre una cuenta de marca con «Abrir como retailer» puede escribir `/proyecto starbucks` en ⌘ Experto (o abrir `/retailer?proyecto=starbucks`) y el portal enseña solo los locales, equipos e incidencias de ese cliente. El recorte lo hace la API, no la pantalla:
 
-- `?proyecto=<id>` en `GET /dashboard` y `GET /incidents` exige `access.role === 'superuser'`; si no, **403 `superuser-required`**. Un id desconocido da **400** con la lista de disponibles. `off`, `todos`, `all` o `admira` (o no mandar el parámetro) quitan el filtro.
+- `?proyecto=<id>` en `GET /dashboard`, `GET /incidents`, `GET /itil` y `GET /itil/inventory` exige `access.role === 'superuser'`; si no, **403 `superuser-required`**. Un id desconocido da **400** con la lista de disponibles. `off`, `todos`, `all` o `admira` (o no mandar el parámetro) quitan el filtro.
 - `starbucks` usa la regla común de la suite: el id del Xpacio empieza por `alsea-sbux-` (`admira_xpacio_sites.admira_store_id` o `retailer_site_import_items.admira_store_id`). Los Starbucks de México (`alsea-mx-sbux-*`) quedan fuera, igual que en admira.tv y la API común.
 - La respuesta lleva `proyecto` (el id aplicado o `null`), y los contadores (`stats`) salen recalculados solo con esos locales.
-- `yokup-site/retailer-proyecto.js` guarda la elección en `sessionStorage` (`yk_retailer_proyecto`), añade `?proyecto=` y pinta el aviso «Proyecto Starbucks · Quitar filtro». Ante un 403/400 quita el filtro, avisa y recarga sin él.
+- Inventario ITIL: `/itil` solo lista los establecimientos del proyecto y `/itil/inventory` de un establecimiento de fuera da **404** («Ese establecimiento no es del proyecto starbucks.»). Las altas y bajas de CI (`POST /itil/cis…`) no llevan proyecto: actúan sobre un establecimiento concreto del titular, como siempre.
+- Fuera del filtro: `/inventory` y `/alerts` (listas de ciclo de vida para el MCP del comercio) y la ficha `/retailer/incidencia`, que ya trae una incidencia concreta.
+- `yokup-site/retailer-proyecto.js` guarda la elección en `sessionStorage` (`yk_retailer_proyecto`), añade `?proyecto=` y pinta el aviso «Proyecto Starbucks · Quitar filtro». Ante un rechazo del filtro (403 `superuser-required` o 400 «Proyecto desconocido») quita el filtro, avisa y recarga sin él. Al cambiar de proyecto emite `portal-proyecto` y `retailer-itil.js` vuelve a pedir el inventario.
 
 Pruebas: `api/admira-xpacios.test.mjs` (servidor) y `yokup-site/retailer-proyecto.test.mjs` (pantalla).
 

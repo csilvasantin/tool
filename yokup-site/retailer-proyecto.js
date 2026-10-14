@@ -29,10 +29,14 @@ function pintar(){
 // El portal llama aquí con la respuesta de /dashboard (o con null al salir). Si el servidor no confirma el
 // proyecto, se olvida. El aviso de un 403/400 sobrevive a la recarga sin filtro que viene justo después.
 function aplicar(data){const id=data&&typeof data.proyecto==='string'?data.proyecto:null;if(!id&&leer())guardar('');ultimo={proyecto:id,error:data&&!id?ultimo.error:''};pintar();return id;}
-// …y aquí si /dashboard falla. 403/400 con proyecto elegido: se quita el filtro, se avisa y el portal recarga sin él.
+// …y aquí si una lectura falla (/dashboard o el inventario ITIL). Solo cuentan los rechazos del filtro (403
+// superuser-required, 400 «Proyecto desconocido»): se quita el filtro, se avisa y quien llamó recarga sin él.
+// Si otra lectura ya lo quitó (piden a la vez), solo se pide la recarga.
 function fallo(e){
- if(!leer()||(e?.status!==403&&e?.status!==400))return false;
- const id=leer();guardar('');
+ const msg=String(e?.message||''),propio=(e?.status===403&&msg==='superuser-required')||(e?.status===400&&msg.startsWith('Proyecto desconocido'));
+ if(!propio)return false;
+ const id=leer();if(!id)return true;
+ guardar('');
  ultimo={proyecto:null,error:e.status===403?'Solo un superusuario puede filtrar por proyecto. Se muestran todos tus datos.':'No existe el proyecto «'+id+'». Disponibles: '+Object.keys(NOMBRES).join(', ')+'. Se muestran todos los datos.'};
  pintar();return true;
 }
@@ -40,6 +44,8 @@ function conectar(fn){recargar=fn;}
 async function cambiar(arg){
  const id=limpio(arg);guardar(APAGAR.includes(id)?'':id);ultimo.error='';
  if(recargar)await recargar();
+ // El inventario ITIL (retailer-itil.js) escucha esto para volver a pedir sus datos con el filtro nuevo.
+ try{document.dispatchEvent(new CustomEvent('portal-proyecto',{detail:{proyecto:leer()||null}}));}catch{}
  return estado();
 }
 function estado(){

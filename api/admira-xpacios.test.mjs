@@ -264,6 +264,17 @@ test('proyecto (#5980): un superusuario en «Ver como» ve solo Starbucks; un co
  assert.equal(normal.status,403);assert.equal(normal.body.error,'superuser-required');
  assert.equal((await retail(env,'/incidents?proyecto=starbucks',undefined,a.cookie)).status,403);
  assert.equal((await retail(env,'/dashboard',undefined,a.cookie)).status,200,'sin proyecto, el comercio sigue igual');
+ // Inventario ITIL: la lista de establecimientos y el inventario de cada uno también salen recortados.
+ const itil=(await retail(env,'/itil?proyecto=starbucks',undefined,sw.cookie)).body;
+ assert.equal(itil.proyecto,'starbucks');assert.deepEqual(itil.sites.map(s=>s.admira_store_id),['alsea-sbux-021']);
+ assert.equal((await retail(env,'/itil',undefined,sw.cookie)).body.sites.length,2);
+ const inv=await retail(env,'/itil/inventory?site_id='+pg.id+'&proyecto=starbucks',undefined,sw.cookie);
+ assert.equal(inv.status,200);assert.equal(inv.body.proyecto,'starbucks');
+ const fuera=await retail(env,'/itil/inventory?site_id='+tj.id+'&proyecto=starbucks',undefined,sw.cookie);
+ assert.equal(fuera.status,404);assert.match(fuera.body.error,/no es del proyecto starbucks/);
+ assert.equal((await retail(env,'/itil/inventory?site_id='+tj.id,undefined,sw.cookie)).status,200,'sin proyecto, Tijuana sigue accesible');
+ assert.equal((await retail(env,'/itil?proyecto=starbucks',undefined,a.cookie)).status,403);
+ assert.equal((await retail(env,'/itil/inventory?site_id='+a.site+'&proyecto=starbucks',undefined,a.cookie)).status,403);
 });
 
 test('proyecto (#5980): con 120 Starbucks ninguna consulta pasa de los 100 parámetros de D1',async()=>{

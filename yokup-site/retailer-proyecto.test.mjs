@@ -9,7 +9,7 @@ const read = (f) => readFile(new URL("./" + f, import.meta.url), "utf8");
 const source = await read("retailer-proyecto.js");
 
 function fakeDom() {
-  const byId = new Map(), listeners = {};
+  const byId = new Map(), listeners = {}, events = [];
   const node = (tag) => ({
     tagName: String(tag).toUpperCase(), children: [], attrs: {}, className: "", hidden: false, type: "", _text: "", _id: "", parentNode: null,
     get id() { return this._id; }, set id(v) { this._id = v; byId.set(v, this); },
@@ -25,15 +25,17 @@ function fakeDom() {
     head: node("head"), documentElement: { lang: "es" }, createElement: node,
     getElementById: (id) => byId.get(id) || null, querySelector: () => null,
     addEventListener: (t, fn) => { (listeners[t] ||= []).push(fn); },
+    dispatchEvent: (ev) => { events.push(ev); },
   };
-  return { document, byId, workspace };
+  return { document, byId, workspace, events };
 }
 
 function run({ search = "", stored = null } = {}) {
   const dom = fakeDom(), mem = new Map(stored ? [["yk_retailer_proyecto", stored]] : []), verbs = [];
   const sessionStorage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
   const window = { sessionStorage, YkFrame: { registerVerb: (def) => verbs.push(def) } };
-  vm.runInNewContext(source, { window, document: dom.document, location: { search }, URLSearchParams, String, Object, encodeURIComponent });
+  class CustomEvent { constructor(type, init) { this.type = type; this.detail = init?.detail; } }
+  vm.runInNewContext(source, { window, document: dom.document, location: { search }, URLSearchParams, String, Object, encodeURIComponent, CustomEvent });
   const aviso = () => dom.byId.get("proyecto-aviso");
   return { P: window.YokupProyecto, mem, verbs, aviso, dom };
 }
@@ -85,8 +87,10 @@ test("403 del servidor (no es superusuario): se quita el filtro, se avisa y el p
 });
 
 test("400 (proyecto desconocido) dice cuáles hay", () => {
-  const { P, aviso } = run({ stored: "lumbre" });
-  assert.equal(P.fallo({ status: 400 }), true);
+  const { P, aviso, mem } = run({ stored: "lumbre" });
+  assert.equal(P.fallo({ status: 400, message: "Indica site_id o admira_store_id." }), false, "otro 400 no quita el filtro");
+  assert.equal(mem.get("yk_retailer_proyecto"), "lumbre");
+  assert.equal(P.fallo({ status: 400, message: "Proyecto desconocido: lumbre. Disponibles: starbucks." }), true);
   assert.match(aviso().textContent, /No existe el proyecto «lumbre»\. Disponibles: starbucks/);
 });
 
@@ -104,6 +108,31 @@ test("el verbo /proyecto se registra en ⌘ Experto y recarga el portal con el f
   assert.match(await verbs[0].run("off"), /^Sin filtro de proyecto/);
   assert.equal(mem.has("yk_retailer_proyecto"), false);
   assert.equal(recargas, 2, "/proyecto sin argumento solo informa");
+});
+
+test("al cambiar de proyecto se avisa al inventario ITIL (portal-proyecto) para que vuelva a pedir sus datos", async () => {
+  const { P, dom } = run();
+  P.conectar(async () => {});
+  await P.cambiar("starbucks");
+  await P.cambiar("off");
+  assert.deepEqual(dom.events.map((e) => [e.type, e.detail.proyecto]), [["portal-proyecto", "starbucks"], ["portal-proyecto", null]]);
+});
+
+test("si la otra lectura ya quitó el filtro (piden a la vez), el 403 del filtro solo pide recargar", () => {
+  const { P, aviso } = run();
+  assert.equal(P.fallo({ status: 403, message: "superuser-required" }), true);
+  assert.ok(!aviso() || aviso().hidden, "no inventa un aviso");
+  assert.equal(P.fallo({ status: 403, message: "Origen no permitido." }), false);
+});
+
+test("el inventario ITIL lee /itil e /itil/inventory a través del filtro y recarga con portal-proyecto", async () => {
+  const js = await read("retailer-itil.js"), html = await read("retailer.html");
+  assert.match(js, /api\(proyecto\(\)\.query\('\/itil'\)\)/);
+  assert.match(js, /api\(proyecto\(\)\.query\('\/itil\/inventory\?site_id='\+encodeURIComponent\(current\)\)\)/);
+  assert.match(js, /addEventListener\('portal-proyecto'/);
+  assert.match(js, /if\(proyecto\(\)\.fallo\(e\)\)return loadSites\(\)/);
+  assert.match(html, /\/retailer-itil\.js\?v=5/);
+  assert.ok(html.indexOf('src="/retailer-proyecto.js') < html.indexOf('src="/retailer-itil.js'));
 });
 
 test("retailer.html carga retailer-proyecto.js antes que el portal y el portal pide /dashboard a través de él", async () => {

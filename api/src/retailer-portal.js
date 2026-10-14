@@ -73,10 +73,17 @@ async function dashboard(env,owner,proyecto=null){
  const stats=await statement(env,`SELECT COUNT(CASE WHEN i.status='open' THEN 1 END) AS open,COUNT(CASE WHEN i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.status='resolved' AND r.incident_id IS NULL THEN 1 END) AS awaiting_rating FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_ratings r ON r.incident_id=i.id WHERE s.retailer_id=?`,owner).first();
  return {proyecto:null,sites,devices,incidents,stats:{...stats,...lifecycleStats(devices)}};
 }
-async function retailerItil(request,env,owner,path,actor,channel){
+async function retailerItil(request,env,owner,path,actor,channel,access){
  const q=new URL(request.url).searchParams,method=request.method;
- if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis,(SELECT version FROM xpacio_planos p WHERE p.site_id=s.id) AS plan_version FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.name`,owner)}];
- if(path==='/itil/inventory'&&method==='GET')return [await itilInventory(env,await ownerSite(env,owner,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')}))];
+ // /proyecto también recorta el inventario ITIL que se lee (lista de establecimientos y su inventario); las altas
+ // y bajas de CI no llevan proyecto: actúan sobre un establecimiento concreto del titular, como siempre.
+ const proyecto=method==='GET'?proyectoPedido(request,access):null,pp=proyecto?[patronDe(proyecto),patronDe(proyecto)]:[];
+ if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis,(SELECT version FROM xpacio_planos p WHERE p.site_id=s.id) AS plan_version FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=?${proyecto?EN_PROYECTO:''} ORDER BY s.name`,owner,...pp),proyecto:proyecto?.id||null}];
+ if(path==='/itil/inventory'&&method==='GET'){
+  const site=await ownerSite(env,owner,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')});
+  if(proyecto&&!(await sitiosDelProyecto(env,owner,proyecto)).includes(site.id))fail(404,'Ese establecimiento no es del proyecto '+proyecto.id+'.');
+  return [{...await itilInventory(env,site),proyecto:proyecto?.id||null}];
+ }
  if(path==='/itil/cis'&&method==='POST'){const {site_id,admira_store_id,request_key,...ci}=await jsonBody(request);const r=await upsertCi(env,await ownerSite(env,owner,{site_id,admira_store_id}),ci,actor,channel);return [r,r.created?201:200];}
  const retire=/^\/itil\/cis\/([A-Z0-9-]{5,51})\/retire$/.exec(path);
  if(retire&&method==='POST'){const b=await jsonBody(request);return [await retireCi(env,ci=>ci.retailer_id===owner,retire[1],b.note,actor,channel)];}
@@ -138,7 +145,7 @@ export async function handleRetailer(request,env,principal){
   // Plano maestro del Xpacio (DCL-fbee86b0016fa4cef7a7726c): GET|PUT /plano, mismo perímetro que el ITIL (docs/plano-yokup.md).
   if(path==='/plano')return await retailerPlano(request,env,owner,access.actor_email||account.email,principal?'mcp-comercio':'portal');
   // ITIL (FLT-101300): inventario tecnológico del establecimiento, en el perímetro del titular (docs/itil-yokup.md).
-  if(path.startsWith('/itil'))return response(request,...await retailerItil(request,env,owner,path,access.actor_email||account.email,principal?'mcp-comercio':'portal'));
+  if(path.startsWith('/itil'))return response(request,...await retailerItil(request,env,owner,path,access.actor_email||account.email,principal?'mcp-comercio':'portal',access));
   if(path==='/inventory'&&method==='GET')return response(request,await inventory(env,owner,new URL(request.url).searchParams));
   if(path==='/alerts'&&method==='GET')return response(request,await alerts(env,owner,new URL(request.url).searchParams));
   if(path==='/incidents'&&method==='GET'){
