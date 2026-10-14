@@ -1178,7 +1178,7 @@
   // Avatar conversacional. Un solo cargador (admiranext.com/assets/avatar.js): good = Admirito (nube animada),
   // better = chica Ready Player Me, best = Neo. En modo piel el CLI de la pata ya lo tiene;
   // aquí entra el modo propio (data-mount), que es el dock de las patas sin consola.
-  var AVATAR_SRC = 'https://www.admiranext.com/assets/avatar.js?v=20261014-personajes-1';
+  var AVATAR_SRC = 'https://www.admiranext.com/assets/avatar.js?v=20261014-personajes-2';
   function avatarApi() {
     if (root.AdmiraAvatar && root.AdmiraAvatar.handle) return Promise.resolve(root.AdmiraAvatar);
     var tag = document.querySelector('script[data-admira-avatar]');
@@ -1220,19 +1220,28 @@
   // lanza esa incidencia en el player virtual de laboratorio). Con un avatar.js anterior en la página (sin el
   // personaje), su página se abre igual. Añadir el Arquitecto = una entrada más en PERSONAJES_SUITE.
   var PERSONAJES_SUITE = [
-    {name: 'bugito', gancho: 'AdmiraBugito', pagina: 'https://www.admira.biz/bugito.html', args: '[girar|resolucion|popup|medias|normal]',
+    {name: 'bugito', gancho: 'AdmiraBugito', pagina: 'https://www.admira.biz/bugito.html', param: 'incidencia', args: '[girar|resolucion|popup|medias|normal]',
       desc: ['sin nada, abre el banco de pruebas de Bugito en admira.biz (si ya estás en él, lo muestra u oculta); con una incidencia, la lanza en el player virtual de laboratorio',
         'alone, opens Bugito\'s test bench on admira.biz (if you are already there, shows or hides him); with an incident, launches it on the lab virtual player'],
       abriendo: ['Bugito: abriendo su banco de pruebas en admira.biz…', 'Bugito: opening his test bench on admira.biz…']}
   ];
+  // Mismo troceado que avatar.js (personajeArg): minúsculas, sin acentos, guiones; 40 caracteres.
+  function personajeSlug(t) {
+    return String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  }
   function personajeRun(p, a, log) {
     var text = '/' + p.name + (a.length ? ' ' + a.join(' ') : '');
     return avatarApi().then(function (A) {
       if (A && typeof A.personaje === 'function' && A.personaje(p.name)) return avatarRun(text, log);
-      var B = root[p.gancho];
-      if (B && typeof B.toggle === 'function') return Promise.resolve(a.length ? B.lanzar(a.join('-')) : B.toggle()).then(function (msg) { if (msg) out(log, String(msg)); });
+      var B = root[p.gancho], arg = personajeSlug(a.join(' '));
+      if (B && typeof B.toggle === 'function' && typeof B.lanzar === 'function') {
+        return Promise.resolve().then(function () { return arg ? B.lanzar(arg) : B.toggle(); })
+          .then(function (msg) { if (msg) out(log, String(msg)); }, function () { out(log, T('No se pudo: mira el estado de la página.', 'It failed: check the page status.'), 'err'); });
+      }
       out(log, T(p.abriendo[0], p.abriendo[1]));
-      setTimeout(function () { location.assign(p.pagina + '?lang=' + lang()); }, 400);
+      // Con argumento, la página lo recibe preseleccionado (Bugito: ?incidencia=…), no se lanza solo.
+      var q = '?lang=' + lang() + (arg && p.param ? '&' + p.param + '=' + encodeURIComponent(arg) : '');
+      setTimeout(function () { location.assign(p.pagina + q); }, 400);
     });
   }
   PERSONAJES_SUITE.forEach(function (p) {

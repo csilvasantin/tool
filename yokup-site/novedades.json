@@ -1,9 +1,8 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
-    "Experto: /demo android, /demo android Fold8 y /demo android watch con playlist del proyecto.",
-    "Help ES/EN y MCP conservan comandos, versiones, tutorial y evidencias de players nativos.",
-    "Fold8 usa un perfil compatible; Wear OS es visor silencioso. Requiere puente Mac y emuladores propios."
+    "⌘ Experto: /bugito abre el banco de pruebas de Bugito en admira.biz, el Admirito diablillo que provoca incidencias en un player virtual de laboratorio.",
+    "El panel del avatar carga el cargador común que conoce a los personajes de Admirito (Bugito hoy)."
   ],
   "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",
