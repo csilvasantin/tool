@@ -132,9 +132,9 @@ test("el middleware toma la casa del host (no una fija) para marca, data-casa y 
 
 const RUTAS_NEGOCIO = ["/about", "/about.html", "/detail", "/backoffice", "/backoffice.html", "/backoffice/circuitos", "/marketplace",
   "/store-3d", "/walk", "/parrilla/", "/parrilla/hoy", "/players/x", "/presentacion/", "/presentation/deck", "/target/",
-  "/tutorial/", "/documentacion/guia.pdf", "/wututu/", "/cafebreria/menu", "/distribucion", "/distribucion/sala.html"];
+  "/tutorial/", "/documentacion/guia.pdf", "/wututu/", "/cafebreria/menu", "/distribucion", "/distribucion/sala.html", "/plano", "/plano.html"];
 const RUTAS_YOKUP = ["/", "/incidencias", "/misiones", "/help", "/mcp/", "/carbono", "/auth/callback", "/api/fleet-census",
-  "/aboutx", "/targets", "/walker", "/backoffices", "/api/demo-sessions"];
+  "/aboutx", "/targets", "/walker", "/backoffices", "/api/demo-sessions", "/planos", "/plano/x"];
 
 test("en admira.app los enlaces viejos de negocio saltan con 308 a la misma ruta en www.admira.biz", () => {
   for (const host of ["https://www.admira.app", "https://admira.app"]) {
@@ -188,7 +188,7 @@ test("el middleware real: en admira.app corta antes de pedir el asset; en admira
 
 test("ninguna ruta de la mudanza existe en yokup-site (no se le roba una página a Yokup)", () => {
   for (const ruta of ["about", "detail", "backoffice", "marketplace", "store-3d", "walk", "parrilla", "players", "presentacion", "presentation",
-    "target", "tutorial", "documentacion", "wututu", "cafebreria", "distribucion", "functions/api/demo-session.js", "functions/api/orders", "functions/api/demo-signage"]) {
+    "target", "tutorial", "documentacion", "wututu", "cafebreria", "distribucion", "plano", "functions/api/demo-session.js", "functions/api/orders", "functions/api/demo-signage"]) {
     assert.ok(!existsSync(new URL("./" + ruta, import.meta.url)), ruta);
     assert.ok(!existsSync(new URL("./" + ruta + ".html", import.meta.url)), ruta + ".html");
   }

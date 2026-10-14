@@ -13,7 +13,8 @@ export const NEGOCIO_ORIGIN = 'https://www.admira.biz';
 const HOSTS = new Set(['admira.app', 'www.admira.app']);
 
 // Páginas sueltas (con o sin .html y barra final) y árboles enteros (/x y /x/...).
-const PAGINAS = /^\/(?:about|detail|marketplace|store-3d|walk|backoffice)(?:\.html|\/)?$/i;
+// /plano: el plano y las obras del Xpacio (FLT-102063) viven en admira.biz; «Subir plano» también (Hoy #86).
+const PAGINAS = /^\/(?:about|detail|marketplace|store-3d|walk|backoffice|plano)(?:\.html|\/)?$/i;
 const ARBOLES = /^\/(?:backoffice|parrilla|players|presentacion|presentation|target|tutorial|documentacion|wututu|cafebreria|distribucion)(?:\/.*)?$/i;
 // La portada de negocio se reconoce por su query (?locationId=, ?circuit=, ?tour=…).
 const QUERY_NEGOCIO = ['locationId', 'circuit', 'tour', 'campaign', 'campaignId', 'assetUrl', 'screenId', 'draft', 'target'];
