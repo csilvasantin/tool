@@ -76,7 +76,7 @@ test("403 del servidor (no es superusuario): se quita el filtro, se avisa y el p
   const { P, mem, aviso } = run({ stored: "starbucks" });
   assert.equal(P.fallo(Object.assign(new Error("superuser-required"), { status: 403 })), true);
   assert.equal(mem.has("yk_retailer_proyecto"), false);
-  assert.match(aviso().textContent, /Solo un superusuario puede filtrar por proyecto/);
+  assert.match(aviso().textContent, /Solo un superusuario puede filtrar por proyecto, y desde una cuenta de marca abierta con «Abrir como retailer»/);
   assert.equal(P.query("/dashboard"), "/dashboard");
   P.aplicar({ proyecto: null, sites: [] });
   assert.match(aviso().textContent, /Solo un superusuario/, "el aviso sigue tras la recarga sin filtro");
@@ -108,6 +108,21 @@ test("el verbo /proyecto se registra en ⌘ Experto y recarga el portal con el f
   assert.match(await verbs[0].run("off"), /^Sin filtro de proyecto/);
   assert.equal(mem.has("yk_retailer_proyecto"), false);
   assert.equal(recargas, 2, "/proyecto sin argumento solo informa");
+});
+
+test("sin cuenta abierta, /proyecto dice que queda elegido y se aplicará al abrir una cuenta de marca", async () => {
+  const { P, mem } = run();
+  P.conectar(async () => {}); // el portal no carga nada: no hay sesión
+  assert.match(await P.cambiar("starbucks"), /^Proyecto Starbucks elegido\. Se aplicará en cuanto abras una cuenta de marca: «Abrir como retailer»/);
+  assert.equal(mem.get("yk_retailer_proyecto"), "starbucks", "la elección se guarda para cuando haya cuenta");
+  assert.match(P.estado(), /elegido/);
+  assert.match(await P.cambiar("off"), /^Todavía no hay ninguna cuenta abierta en el portal\./);
+  assert.match(await P.cambiar("lumbre"), /^No existe el proyecto «lumbre»\. Disponibles: starbucks\.$/);
+  assert.equal(mem.has("yk_retailer_proyecto"), false, "un proyecto desconocido no se guarda");
+  P.aplicar({ proyecto: null, sites: [] }); // ya hay cuenta
+  assert.match(P.estado(), /^Sin filtro de proyecto: ves todos los locales de esta cuenta/);
+  P.aplicar(null); // sale del portal
+  assert.match(P.estado(), /^Todavía no hay ninguna cuenta abierta/);
 });
 
 test("al cambiar de proyecto se avisa al inventario ITIL (portal-proyecto) para que vuelva a pedir sus datos", async () => {
