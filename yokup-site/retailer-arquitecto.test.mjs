@@ -184,6 +184,8 @@ test('la pantalla del portal: dentro del espacio de trabajo, con confirmación y
   const html = read('retailer.html'), js = read('retailer-arquitecto.js'), css = read('retailer-arquitecto.css'), lib = read('arquitecto-traspaso.js');
   assert.match(html, /<script defer src="\/arquitecto-traspaso\.js\?v=\d+"><\/script><script defer src="\/retailer-arquitecto\.js\?v=\d+"><\/script>/);
   assert.match(html, /\/retailer-arquitecto\.css\?v=\d+/);
+  // Si el portal ya confirmó la sesión antes de que este script escuchara, el panel se arma igual (14-oct-2026).
+  assert.match(js, /getElementById\('workspace'\)[^\n]*!document\.getElementById\('workspace'\)\.hidden\) alAutenticar\(true\)/);
   const at = html.indexOf('id="arquitecto-import"');
   assert.ok(at > html.indexOf('id="workspace"') && at > html.indexOf('id="itil"') && at < html.indexOf('id="agent-connections"'), 'dentro del espacio de trabajo, tras el Inventario ITIL');
   for (const id of ['arq-import-file', 'arq-import-site', 'arq-import-new-site', 'arq-import-table', 'arq-import-ok', 'arq-import-go', 'arq-import-log', 'arq-import-open']) assert.match(html, new RegExp(`id="${id}"`), id);
