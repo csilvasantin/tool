@@ -233,6 +233,42 @@ este inventario: modelo, nº de serie, compra, proveedor, garantía (meses, fin 
   `/retailer?itil_alta=1&xpacio=&categoria=&nombre=&adoptar=&incidencia=#itil` abre el alta prefijada).
   Lógica compartida: `yokup-site/yk-equipo.js`.
 
+## Importar inventario del Arquitecto (14-oct-2026)
+
+DCL-66d9ae0d5e756d0067127f24 · SubNeoMBP14 · MBP14. El estudio del Arquitecto de admira.biz
+(`/arquitecto inventariar`: Admirito con casco de obra estima el plano y los equipos de un Xpacio desde fotos, vídeo o
+una descripción) entrega el plano `admira.xpacio-plano/1` y la lista de CI sugeridos al Portal del comercio:
+
+- **Traspaso sin servidores**: `https://admira.app/retailer#arquitecto=v1.<base64url del JSON en deflate-raw>` (o `v0.`
+  sin comprimir), esquema `admira.arquitecto-inventario/1` (`{schema, creado, origen, xpacio:{id,nombre,tipo}, prefijo,
+  plan, cis:[{itil_code,name,category,role,group_name,position,orientation,parent_itil_code}]}`). El fragmento no viaja a
+  ningún servidor; el portal lo lee una vez y lo quita de la barra de direcciones. Si no cabe en el enlace (más de
+  120 000 caracteres en el estudio), el titular descarga el JSON y lo sube en la misma pantalla. Contrato compartido:
+  `docs/arquitecto-traspaso.json` (idéntico a `clearchannel-tv/tests/fixtures/arquitecto-traspaso.json`).
+- **Contenido no confiable**: `yokup-site/arquitecto-traspaso.js` valida esquema, códigos (regex de arriba, únicos),
+  categorías, orientación, relaciones (sin ciclos), textos (recortados y sin caracteres de control), 200 CI como máximo,
+  el plano ≤ 256 KB y el JSON ≤ 300 KB **también descomprimido** (se corta la descompresión al pasarlo).
+- **Nada sin el titular**: «Importar inventario del Arquitecto» (`retailer-arquitecto.js`, dentro del espacio de trabajo,
+  junto al Inventario ITIL; `GET /me` y `GET /itil` solo al abrirla) enseña el Xpacio, el establecimiento elegido (o el
+  alta de uno nuevo con el diálogo de siempre, con nombre y tipo ya puestos) y qué pasará con cada CI. Cada inventario
+  nuevo (otro enlace, otro JSON) o «Descartar» desarma el formulario. El alta exige marcar «He revisado…».
+- **v1: solo altas.** Un código que ya está en el establecimiento **no se toca ni se manda** («Ya existe aquí: no se
+  toca»): sobrescribirlo cambiaría su categoría (y con ella `installer_devices.skill`, a quién llegan las incidencias)
+  sin vuelta atrás, porque `itil_audit` solo guarda los nombres de campo.
+- **Catálogo**: el servidor retira los equipos provisionales del catálogo en **cada** alta ITIL (`retireCatalog`), no
+  solo la primera. Si hay alguno vivo y se va a crear algo, el titular tiene que marcar aparte que acepta su retirada;
+  si no, no se da de alta nada.
+- **Plano**: si el establecimiento ya tiene plano, «Sustituir el plano actual» sale desmarcado; el `base_sha256` es el
+  que se leyó al revisar (al elegir establecimiento), así que si alguien lo cambió desde entonces el PUT da 409 y no se
+  pisa. Sin plano previo, se guarda como primer plano.
+- **Orden e idempotencia**: CI nuevos con `POST /api/retailer/itil/cis` en orden de dependencia (players antes que sus
+  pantallas) y después, si toca, `PUT /api/retailer/plano` (id = `admira_store_id` en un Xpacio del catálogo;
+  `yokup.site_id` del establecimiento). Repetir no escribe: lo que ya existe no se manda y el plano igual da
+  `changed:false`. Un código de otro establecimiento (409) falla solo él y sus hijos no se mandan.
+- **Enlace pendiente**: el enlace se guarda en `sessionStorage` de la pestaña hasta usarlo o descartarlo, por si el
+  inicio de sesión pasa por otra página.
+- Pruebas: `cd yokup-site && node --test retailer-arquitecto.test.mjs`.
+
 ## Routers de tienda (categoría red)
 
 05-oct-2026 · SmithMacMini · MacMini. Un router por Xpacio vivo, detrás de un adaptador que no nombra al fabricante en la puerta (`NetworkVendorAdapter`: `listDevices`, `getDeviceStatistics`, `mapToItilCi`). El rótulo visible es «Teltonika o similar».

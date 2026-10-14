@@ -1,0 +1,123 @@
+{
+  "nota": "Contrato del traspaso Arquitecto → Portal del comercio de Yokup (DCL-66d9ae0d5e756d0067127f24). El mismo fichero vive en clearchannel-tv/tests/fixtures/arquitecto-traspaso.json y en yokup-tool/docs/arquitecto-traspaso.json: si cambia uno, cambian los dos.",
+  "inventario": {
+    "schema": "admira.arquitecto-inventario/1",
+    "creado": "2026-10-14T11:00:00.000Z",
+    "origen": "https://www.admira.biz/arquitecto.html",
+    "xpacio": {
+      "id": "lab-arquitecto",
+      "nombre": "Lab · Arquitecto ñ",
+      "tipo": "laboratorio"
+    },
+    "prefijo": "LABARQ",
+    "plan": {
+      "schema": "admira.xpacio-plano/1",
+      "id": "lab-arquitecto",
+      "version": "generado-laboratorio-7",
+      "nombre": "Lab · Arquitecto ñ",
+      "planta": {
+        "ancho": 3,
+        "fondo": 4,
+        "alto": 3
+      },
+      "paredes": [
+        {
+          "id": "F",
+          "nombre": "Fondo",
+          "a": [
+            0,
+            0
+          ],
+          "b": [
+            3,
+            0
+          ]
+        },
+        {
+          "id": "D",
+          "nombre": "Lateral derecho",
+          "a": [
+            3,
+            0
+          ],
+          "b": [
+            3,
+            4
+          ]
+        },
+        {
+          "id": "P",
+          "nombre": "Frente",
+          "a": [
+            3,
+            4
+          ],
+          "b": [
+            0,
+            4
+          ]
+        },
+        {
+          "id": "I",
+          "nombre": "Lateral izquierdo",
+          "a": [
+            0,
+            4
+          ],
+          "b": [
+            0,
+            0
+          ]
+        }
+      ],
+      "huecos": [],
+      "mobiliario": [],
+      "pantallas": [
+        {
+          "id": "arq-1",
+          "itil": "LABARQ-PAN-01",
+          "nombre": "Vertical 43″ · Fondo 1",
+          "tipo": "pantalla",
+          "orientacion": "vertical",
+          "pulgadas": 43,
+          "pared": "F",
+          "s": 1.5,
+          "z": 1
+        }
+      ],
+      "dispositivos": [
+        {
+          "id": "labarq-ply-01",
+          "nombre": "Player · Vertical 43″ · Fondo 1",
+          "categoria": "player",
+          "rol": "player",
+          "itil": "LABARQ-PLY-01",
+          "pared": "F"
+        }
+      ]
+    },
+    "cis": [
+      {
+        "itil_code": "LABARQ-PLY-01",
+        "name": "Player · Vertical 43″ · Fondo 1",
+        "category": "player",
+        "role": "player",
+        "group_name": "Fondo",
+        "position": "Pared Fondo",
+        "orientation": "",
+        "parent_itil_code": ""
+      },
+      {
+        "itil_code": "LABARQ-PAN-01",
+        "name": "Vertical 43″ · Fondo 1",
+        "category": "pantalla",
+        "role": "pantalla",
+        "group_name": "Fondo",
+        "position": "Pared Fondo · centro a 1,5 m · base a 1 m",
+        "orientation": "vertical",
+        "parent_itil_code": "LABARQ-PLY-01"
+      }
+    ]
+  },
+  "v0": "v0.eyJzY2hlbWEiOiJhZG1pcmEuYXJxdWl0ZWN0by1pbnZlbnRhcmlvLzEiLCJjcmVhZG8iOiIyMDI2LTEwLTE0VDExOjAwOjAwLjAwMFoiLCJvcmlnZW4iOiJodHRwczovL3d3dy5hZG1pcmEuYml6L2FycXVpdGVjdG8uaHRtbCIsInhwYWNpbyI6eyJpZCI6ImxhYi1hcnF1aXRlY3RvIiwibm9tYnJlIjoiTGFiIMK3IEFycXVpdGVjdG8gw7EiLCJ0aXBvIjoibGFib3JhdG9yaW8ifSwicHJlZmlqbyI6IkxBQkFSUSIsInBsYW4iOnsic2NoZW1hIjoiYWRtaXJhLnhwYWNpby1wbGFuby8xIiwiaWQiOiJsYWItYXJxdWl0ZWN0byIsInZlcnNpb24iOiJnZW5lcmFkby1sYWJvcmF0b3Jpby03Iiwibm9tYnJlIjoiTGFiIMK3IEFycXVpdGVjdG8gw7EiLCJwbGFudGEiOnsiYW5jaG8iOjMsImZvbmRvIjo0LCJhbHRvIjozfSwicGFyZWRlcyI6W3siaWQiOiJGIiwibm9tYnJlIjoiRm9uZG8iLCJhIjpbMCwwXSwiYiI6WzMsMF19LHsiaWQiOiJEIiwibm9tYnJlIjoiTGF0ZXJhbCBkZXJlY2hvIiwiYSI6WzMsMF0sImIiOlszLDRdfSx7ImlkIjoiUCIsIm5vbWJyZSI6IkZyZW50ZSIsImEiOlszLDRdLCJiIjpbMCw0XX0seyJpZCI6IkkiLCJub21icmUiOiJMYXRlcmFsIGl6cXVpZXJkbyIsImEiOlswLDRdLCJiIjpbMCwwXX1dLCJodWVjb3MiOltdLCJtb2JpbGlhcmlvIjpbXSwicGFudGFsbGFzIjpbeyJpZCI6ImFycS0xIiwiaXRpbCI6IkxBQkFSUS1QQU4tMDEiLCJub21icmUiOiJWZXJ0aWNhbCA0M-KAsyDCtyBGb25kbyAxIiwidGlwbyI6InBhbnRhbGxhIiwib3JpZW50YWNpb24iOiJ2ZXJ0aWNhbCIsInB1bGdhZGFzIjo0MywicGFyZWQiOiJGIiwicyI6MS41LCJ6IjoxfV0sImRpc3Bvc2l0aXZvcyI6W3siaWQiOiJsYWJhcnEtcGx5LTAxIiwibm9tYnJlIjoiUGxheWVyIMK3IFZlcnRpY2FsIDQz4oCzIMK3IEZvbmRvIDEiLCJjYXRlZ29yaWEiOiJwbGF5ZXIiLCJyb2wiOiJwbGF5ZXIiLCJpdGlsIjoiTEFCQVJRLVBMWS0wMSIsInBhcmVkIjoiRiJ9XX0sImNpcyI6W3siaXRpbF9jb2RlIjoiTEFCQVJRLVBMWS0wMSIsIm5hbWUiOiJQbGF5ZXIgwrcgVmVydGljYWwgNDPigLMgwrcgRm9uZG8gMSIsImNhdGVnb3J5IjoicGxheWVyIiwicm9sZSI6InBsYXllciIsImdyb3VwX25hbWUiOiJGb25kbyIsInBvc2l0aW9uIjoiUGFyZWQgRm9uZG8iLCJvcmllbnRhdGlvbiI6IiIsInBhcmVudF9pdGlsX2NvZGUiOiIifSx7Iml0aWxfY29kZSI6IkxBQkFSUS1QQU4tMDEiLCJuYW1lIjoiVmVydGljYWwgNDPigLMgwrcgRm9uZG8gMSIsImNhdGVnb3J5IjoicGFudGFsbGEiLCJyb2xlIjoicGFudGFsbGEiLCJncm91cF9uYW1lIjoiRm9uZG8iLCJwb3NpdGlvbiI6IlBhcmVkIEZvbmRvIMK3IGNlbnRybyBhIDEsNSBtIMK3IGJhc2UgYSAxIG0iLCJvcmllbnRhdGlvbiI6InZlcnRpY2FsIiwicGFyZW50X2l0aWxfY29kZSI6IkxBQkFSUS1QTFktMDEifV19"
+}

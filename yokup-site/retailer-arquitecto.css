@@ -1,0 +1,25 @@
+/* Portal del comercio · Importar inventario del Arquitecto (DCL-66d9ae0d5e756d0067127f24). Mismo look que el Inventario ITIL. */
+.itil-bar-actions{display:inline-flex;flex-wrap:wrap;gap:12px;align-items:center}
+.arq-import{margin-top:36px;padding:18px;border:1px solid var(--line);border-left:4px solid #e2a400;border-radius:12px;background:var(--paper,#fff)}
+.arq-import .section-bar{flex-wrap:wrap}
+.arq-import-file{display:grid;gap:6px;margin:10px 0;font-size:14px}
+.arq-import-xpacio{margin:6px 0 12px;overflow-wrap:anywhere}
+.arq-import-site{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 10px}
+.arq-import-site label{flex:1 1 260px;margin:0}
+.arq-import-warnings{margin:0 0 12px;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.45}
+.arq-import-warnings:empty{display:none}
+.arq-import-table-wrap{overflow-x:auto;margin:0 0 12px}
+.arq-import table{width:100%;border-collapse:collapse;font-size:13px}
+.arq-import th,.arq-import td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.arq-import th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.arq-import td.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;white-space:nowrap}
+.arq-import tr.arq-existe td{color:var(--muted)}
+.arq-import tr.arq-padre td{color:#b3261e}
+.arq-import-check[hidden]{display:none}
+.arq-import-check{display:flex;gap:8px;align-items:center;margin:6px 0 10px}
+.arq-import-log{margin:12px 0 0;padding-left:20px;font-size:13px;line-height:1.5}
+.arq-import-log:empty{display:none}
+.arq-import-log li.err{color:#b3261e}
+.arq-import-summary{margin:8px 0 0;font-weight:700}
+.arq-import-summary:empty{display:none}
+@media(max-width:650px){.arq-import{padding:14px}}
