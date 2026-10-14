@@ -11,7 +11,7 @@ La API REST tiene permisos por ruta; `/fleet/progress` con actividad explícita 
 token de ejecutor. El MCP exige siempre una credencial vinculada a persona y equipo. Un agente **no debe
 autenticarse como Carlos**.
 
-## Servidor MCP real · versión 1.4.1 · 30 de septiembre de 2026
+## Servidor MCP real · versión 1.5.0 · 14 de octubre de 2026
 
 Endpoint canónico: https://yokup.com/mcp (alias https://www.yokup.com/mcp).
 Streamable HTTP sin estado de sesión, respuestas JSON. Protocolos negociables:
@@ -147,6 +147,25 @@ emitió con `--scopes …,itil,itil:write`.
 
 Firmado con TU identidad y auditado. Lectura sin datos privados para las soluciones:
 GET https://data.yokup.com/api/itil/xpacios/{admira_store_id} (cabecera X-Yokup-Itil-Key).
+
+### Plano del Xpacio (mismos scopes `itil` e `itil:write`, desde 1.5.0)
+
+Yokup guarda también el PLANO de cada Xpacio (admira.xpacio-plano/1) junto a su inventario
+ITIL; admira.biz, admira.app, admira.studio, admira.store y admira.tv lo leen de aquí.
+
+- `plano_get {admira_store_id | site_id, history? ≤50, seq?}` — plano vigente (o la versión
+  seq), versión, sha256, autor, cruce con el ITIL (avisos) y últimas versiones. Uno de los dos:
+  admira_store_id (Xpacio del catálogo) o site_id (establecimiento propio de Yokup).
+- `plano_upsert {admira_store_id | site_id, plan, base_sha256?}` — idempotente por sha256 del
+  JSON canónico (mismo plano: changed:false); cada versión distinta va al histórico, que no se
+  borra. El id del plano debe ser el admira_store_id del Xpacio. base_sha256 = el que leíste
+  ('' si no había plano): si otro lo cambió, plan_conflict. Validación estructural (sala,
+  paredes ≥3 con a/b, pantallas con pared/s/z/orientacion/pulgadas, itil null o código ITIL);
+  los cruces con el ITIL son avisos, no errores. Máx. 256 KB; por MCP, lo que quepa en 32 KiB.
+
+Lectura para las soluciones: GET https://data.yokup.com/api/plano/xpacios/{admira_store_id |
+yokup-<site_id>} — sin clave, si hay plano, versión y nº de pantallas; con X-Yokup-Itil-Key, el
+plano sin datos privados (sin dirección ni ids internos), su cruce con el ITIL y ETag.
 
 Los esquemas exactos están en tools/list y en mcp/manifest.json. Permisos: read,
 inbox, send, work, incidents, incidents:write, itil, itil:write. La credencial dura 30 días; el operador puede revocarla antes.
