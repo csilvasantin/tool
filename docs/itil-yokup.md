@@ -12,6 +12,9 @@ virtuales de XpaceOS. El **Xpacio** (establecimiento) sigue naciendo en el catá
 se sincroniza a Yokup (`api/src/admira-xpacio-sync.js`, ver `docs/xpacios-yokup.md`); lo que
 cambia es que los **equipos** los manda Yokup.
 
+**Plano del Xpacio (14-oct-2026).** Yokup también guarda el plano (`admira.xpacio-plano/1`) de cada
+establecimiento junto a este inventario, con versión, histórico y cruce con los CIs: `docs/plano-yokup.md`.
+
 ## Modelo
 
 Un CI (configuration item) es un equipo de `installer_devices` con:
@@ -100,7 +103,9 @@ CaixaBank…): un mapa público de «qué pantalla hay en qué pared» no debe e
   `Cache-Control: private, max-age=60`. 1200/min por clave. Clave inválida, revocada o caducada: 401.
   La clave puede restringirse a orígenes (`origins`) y a marcas (`brands`, fuera de ellas 404).
 - **CORS** solo para `https://www.xpaceos.com`, `https://www.pixeria.com`, `https://www.admira.app`,
-  `https://www.clearchannel.tv` y sus variantes sin www. Otro `Origin`: 403. Sin credenciales (cookies).
+  `https://www.admira.biz`, `https://www.clearchannel.tv` y, desde el plano maestro (14-oct-2026),
+  `https://www.admira.store`, `https://www.admira.studio` y `https://www.admira.tv`; todos también sin www.
+  Otro `Origin`: 403. Sin credenciales (cookies).
 - Xpacio inexistente o que ya no figura en el catálogo: 404. Los CIs retirados no salen salvo
   `?include_retired=true` (con clave).
 
@@ -132,7 +137,8 @@ node api/tools/itil-read-key.mjs issue xpaceos /ruta/privada/itil-xpaceos.json -
 cd api && npx wrangler d1 execute yokup-db --remote --file /ruta/privada/itil-xpaceos.json.sql
 ```
 
-Soluciones: `xpaceos`, `pixeria`, `admira-app`, `clearchannel-tv`. Opcionales `--brands alsea,jti`
+Soluciones: `xpaceos`, `pixeria`, `admira-app`, `clearchannel-tv`, `admira-tv`. La misma clave lee el plano
+(`/api/plano/xpacios/…`, `docs/plano-yokup.md`). Opcionales `--brands alsea,jti`
 y `--days` (365 por defecto, máx. 730). La clave en claro solo queda en el archivo 0600; el SQL
 lleva el SHA-256. El script imprime la sentencia de revocación (`UPDATE itil_read_keys SET revoked_at=…`).
 Para rotar: emitir otra, cambiarla en la solución y revocar la anterior.
