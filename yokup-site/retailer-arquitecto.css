@@ -13,8 +13,9 @@
 .arq-import th,.arq-import td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .arq-import th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .arq-import td.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;white-space:nowrap}
-.arq-import tr.arq-igual td{color:var(--muted)}
-.arq-import tr.arq-conflicto td,.arq-import tr.arq-padre td{color:#b3261e}
+.arq-import tr.arq-existe td{color:var(--muted)}
+.arq-import tr.arq-padre td{color:#b3261e}
+.arq-import-check[hidden]{display:none}
 .arq-import-check{display:flex;gap:8px;align-items:center;margin:6px 0 10px}
 .arq-import-log{margin:12px 0 0;padding-left:20px;font-size:13px;line-height:1.5}
 .arq-import-log:empty{display:none}

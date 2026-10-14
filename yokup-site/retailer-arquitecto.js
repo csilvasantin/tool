@@ -1,21 +1,22 @@
 // Portal del comercio · «Importar inventario del Arquitecto» (DCL-66d9ae0d5e756d0067127f24).
 // El estudio del Arquitecto de admira.biz manda aquí, en el #fragmento (#arquitecto=v1.…), el plano y los CI que
 // inventarió; o el titular sube el JSON que descargó del estudio. El titular elige el establecimiento (o crea uno),
-// ve lo que se va a crear y, sólo cuando lo confirma, se dan de alta los CI (players antes que pantallas) con
-// POST /api/retailer/itil/cis y el plano con PUT /api/retailer/plano, con su sesión y su perímetro. Idempotente.
-// Lo puro está en arquitecto-traspaso.js (YkArquitectoTraspaso). Solo textContent: el contenido no es confiable.
+// ve lo que se va a crear y, sólo cuando lo confirma, se dan de alta los CI NUEVOS (players antes que pantallas) con
+// POST /api/retailer/itil/cis y, si lo pide, el plano con PUT /api/retailer/plano. v1: sólo altas; lo que ya existe
+// no se toca. Lo puro está en arquitecto-traspaso.js (YkArquitectoTraspaso). Solo textContent: no es contenido fiable.
 (() => {
 const API = 'https://data.yokup.com/api/retailer';
 const T = window.YkArquitectoTraspaso;
+const GUARDA = 'yk-arquitecto-enlace';   // el enlace sobrevive a un login que pase por otra página (p. ej. /superusuario)
 const $ = s => document.querySelector(s);
 const el = (tag, content, cls) => { const n = document.createElement(tag); if (content !== undefined && content !== null) n.textContent = content; if (cls) n.className = cls; return n; };
 const ERRORES = { formato: 'El enlace del Arquitecto no tiene un formato válido.', grande: 'El inventario es demasiado grande para un enlace: descárgalo en el estudio y súbelo aquí.',
   json: 'El inventario no es un JSON válido.', navegador: 'Este navegador no sabe descomprimir el enlace: descarga el inventario en el estudio y súbelo aquí.',
-  esquema: 'No es un inventario del Arquitecto (admira.arquitecto-inventario/1).', plano: 'El inventario no trae un plano admira.xpacio-plano/1.', 'plano-grande': 'El plano pasa de 256 KB.',
-  'plano-id': 'El plano no tiene un id válido.', cis: 'El inventario no trae la lista de CI.', demasiados: 'Más de 200 CI: divide el inventario.', ci: 'Hay una fila que no es un CI.',
-  codigo: 'código ITIL no válido', repetido: 'código repetido', categoria: 'categoría no válida', nombre: 'falta el nombre', orientacion: 'orientación no válida', padre: 'relación no válida', ciclo: 'relación circular' };
-const ACCION = { crear: 'Se crea', actualizar: 'Se actualiza', igual: 'Ya está igual', conflicto: 'En conflicto (equipo de catálogo o retirado)', padre: 'Depende de un CI que no estará' };
-let canEdit = true, sites = [], pendiente = null, inv = null, plan = null, siteId = '', corriendo = false;
+  esquema: 'No es un inventario del Arquitecto (admira.arquitecto-inventario/1).', anidado: 'El inventario está anidado de forma anómala.', plano: 'El inventario no trae un plano admira.xpacio-plano/1.',
+  'plano-grande': 'El plano pasa de 256 KB.', 'plano-id': 'El plano no tiene un id válido.', cis: 'El inventario no trae la lista de CI.', demasiados: 'Más de 200 CI: divide el inventario.', ci: 'Hay una fila que no es un CI.',
+  tipo: 'un campo que debería ser texto no lo es', codigo: 'código ITIL no válido', repetido: 'código repetido', categoria: 'categoría no válida', nombre: 'falta el nombre', orientacion: 'orientación no válida', padre: 'relación no válida', ciclo: 'relación circular' };
+const ACCION = { crear: 'Se crea', existe: 'Ya existe aquí: no se toca', padre: 'No se crea: depende de un CI que no estará' };
+let sesion = null, canEdit = false, autenticado = false, sites = [], pendiente = null, inv = null, avisosInv = [], plan = null, siteId = '', planoActual = null, corriendo = false, revision = 0;
 
 async function api(path, body, method) {
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 20000);
@@ -28,37 +29,61 @@ async function api(path, body, method) {
   finally { clearTimeout(timeout); }
 }
 function status(t, err) { const s = $('#arq-import-status'); s.textContent = t || ''; s.classList.toggle('error', !!err); }
+function guardar(p) { try { if (p) sessionStorage.setItem(GUARDA, p); else sessionStorage.removeItem(GUARDA); } catch (_) {} }
 
-// El enlace se lee una vez y se quita de la barra de direcciones (no queda en el historial nuevo ni se comparte sin querer).
+// El enlace se lee una vez y se quita de la barra de direcciones; queda en la pestaña (sessionStorage) hasta usarlo o descartarlo.
 function tomarFragmento() {
   const p = T && T.leerFragmento(location.hash);
   if (!p) return false;
-  pendiente = p;
+  pendiente = p; guardar(p);
   try { history.replaceState(history.state, '', location.pathname + location.search + '#arquitecto'); } catch (_) {}
   return true;
 }
+// /me y /itil sólo cuando se abre el import (no en cada visita del portal).
+async function prepararSesion() {
+  if (sesion) return sesion;
+  sesion = (async () => {
+    try { const me = await api('/me'); canEdit = me.access?.can_edit !== false; } catch (_) { canEdit = false; }
+    await cargarSites();
+  })();
+  return sesion;
+}
+// Formulario desarmado: cada inventario nuevo (enlace, JSON) o «Descartar» empieza sin nada marcado ni elegido.
+function desarmar() {
+  revision++;
+  siteId = ''; plan = null; planoActual = null;
+  for (const id of ['#arq-import-ok', '#arq-import-retirada', '#arq-import-plano']) $(id).checked = false;
+  $('#arq-import-retirada-l').hidden = true; $('#arq-import-plano-l').hidden = true;
+  $('#arq-import-log').replaceChildren(); $('#arq-import-summary').textContent = ''; $('#arq-import-warnings').replaceChildren();
+  if ($('#arq-import-site').options.length) $('#arq-import-site').value = '';
+}
 async function abrir(payload) {
-  const section = $('#arquitecto-import'); section.hidden = false;
-  if (!payload) { status('Sube el inventario (JSON) que descargaste en el estudio del Arquitecto.'); return; }
-  const d = await T.decodificar(payload);
-  if (!d.ok) { status(ERRORES[d.error] || ERRORES.formato, true); return; }
-  cargar(d.inventario);
-  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const section = $('#arquitecto-import'); section.hidden = false;
+    await prepararSesion();
+    pintarSites();
+    if (!payload) { status('Sube el inventario (JSON) que descargaste en el estudio del Arquitecto.'); return; }
+    const d = await T.decodificar(payload);
+    if (!d.ok) { status(ERRORES[d.error] || ERRORES.formato, true); return; }
+    cargar(d.inventario);
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (_) { status(ERRORES.formato, true); }
 }
 function cargar(obj) {
-  const v = T.validar(obj);
-  inv = null; plan = null;
+  desarmar();
+  inv = null; avisosInv = [];
   $('#arq-import-preview').hidden = true;
+  let v;
+  try { v = T.validar(obj); } catch (_) { status(ERRORES.formato, true); return; }
   if (!v.ok) {
     const filas = v.errores.slice(0, 6).map(e => (e.fila >= 0 ? 'CI ' + (e.fila + 1) + ': ' : '') + (ERRORES[e.codigo] || e.codigo));
     status('No se puede importar: ' + filas.join(' · '), true); return;
   }
-  inv = v.inventario;
-  status('');
-  pintarXpacio();
-  pintarSites();
+  inv = v.inventario; avisosInv = v.avisos;
+  status(canEdit ? '' : 'Tu acceso es de solo lectura: puedes revisar el inventario, pero el alta la hace el titular.');
+  pintarXpacio(); pintarSites(); pintarTabla(); pintarAvisos(null);
   $('#arq-import-preview').hidden = false;
-  if (siteId) elegir(siteId);
+  actualizarBoton();
 }
 function pintarXpacio() {
   const p = inv.plan, pantallas = p.pantallas.length, players = inv.cis.filter(c => c.category === 'player').length;
@@ -76,20 +101,30 @@ function pintarSites() {
   select.value = sites.some(s => s.site_id === siteId) ? siteId : '';
   $('#arq-import-new-site').hidden = !canEdit;
 }
+// Al revisar se fija todo lo que decide el alta: lo que ya existe, los equipos de catálogo y el sha256 del plano vigente.
 async function elegir(id) {
-  siteId = id; plan = null;
+  const mia = ++revision;
+  siteId = id; plan = null; planoActual = null;
+  for (const c of ['#arq-import-ok', '#arq-import-retirada', '#arq-import-plano']) $(c).checked = false;
+  $('#arq-import-log').replaceChildren(); $('#arq-import-summary').textContent = '';
   const site = sites.find(s => s.site_id === id);
-  pintarTabla(null); pintarAvisos(site, null); actualizarBoton();
+  pintarTabla(); pintarAvisos(site); actualizarBoton();
   if (!site || !inv) return;
-  try { const existente = await api('/itil/inventory?site_id=' + encodeURIComponent(id)); if (siteId !== id) return; plan = T.planificar(inv, existente); }
-  catch (e) { status(e.message, true); return; }
-  pintarTabla(plan); pintarAvisos(site, plan); actualizarBoton();
+  try {
+    const existente = await api('/itil/inventory?site_id=' + encodeURIComponent(id));
+    let actual = null;
+    try { const r = await api('/plano?site_id=' + encodeURIComponent(id)); if (r && r.has_plan !== false && r.current && r.current.sha256) actual = { sha: r.current.sha256, version: r.current.version || '', seq: r.current.seq }; }
+    catch (e) { if (e.status !== 404) throw e; }
+    if (mia !== revision) return;
+    plan = T.planificar(inv, existente); planoActual = actual;
+  } catch (e) { if (mia === revision) status(e.message, true); return; }
+  pintarTabla(); pintarAvisos(site); actualizarBoton();
 }
-function pintarTabla(pl) {
+function pintarTabla() {
   const table = $('#arq-import-table'), head = el('thead'), tr = el('tr'), body = el('tbody');
   ['Código ITIL', 'Nombre', 'Categoría', 'Depende de', 'Qué pasará'].forEach(t => tr.append(el('th', t)));
   head.append(tr);
-  const pasos = pl ? pl.pasos : T.ordenAlta(inv ? inv.cis : []).map(ci => ({ ci, accion: '' }));
+  const pasos = plan ? plan.pasos : T.ordenAlta(inv ? inv.cis : []).map(ci => ({ ci, accion: '' }));
   for (const p of pasos) {
     const row = el('tr'); if (p.accion) row.className = 'arq-' + p.accion;
     row.append(el('td', p.ci.itil_code, 'code'), el('td', p.ci.name), el('td', p.ci.category), el('td', p.ci.parent_itil_code || '—'), el('td', p.accion ? ACCION[p.accion] : 'Elige el establecimiento'));
@@ -97,37 +132,55 @@ function pintarTabla(pl) {
   }
   table.replaceChildren(head, body);
 }
-function pintarAvisos(site, pl) {
+function pintarAvisos(site) {
   const ul = $('#arq-import-warnings'); ul.replaceChildren();
   const add = t => ul.append(el('li', t));
+  for (const a of avisosInv) if (a.codigo === 'padre-fuera' && inv.cis[a.fila]) add(inv.cis[a.fila].itil_code + ' depende de ' + inv.cis[a.fila].parent_itil_code + ', que no viene en el inventario: tiene que existir ya en el establecimiento.');
   if (!canEdit) add('Tu acceso es de solo lectura: pide al titular que haga el alta.');
-  if (!site) return;
+  $('#arq-import-retirada-l').hidden = true; $('#arq-import-plano-l').hidden = true;
+  if (!site || !plan) return;
+  add('Sólo altas: los códigos que ya existen en «' + site.name + '» no se tocan (ni nombre, ni categoría, ni relaciones).');
+  if (plan.retiraCatalogo) {
+    $('#arq-import-retirada-txt').textContent = 'Acepto que, al dar de alta CI ITIL, se retiren los ' + plan.retiraCatalogo + ' equipos provisionales del catálogo de este establecimiento («Sustituido por ITIL»), salvo los que tengan una incidencia abierta.';
+    $('#arq-import-retirada-l').hidden = false;
+  }
   const planId = site.admira_store_id || inv.plan.id;
-  add('El plano se guardará en «' + site.name + '» con el id ' + planId + (site.plan_version ? '; ya tiene plano (versión ' + site.plan_version + '): será una versión nueva y el histórico conserva la anterior.' : '.'));
-  if (pl && pl.retiraCatalogo) add('Es el primer CI ITIL de este establecimiento: sus ' + pl.retiraCatalogo + ' equipos provisionales del catálogo quedarán retirados («Sustituido por ITIL»), salvo los que tengan una incidencia abierta.');
-  if (pl && pl.pasos.some(p => p.accion === 'conflicto' || p.accion === 'padre')) add('Hay CI que no se darán de alta (marcados abajo); el resto sí.');
-  if (pl && pl.pasos.every(p => p.accion === 'igual')) add('Todo ya está dado de alta tal cual: repetir no cambia nada.');
+  if (planoActual) {
+    $('#arq-import-plano-txt').textContent = 'Sustituir el plano actual' + (planoActual.version ? ' (versión ' + planoActual.version + ')' : '') + ' por el del Arquitecto, con el id ' + planId + '. El histórico conserva el anterior.';
+    $('#arq-import-plano-l').hidden = false;
+  } else add('El plano del Arquitecto se guardará como primer plano del establecimiento, con el id ' + planId + '.');
+  if (plan.pasos.some(p => p.accion === 'padre')) add('Hay CI que no se crearán (marcados abajo); el resto sí.');
+  if (!plan.altas) add('No hay nada nuevo que dar de alta: todos los códigos ya existen aquí.');
 }
-function actualizarBoton() { $('#arq-import-go').disabled = corriendo || !canEdit || !inv || !plan || !$('#arq-import-ok').checked; }
+function guardaPlano() { return !planoActual || $('#arq-import-plano').checked; }
+function actualizarBoton() {
+  const listo = canEdit && inv && plan && !corriendo && $('#arq-import-ok').checked && (!plan.retiraCatalogo || $('#arq-import-retirada').checked) && (plan.altas > 0 || guardaPlano());
+  $('#arq-import-go').disabled = !listo;
+}
 
 async function importar() {
   const site = sites.find(s => s.site_id === siteId);
-  if (!site || !inv || !plan || corriendo || !$('#arq-import-ok').checked) return;
+  if (!site || !inv || !plan || corriendo || $('#arq-import-go').disabled) return;
   corriendo = true; actualizarBoton();
   const log = $('#arq-import-log'); log.replaceChildren();
-  const paso = p => log.append(el('li', p.plano ? 'Plano: ' + ({ guardado: 'guardado', igual: 'ya estaba igual', error: 'no se pudo guardar · ' + (p.error || '') })[p.estado]
-    : p.ci + ': ' + ({ crear: 'creado', actualizar: 'actualizado', igual: 'ya estaba igual', saltado: 'no se da de alta (' + (p.error === 'conflicto' ? 'conflicto' : 'su padre no está') + ')', error: 'error · ' + (p.error || '') })[p.estado], p.estado === 'error' || p.estado === 'saltado' ? 'err' : ''));
+  const paso = p => log.append(el('li', p.plano ? 'Plano: ' + ({ guardado: 'guardado', igual: 'ya estaba igual', omitido: 'no se toca', error: 'no se pudo guardar · ' + (p.error || '') })[p.estado]
+    : p.estado === 'bloqueado' ? 'Alta detenida: hay equipos de catálogo que se retirarían y no lo has aceptado.'
+    : p.ci + ': ' + ({ crear: 'creado', existe: 'ya existía, no se toca', saltado: 'no se crea (su padre no está)', error: 'error · ' + (p.error || '') })[p.estado], p.estado === 'error' || p.estado === 'saltado' || p.estado === 'bloqueado' ? 'err' : ''));
   status('Dando de alta…');
   try {
-    const r = await T.importar({ inventario: inv, site, api, alPaso: paso });
-    const partes = [r.creados + ' CI creados', r.actualizados + ' actualizados', r.iguales + ' ya estaban'];
-    if (r.saltados || r.errores.length) partes.push(r.errores.length + ' con problemas');
-    partes.push(r.plano && r.plano.ok ? (r.plano.changed ? 'plano guardado' + (r.plano.seq ? ' (versión ' + r.plano.seq + ')' : '') : 'plano sin cambios') : 'el plano no se guardó');
+    const r = await T.importar({ inventario: inv, site, api, alPaso: paso, aceptaRetirada: $('#arq-import-retirada').checked, plano: { guardar: guardaPlano(), base: planoActual ? planoActual.sha : '' } });
+    if (r.bloqueado) { status('Hay equipos de catálogo que se retirarían: revisa los avisos y acéptalo para seguir.', true); return; }
+    const partes = [r.creados + ' CI creados', r.existentes + ' ya existían'];
+    if (r.errores.length) partes.push(r.errores.length + ' con problemas');
+    partes.push(r.plano && r.plano.ok ? (r.plano.omitido ? 'plano sin tocar' : r.plano.changed ? 'plano guardado' + (r.plano.seq ? ' (versión ' + r.plano.seq + ')' : '') : 'plano sin cambios') : 'el plano no se guardó');
     if (r.retiradosCatalogo) partes.push(r.retiradosCatalogo + ' equipos de catálogo retirados');
-    $('#arq-import-summary').textContent = 'Resumen: ' + partes.join(' · ') + '.';
-    status(r.errores.length || !(r.plano && r.plano.ok) ? 'Alta hecha con avisos: revisa la lista.' : 'Alta hecha. Ya lo tienes en el Inventario ITIL.', r.errores.length > 0 || !(r.plano && r.plano.ok));
+    const resumen = 'Resumen: ' + partes.join(' · ') + '.';
+    const malo = r.errores.length > 0 || !(r.plano && r.plano.ok);
+    status(malo ? 'Alta hecha con avisos: revisa la lista.' : 'Alta hecha. Ya lo tienes en el Inventario ITIL.', malo);
+    if (!malo) { pendiente = null; guardar(null); }
     document.dispatchEvent(new CustomEvent('retailer-sites-imported'));
     await cargarSites(); pintarSites(); await elegir(siteId);
+    $('#arq-import-summary').textContent = resumen;
   } catch (e) { status(e.message, true); }
   finally { corriendo = false; actualizarBoton(); }
 }
@@ -145,25 +198,25 @@ function nuevoSite() {
 }
 
 $('#arq-import-site').onchange = e => elegir(e.target.value);
-$('#arq-import-ok').onchange = actualizarBoton;
+for (const id of ['#arq-import-ok', '#arq-import-retirada', '#arq-import-plano']) $(id).onchange = actualizarBoton;
 $('#arq-import-go').onclick = importar;
 $('#arq-import-new-site').onclick = nuevoSite;
 $('#arq-import-open').onclick = () => abrir(null);
-$('#arq-import-close').onclick = () => { inv = null; plan = null; pendiente = null; $('#arquitecto-import').hidden = true; $('#arq-import-preview').hidden = true; status(''); };
+$('#arq-import-close').onclick = () => { desarmar(); inv = null; avisosInv = []; pendiente = null; guardar(null); $('#arquitecto-import').hidden = true; $('#arq-import-preview').hidden = true; status(''); };
 $('#arq-import-file').onchange = async e => {
-  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
   if (f.size > T.MAX_JSON) { status(ERRORES.grande, true); return; }
   let obj; try { obj = JSON.parse(await f.text()); } catch (_) { status(ERRORES.json, true); return; }
+  await prepararSesion();
   cargar(obj);
 };
-tomarFragmento();
-window.addEventListener('hashchange', () => { if (tomarFragmento() && !$('#workspace').hidden) abrir(pendiente); });
-document.addEventListener('portal-auth', async e => {
+if (!tomarFragmento()) { try { const g = sessionStorage.getItem(GUARDA); if (g && T.leerFragmento('#arquitecto=' + g)) pendiente = g; } catch (_) {} }
+window.addEventListener('hashchange', () => { if (tomarFragmento() && autenticado) abrir(pendiente); });
+document.addEventListener('portal-auth', e => {
   if (e.detail?.kind !== 'retailer') return;
-  if (!e.detail.authenticated) { inv = null; plan = null; sites = []; $('#arquitecto-import').hidden = true; return; }
-  try { const me = await api('/me'); canEdit = me.access?.can_edit !== false; } catch (_) { canEdit = false; }
-  $('#arq-import-open').hidden = !canEdit;
-  await cargarSites();
-  if (pendiente) { const p = pendiente; pendiente = null; await abrir(p); }
+  autenticado = !!e.detail.authenticated;
+  $('#arq-import-open').hidden = !autenticado;
+  if (!autenticado) { desarmar(); inv = null; sites = []; sesion = null; $('#arquitecto-import').hidden = true; return; }
+  if (pendiente) abrir(pendiente);
 });
 })();

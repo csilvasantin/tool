@@ -249,15 +249,24 @@ una descripción) entrega el plano `admira.xpacio-plano/1` y la lista de CI suge
   categorías, orientación, relaciones (sin ciclos), textos (recortados y sin caracteres de control), 200 CI como máximo,
   el plano ≤ 256 KB y el JSON ≤ 300 KB **también descomprimido** (se corta la descompresión al pasarlo).
 - **Nada sin el titular**: «Importar inventario del Arquitecto» (`retailer-arquitecto.js`, dentro del espacio de trabajo,
-  junto al Inventario ITIL) enseña el Xpacio, el establecimiento elegido (o el alta de uno nuevo con el diálogo de
-  siempre, con nombre y tipo ya puestos), qué pasará con cada CI (se crea · se actualiza · ya está igual · conflicto ·
-  depende de un CI que no estará) y los avisos (retirada de los provisionales del catálogo con el primer CI ITIL,
-  versión nueva del plano). El alta exige marcar «He revisado…» y pulsar «Dar de alta en Yokup».
-- **Orden e idempotencia**: CI con `POST /api/retailer/itil/cis` en orden de dependencia (players antes que sus
-  pantallas; al actualizar solo se mandan los campos con valor, lo omitido se conserva) y después `PUT
-  /api/retailer/plano` con `base_sha256` del vigente (el plano lleva el `admira_store_id` como id en un Xpacio del
-  catálogo y `yokup.site_id` del establecimiento). Repetir no escribe: los CI iguales no se mandan y el plano igual da
+  junto al Inventario ITIL; `GET /me` y `GET /itil` solo al abrirla) enseña el Xpacio, el establecimiento elegido (o el
+  alta de uno nuevo con el diálogo de siempre, con nombre y tipo ya puestos) y qué pasará con cada CI. Cada inventario
+  nuevo (otro enlace, otro JSON) o «Descartar» desarma el formulario. El alta exige marcar «He revisado…».
+- **v1: solo altas.** Un código que ya está en el establecimiento **no se toca ni se manda** («Ya existe aquí: no se
+  toca»): sobrescribirlo cambiaría su categoría (y con ella `installer_devices.skill`, a quién llegan las incidencias)
+  sin vuelta atrás, porque `itil_audit` solo guarda los nombres de campo.
+- **Catálogo**: el servidor retira los equipos provisionales del catálogo en **cada** alta ITIL (`retireCatalog`), no
+  solo la primera. Si hay alguno vivo y se va a crear algo, el titular tiene que marcar aparte que acepta su retirada;
+  si no, no se da de alta nada.
+- **Plano**: si el establecimiento ya tiene plano, «Sustituir el plano actual» sale desmarcado; el `base_sha256` es el
+  que se leyó al revisar (al elegir establecimiento), así que si alguien lo cambió desde entonces el PUT da 409 y no se
+  pisa. Sin plano previo, se guarda como primer plano.
+- **Orden e idempotencia**: CI nuevos con `POST /api/retailer/itil/cis` en orden de dependencia (players antes que sus
+  pantallas) y después, si toca, `PUT /api/retailer/plano` (id = `admira_store_id` en un Xpacio del catálogo;
+  `yokup.site_id` del establecimiento). Repetir no escribe: lo que ya existe no se manda y el plano igual da
   `changed:false`. Un código de otro establecimiento (409) falla solo él y sus hijos no se mandan.
+- **Enlace pendiente**: el enlace se guarda en `sessionStorage` de la pestaña hasta usarlo o descartarlo, por si el
+  inicio de sesión pasa por otra página.
 - Pruebas: `cd yokup-site && node --test retailer-arquitecto.test.mjs`.
 
 ## Routers de tienda (categoría red)

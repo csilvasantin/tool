@@ -26,7 +26,22 @@
   const MAX_CIS = 200;
   const LIMITES = { name: 160, role: 80, group_name: 80, position: 120 };
 
-  const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  const MAX_PROFUNDIDAD = 16;          // el plano de Yokup admite 12 niveles; el inventario envuelve al plano
+  const texto = (v, max) => (typeof v === 'string' ? v : '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  const cadena = v => v === undefined || v === null || typeof v === 'string';
+  // Profundidad sin recursión (un JSON anidado miles de niveles revienta la pila de JSON.stringify o String()).
+  function profundidad(raiz, tope) {
+    const pila = [[raiz, 1]];
+    let max = 0, nodos = 0;
+    while (pila.length) {
+      const [v, d] = pila.pop();
+      if (v === null || typeof v !== 'object') continue;
+      if (d > tope || ++nodos > 200000) return Infinity;
+      if (d > max) max = d;
+      for (const k in v) if (Object.prototype.hasOwnProperty.call(v, k)) pila.push([v[k], d + 1]);
+    }
+    return max;
+  }
   const objeto = v => !!v && typeof v === 'object' && !Array.isArray(v);
   const bytes = s => new TextEncoder().encode(s).length;
 
@@ -78,6 +93,7 @@
     const errores = [], avisos = [];
     const err = (codigo, fila, campo) => errores.push({ codigo, fila: fila == null ? -1 : fila, campo: campo || '' });
     if (!objeto(inv) || inv.schema !== SCHEMA) { err('esquema'); return { ok: false, errores, avisos, inventario: null }; }
+    if (profundidad(inv, MAX_PROFUNDIDAD) > MAX_PROFUNDIDAD) { err('anidado'); return { ok: false, errores, avisos, inventario: null }; }
     const x = objeto(inv.xpacio) ? inv.xpacio : {};
     const plan = inv.plan;
     if (!objeto(plan) || plan.schema !== PLAN_SCHEMA || !Array.isArray(plan.paredes) || !Array.isArray(plan.pantallas) || !objeto(plan.planta)) err('plano');
@@ -85,7 +101,7 @@
       let n = 0;
       try { n = bytes(JSON.stringify(plan)); } catch (_) { n = Infinity; }
       if (n > MAX_PLAN) err('plano-grande');
-      if (!PLAN_ID_RE.test(String(plan.id || ''))) err('plano-id');
+      if (typeof plan.id !== 'string' || !PLAN_ID_RE.test(plan.id)) err('plano-id');
     }
     const lista = Array.isArray(inv.cis) ? inv.cis : null;
     if (!lista) err('cis');
@@ -93,7 +109,9 @@
     const cis = [], codes = new Set();
     (lista || []).slice(0, MAX_CIS).forEach((c, i) => {
       if (!objeto(c)) { err('ci', i); return; }
-      const code = String(c.itil_code || '');
+      // Todo lo que se pinta o se manda tiene que ser texto (nada de objetos ni listas).
+      for (const k of ['itil_code', 'name', 'category', 'role', 'group_name', 'position', 'orientation', 'parent_itil_code']) if (!cadena(c[k])) err('tipo', i, k);
+      const code = typeof c.itil_code === 'string' ? c.itil_code : '';
       if (!ITIL_RE.test(code)) err('codigo', i, 'itil_code');
       else if (codes.has(code)) err('repetido', i, 'itil_code');
       codes.add(code);
@@ -102,7 +120,7 @@
       if (name.length < 2) err('nombre', i, 'name');
       const orientation = ORIENTACIONES.includes(c.orientation || '') ? (c.orientation || '') : null;
       if (orientation === null) err('orientacion', i, 'orientation');
-      const parent = String(c.parent_itil_code || '');
+      const parent = typeof c.parent_itil_code === 'string' ? c.parent_itil_code : '';
       if (parent && !ITIL_RE.test(parent)) err('padre', i, 'parent_itil_code');
       if (parent && parent === code) err('ciclo', i, 'parent_itil_code');
       cis.push({ itil_code: code, name, category: c.category, role: texto(c.role, LIMITES.role), group_name: texto(c.group_name, LIMITES.group_name),
@@ -149,68 +167,73 @@
   }
 
   const CAMPOS = ['name', 'category', 'role', 'group_name', 'position', 'orientation', 'parent_itil_code'];
-  // Qué se hará con cada CI frente al inventario actual del establecimiento (GET /itil/inventory):
-  // crear · actualizar (existe con otros datos; sólo se mandan los campos con valor) · igual (nada que hacer) ·
-  // conflicto (el código es un CI de catálogo o retirado aquí) · padre (depende de un CI que no estará).
+  // v1: SOLO ALTAS. Un CI cuyo código ya está en el establecimiento NO se toca ni se manda (sobrescribirlo cambiaría
+  // su categoría, y con ella a quién llegan sus incidencias, sin vuelta atrás: itil_audit sólo guarda qué campos).
+  // Por paso: crear · existe (ya está, no se toca) · padre (depende de un CI que no estará o está retirado/de catálogo).
+  // catalogoActivo: equipos provisionales del catálogo vivos; el servidor los retira en CADA alta ITIL (itil.js,
+  // retireCatalog), así que mientras haya alguno y se cree algo, el titular tiene que aceptarlo aparte.
   function planificar(inventario, existente) {
-    const actuales = new Map(((existente && existente.cis) || []).filter(c => c.itil_code).map(c => [c.itil_code, c]));
+    const lista = (existente && existente.cis) || [];
+    const actuales = new Map(lista.filter(c => c.itil_code).map(c => [c.itil_code, c]));
+    const vivo = c => !!c && (c.managed_by || 'itil') === 'itil' && !(c.lifecycle && c.lifecycle.status === 'retired');
     const pasos = [], llegaran = new Set();
     for (const c of ordenAlta(inventario.cis)) {
-      const ya = actuales.get(c.itil_code);
-      let accion = 'crear';
-      if (ya && (ya.managed_by && ya.managed_by !== 'itil')) accion = 'conflicto';
-      else if (ya && ya.lifecycle && ya.lifecycle.status === 'retired') accion = 'conflicto';
-      else if (ya) accion = CAMPOS.every(k => (c[k] || '') === (ya[k] == null ? '' : String(ya[k])) || (!c[k] && k !== 'category')) ? 'igual' : 'actualizar';
-      const padre = c.parent_itil_code && actuales.get(c.parent_itil_code);
-      const padreVivo = padre && (padre.managed_by || 'itil') === 'itil' && !(padre.lifecycle && padre.lifecycle.status === 'retired');
-      if (c.parent_itil_code && !llegaran.has(c.parent_itil_code) && !padreVivo) accion = 'padre';
-      if (accion !== 'conflicto' && accion !== 'padre') llegaran.add(c.itil_code);
+      let accion = actuales.has(c.itil_code) ? 'existe' : 'crear';
+      if (accion === 'crear' && c.parent_itil_code && !llegaran.has(c.parent_itil_code) && !vivo(actuales.get(c.parent_itil_code))) accion = 'padre';
+      if (accion === 'crear' || (accion === 'existe' && vivo(actuales.get(c.itil_code)))) llegaran.add(c.itil_code);
       pasos.push({ ci: c, accion });
     }
-    const itil = ((existente && existente.cis) || []).filter(c => c.managed_by === 'itil').length;
-    const catalogo = ((existente && existente.cis) || []).filter(c => c.managed_by === 'catalogo' && !(c.lifecycle && c.lifecycle.status === 'retired')).length;
-    return { pasos, retiraCatalogo: itil === 0 && catalogo > 0 && pasos.some(p => p.accion === 'crear') ? catalogo : 0 };
+    const stats = existente && existente.stats;
+    const catalogoActivo = stats && Number.isInteger(stats.catalogo) ? stats.catalogo
+      : lista.filter(c => c.managed_by === 'catalogo' && !(c.lifecycle && c.lifecycle.status === 'retired')).length;
+    const altas = pasos.filter(p => p.accion === 'crear').length;
+    return { pasos, altas, catalogoActivo, retiraCatalogo: altas > 0 ? catalogoActivo : 0 };
   }
-  // Cuerpo de POST /api/retailer/itil/cis: al crear, todo; al actualizar, sólo lo que trae valor (lo omitido se conserva).
-  function cuerpoCi(site, c, accion) {
+  // Cuerpo de POST /api/retailer/itil/cis para un alta (todo lo de la fila; sin ciclo de vida, que lo pone el titular).
+  function cuerpoCi(site, c) {
     const b = { site_id: site.site_id, itil_code: c.itil_code };
-    for (const k of CAMPOS) if (accion === 'crear' || c[k]) b[k] = c[k] || '';
+    for (const k of CAMPOS) b[k] = c[k] || '';
     return b;
   }
 
-  // El alta, en orden: CI (padres antes) y después el plano (así el cruce plano↔ITIL sale enlazado). Idempotente:
-  // repetirla no escribe nada (los CI iguales no se mandan y el plano igual responde changed:false).
+  // El alta, en orden: CI nuevos (padres antes) y después, si se pidió, el plano (así el cruce plano↔ITIL sale
+  // enlazado). Las decisiones del titular llegan aquí: `aceptaRetirada` (retirar los provisionales del catálogo) y
+  // `plano` = {guardar, base} con el sha256 que vio al revisar (si alguien lo cambió desde entonces: 409, no se pisa).
+  // Idempotente: repetirla no escribe nada (lo que ya existe no se manda; el plano igual responde changed:false).
   // api(path, body, method) → Promise<json> que lanza {status, message} en error.
-  async function importar({ inventario, site, api, alPaso }) {
+  async function importar({ inventario, site, api, alPaso, aceptaRetirada = false, plano = { guardar: true, base: '' } }) {
     const avisa = typeof alPaso === 'function' ? alPaso : () => {};
-    const resumen = { creados: 0, actualizados: 0, iguales: 0, saltados: 0, errores: [], plano: null, retiradosCatalogo: 0 };
+    const resumen = { creados: 0, existentes: 0, saltados: 0, errores: [], plano: null, retiradosCatalogo: 0 };
     const existente = await api('/itil/inventory?site_id=' + encodeURIComponent(site.site_id));
-    const { pasos } = planificar(inventario, existente);
+    const plan = planificar(inventario, existente);
+    if (plan.retiraCatalogo && !aceptaRetirada) {
+      resumen.bloqueado = 'retirada';
+      avisa({ estado: 'bloqueado', error: 'retirada' });
+      return resumen;
+    }
     const fallidos = new Set();
-    for (const p of pasos) {
+    for (const p of plan.pasos) {
       const c = p.ci;
-      if (p.accion === 'igual') { resumen.iguales++; avisa({ ci: c.itil_code, estado: 'igual' }); continue; }
-      if (p.accion === 'conflicto' || p.accion === 'padre' || (c.parent_itil_code && fallidos.has(c.parent_itil_code))) {
+      if (p.accion === 'existe') { resumen.existentes++; avisa({ ci: c.itil_code, estado: 'existe' }); continue; }
+      if (p.accion === 'padre' || (c.parent_itil_code && fallidos.has(c.parent_itil_code))) {
         resumen.saltados++; fallidos.add(c.itil_code);
-        resumen.errores.push({ ci: c.itil_code, error: p.accion === 'conflicto' ? 'conflicto' : 'padre' });
-        avisa({ ci: c.itil_code, estado: 'saltado', error: p.accion === 'conflicto' ? 'conflicto' : 'padre' }); continue;
+        resumen.errores.push({ ci: c.itil_code, error: 'padre' });
+        avisa({ ci: c.itil_code, estado: 'saltado', error: 'padre' }); continue;
       }
       try {
-        const r = await api('/itil/cis', cuerpoCi(site, c, p.accion));
-        if (r && r.changed === false) resumen.iguales++; else if (p.accion === 'crear') resumen.creados++; else resumen.actualizados++;
+        const r = await api('/itil/cis', cuerpoCi(site, c));
+        if (r && r.created === false) { resumen.existentes++; avisa({ ci: c.itil_code, estado: 'existe' }); }
+        else { resumen.creados++; avisa({ ci: c.itil_code, estado: 'crear' }); }
         if (r && Array.isArray(r.retired_catalog)) resumen.retiradosCatalogo += r.retired_catalog.length;
-        avisa({ ci: c.itil_code, estado: r && r.changed === false ? 'igual' : p.accion });
       } catch (e) {
         fallidos.add(c.itil_code);
         resumen.errores.push({ ci: c.itil_code, error: (e && e.message) || 'error', status: e && e.status });
         avisa({ ci: c.itil_code, estado: 'error', error: (e && e.message) || 'error' });
       }
     }
-    // El plano: con el sha256 vigente como base (sin pisar a nadie); igual → changed:false.
+    if (!plano || !plano.guardar) { resumen.plano = { ok: true, omitido: true }; avisa({ plano: true, estado: 'omitido' }); return resumen; }
     try {
-      let base = '';
-      try { const actual = await api('/plano?site_id=' + encodeURIComponent(site.site_id)); base = (actual && actual.current && actual.current.sha256) || ''; } catch (e) { if (!e || e.status !== 404) throw e; }
-      const r = await api('/plano', { site_id: site.site_id, plan: ajustarPlan(inventario.plan, site), base_sha256: base }, 'PUT');
+      const r = await api('/plano', { site_id: site.site_id, plan: ajustarPlan(inventario.plan, site), base_sha256: plano.base || '' }, 'PUT');
       resumen.plano = { ok: true, changed: !(r && r.changed === false), created: !!(r && r.created), seq: r && r.seq };
       avisa({ plano: true, estado: resumen.plano.changed ? 'guardado' : 'igual' });
     } catch (e) {
@@ -221,9 +244,8 @@
   }
 
   // Tipo de Xpacio del Arquitecto → tipo de establecimiento del portal (alta de establecimiento nuevo).
-  function kindDe(tipo) {
-    return { estanco: 'tobacco', kiosco: 'kiosk', supermercado: 'supermarket', cafeteria: 'hospitality', restaurante: 'hospitality', panaderia: 'hospitality' }[tipo] || 'other';
-  }
+  const KINDS = new Map([['estanco', 'tobacco'], ['kiosco', 'kiosk'], ['supermercado', 'supermarket'], ['cafeteria', 'hospitality'], ['restaurante', 'hospitality'], ['panaderia', 'hospitality']]);
+  function kindDe(tipo) { return KINDS.get(typeof tipo === 'string' ? tipo : '') || 'other'; }
 
   return { SCHEMA, ITIL_RE, CATEGORIAS, MAX_FRAGMENTO, MAX_JSON, MAX_PLAN, MAX_CIS, leerFragmento, decodificar, validar, ordenAlta, ajustarPlan, planificar, cuerpoCi, importar, kindDe };
 });
