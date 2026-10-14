@@ -2076,8 +2076,8 @@
   // Avatar digital (encargo avatar · 4-oct-2026). Lo gobierna el cargador común de
   // admiranext.com: elección del visitante > interruptor del proyecto (yokup y admira-app,
   // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
-  // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
-  // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
+  // el guardián). avatar-widget.js también reutiliza este cargador: una sola nube
+  // compartida con los mismos comandos, sin el antiguo robot. Tampoco dentro de un iframe.
   var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261014-personajes-2";
   var cargadorPromesa = null;
   function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
@@ -2118,7 +2118,6 @@
     });
   }
   window.YkFrame.avatar = function (text) {
-    if (conCopiloto()) return Promise.resolve(localEn() ? "This page already has the fleet copilot: no second avatar is shown." : "Esta página ya tiene el copiloto de la flota: no se muestra un segundo avatar.");
     return cargarAvatar().then(function (A) { return A ? A.handle(text) : (localEn() ? "Digital avatar unavailable" : "Avatar digital no disponible"); });
   };
   registerVerb({

@@ -1,16 +1,41 @@
-// Yokup · Copiloto Avatar — CONSUMIDOR FINO del avatar digital de Admira.
-// La cabeza, el render, el lip-sync y la voz viven en digitalavatar.ai (fuente única):
-// cualquier mejora/evolución que se haga allí llega SOLA a este asistente. Aquí solo se
-// enchufa el CEREBRO de Yokup (contexto de incidencias: tickets D1 + KB + MTTR).
-import { mount } from "https://digitalavatar.ai/embed.js";
+// Admirito de la suite: una única nube y el mismo panel de digitalavatar.ai.
+// Estas páginas tenían un segundo widget con burbuja de robot y cabeza 3D.
+// Se reutiliza el cargador común también para /admirito, /bugito y /avatar.
+(function (root, doc) {
+  'use strict';
+  try { if (root.self !== root.top) return; } catch (_) { return; }
+  if (root.YokupAdmiritoReady) return;
 
-mount({
-  brainUrl: "https://api.yokup.com/copilot",
-  title: "Admira · copiloto",
-  greeting: "Hola, soy Admira. Puedo contarte el estado de las incidencias o ayudarte a resolver una avería.",
-  placeholder: "Escribe o pulsa el micro…",
-  lang: "es-ES",
-  accent: "#78f3ff",
-  // voiceUrl: (opcional) cuando digitalavatar.ai exponga un endpoint texto→voz premium,
-  //           se añade aquí y el copiloto hablará con esa voz + lip-sync por audio real.
-});
+  function cargar() {
+    if (root.AdmiraAvatar && root.AdmiraAvatar.floatingCharacters) return Promise.resolve(root.AdmiraAvatar);
+    return new Promise(function (resolve, reject) {
+      var script = doc.querySelector('script[data-admira-avatar]'), nuevo = !script;
+      if (!script) {
+        script = doc.createElement('script');
+        script.src = 'https://www.admiranext.com/assets/avatar.js?v=20261014-yokup-admirito-1';
+        script.async = true;
+        script.setAttribute('data-admira-avatar', '');
+        script.setAttribute('data-brain', '/avatar-ask');
+      }
+      script.addEventListener('load', function () {
+        root.AdmiraAvatar ? resolve(root.AdmiraAvatar) : reject(new Error('Admirito no disponible'));
+      }, { once: true });
+      script.addEventListener('error', function () { reject(new Error('No se pudo cargar Admirito')); }, { once: true });
+      if (nuevo) (doc.head || doc.documentElement).appendChild(script);
+    });
+  }
+
+  root.YokupAdmiritoReady = cargar().then(function (A) {
+    A.setContext({ site: 'yokup', sector: 'soporte', lang: doc.documentElement.lang || 'es', tier: 'good' });
+    // Sustituye la presencia que ya tenía el copiloto; respeta el apagado explícito.
+    if (A.state().override === 'off') return A;
+    return Promise.resolve(A.show(false, 'good')).then(function () {
+      var nube = doc.getElementById('da-suite-bubble');
+      if (nube) { nube.setAttribute('aria-label', 'Admirito'); nube.title = 'Admirito'; }
+      return A;
+    });
+  });
+  root.YokupAdmiritoReady.catch(function () {
+    if (root.console) root.console.warn('Admirito no ha cargado. Recarga la página para volver a intentarlo.');
+  });
+})(window, document);
