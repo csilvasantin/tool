@@ -12,7 +12,7 @@ test('portal del comercio: Inventario ITIL por Xpacio con grupos, códigos, chip
  assert.match(html,/pattern="\[A-Z0-9\]\{2,12\}\(-\[A-Z0-9\]\{2,12\}\)\{1,3\}"/);
  for(const c of ['pantalla','player','tpv','audio','iot','red','kiosk','mobiliario','iluminacion','otro'])assert.match(html,new RegExp('<option value="'+c+'">'));
  assert.doesNotMatch(js,/innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(/);
- assert.match(js,/api\('\/itil'\)/);assert.match(js,/'\/itil\/inventory\?site_id='/);assert.match(js,/api\('\/itil\/cis',body\)/);assert.match(js,/'\/retire'/);assert.match(js,/adopt_device_id/);
+ assert.match(js,/api\(proyecto\(\)\.query\('\/itil'\)\)/);assert.match(js,/'\/itil\/inventory\?site_id='/);assert.match(js,/api\('\/itil\/cis',body\)/);assert.match(js,/'\/retire'/);assert.match(js,/adopt_device_id/);
  for(const chip of ['chip-ok','chip-warn','chip-bad','chip-none'])assert.match(js,new RegExp(chip));
  assert.match(js,/portal-auth/);assert.match(js,/can_edit/);assert.match(js,/credentials:'include'/);
  assert.match(css,/\.itil-cards/);assert.match(css,/@media\(max-width:650px\)/);

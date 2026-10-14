@@ -18,16 +18,18 @@ let sites=[],current='',inv=null,canEdit=true,adopting=null,retiring=null;
 const Q=new URLSearchParams(location.search);let deep=Q.has('itil')||Q.get('itil_alta')==='1'?{code:Q.get('itil')||'',alta:Q.get('itil_alta')==='1',store:Q.get('xpacio')||'',site:Q.get('site')||'',category:Q.get('categoria')||'',name:Q.get('nombre')||'',adopt:Q.get('adoptar')||'',ref:Q.get('ref')||'',ticket:Q.get('incidencia')||''}:null;
 async function api(path,body){const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);try{const r=await fetch(API+path,{method:body?'POST':'GET',credentials:'include',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});const result=await r.json();if(!r.ok)throw Object.assign(new Error(result.error||'No se pudo completar la operación.'),{status:r.status});return result;}finally{clearTimeout(timeout);}}
 function status(text){$('#itil-status').textContent=text||'';}
+// /proyecto (encargo #5980): retailer-proyecto.js añade ?proyecto= a las lecturas; el recorte lo hace la API.
+const NO_PROYECTO={query:p=>p,fallo:()=>false},proyecto=()=>window.YokupProyecto||NO_PROYECTO;
 async function loadSites(){
- try{const r=await api('/itil');sites=r.sites||[];const select=$('#itil-site');select.replaceChildren();
+ try{const r=await api(proyecto().query('/itil'));sites=r.sites||[];const select=$('#itil-site');select.replaceChildren();
   for(const s of sites){const opt=el('option',s.name+(s.admira_store_id?' · Xpacio '+s.admira_store_id:'')+' · '+(s.itil_cis?s.itil_cis+' CI ITIL':'sin ITIL'));opt.value=s.site_id;select.append(opt);}
   if(deep){const hit=sites.find(s=>(deep.site&&s.site_id===deep.site)||(deep.store&&s.admira_store_id===deep.store));if(hit)current=hit.site_id;else if(deep.store||deep.site){status('Ese establecimiento no está entre los tuyos ('+(deep.store||deep.site)+').');deep=null;}}
   if(!sites.some(s=>s.site_id===current))current=(sites.find(s=>s.admira_store_id)||sites[0]||{}).site_id||'';
   select.value=current;$('#itil-new').hidden=!canEdit||!current;
   if(current)await loadInventory();else{$('#itil-groups').replaceChildren(el('p','Añade un establecimiento para empezar su inventario ITIL.','muted'));$('#itil-summary').textContent='';}
- }catch(e){if(e.status!==401)status(e.message);}
+ }catch(e){if(proyecto().fallo(e))return loadSites();if(e.status!==401)status(e.message);}
 }
-async function loadInventory(){try{inv=await api('/itil/inventory?site_id='+encodeURIComponent(current));status('');render();openDeep();}catch(e){status(e.message);}}
+async function loadInventory(){try{inv=await api(proyecto().query('/itil/inventory?site_id='+encodeURIComponent(current)));status('');render();openDeep();}catch(e){if(proyecto().fallo(e))return loadSites();status(e.message);}}
 function openDeep(){
  if(!deep||!inv)return;const d=deep;deep=null;
  if(d.code){const ci=inv.cis.find(c=>c.itil_code===d.code);if(!ci){status('El código '+d.code+' no está en este establecimiento.');return;}const card=document.querySelector('[data-itil-code="'+CSS.escape(d.code)+'"]');if(card){card.classList.add('itil-focus');card.scrollIntoView({block:'center'});}if(canEdit&&ci.managed_by==='itil')openCi(ci);return;}
@@ -109,4 +111,5 @@ $('#itil-site').onchange=e=>{current=e.target.value;loadInventory();};$('#itil-r
 for(const b of document.querySelectorAll('[data-itil-close]'))b.onclick=()=>b.closest('dialog').close();
 document.addEventListener('portal-auth',async e=>{if(e.detail?.kind!=='retailer')return;if(!e.detail.authenticated){inv=null;sites=[];current='';return;}try{const me=await api('/me');canEdit=me.access?.can_edit!==false;}catch{canEdit=false;}loadSites();});
 document.addEventListener('retailer-sites-imported',loadSites);
+document.addEventListener('portal-proyecto',()=>{if(sites.length||current)loadSites();});
 })();

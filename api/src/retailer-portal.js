@@ -38,19 +38,52 @@ const INCIDENT_SELECT=`SELECT i.*,d.name AS device_name,d.skill,l.site_id,l.circ
 const LIST_FILTERS={all:'1=1',open:"i.status='open'",assigned:"i.status='assigned'",resolved:"i.status='resolved'",to_rate:"i.status='resolved' AND rr.incident_id IS NULL"};
 function sourceOf(value){if(value===undefined||value===null||value==='')return null;const v=typeof value==='string'?value.trim().toLowerCase():'';if(!/^[a-z0-9][a-z0-9.-]{0,31}$/.test(v))fail(400,'Origen no válido (hasta 32 letras, números, punto o guion).');return v;}
 function present(i){const m=SOURCE.exec(i.description||'');return {...i,description:m?i.description.slice(m[0].length):i.description,source:m?m[1]:null,follow_url:FOLLOW+encodeURIComponent(i.id),timeline:[['reported',i.created_at],['assigned',i.assigned_at],['resolved',i.resolved_at],['rated',i.rated_at]].map(([step,at])=>({step,at:at||null}))};}
-async function dashboard(env,owner){
+// Filtro por cliente del ⌘ Experto (/proyecto, encargo #5980): solo un superusuario en «Ver como», comprobado aquí en
+// cada petición; nada del navegador lo autoriza. Regla provisional común a toda la suite (contexto compartido de
+// admira-design y la API común): Starbucks son los Xpacios cuyo id empieza por alsea-sbux-. Un proyecto se pide con
+// ?proyecto=<id>; off/todos lo quita.
+const PROYECTOS={starbucks:{prefijo:'alsea-sbux-'}};
+function proyectoPedido(request,access){
+ const q=new URL(request.url).searchParams;if(!q.has('proyecto'))return null;
+ const id=String(q.get('proyecto')||'').trim().toLowerCase();
+ if(['','off','todos','all','admira'].includes(id))return null;
+ if(access.role!=='superuser')fail(403,'superuser-required');
+ if(!Object.hasOwn(PROYECTOS,id))fail(400,'Proyecto desconocido: '+id.slice(0,64)+'. Disponibles: '+Object.keys(PROYECTOS).join(', ')+'.');
+ return {id,...PROYECTOS[id]};
+}
+// Los locales del proyecto se eligen con una subconsulta (2 parámetros), nunca con una lista IN (?,?…): D1 admite
+// 100 parámetros por consulta y una marca puede tener cientos de locales.
+const patronDe=proyecto=>proyecto.prefijo.replace(/[\\%_]/g,'\\$&')+'%';
+const EN_PROYECTO=` AND s.id IN (SELECT ps.id FROM retailer_sites ps LEFT JOIN retailer_site_import_items pi ON pi.site_id=ps.id LEFT JOIN admira_xpacio_sites px ON px.site_id=ps.id WHERE ps.retailer_id=s.retailer_id AND (px.admira_store_id LIKE ? ESCAPE '\\' OR pi.admira_store_id LIKE ? ESCAPE '\\'))`;
+async function sitiosDelProyecto(env,owner,proyecto){
+ return (await rows(env,'SELECT s.id FROM retailer_sites s WHERE s.retailer_id=?'+EN_PROYECTO,owner,patronDe(proyecto),patronDe(proyecto))).map(r=>r.id);
+}
+async function dashboard(env,owner,proyecto=null){
  const today=isoDay(Date.now());
  const sites=await rows(env,'SELECT s.*,i.external_ref,i.sync_status,i.admira_store_id AS imported_admira_store_id,c.id AS catalog_id,c.created_at AS published_at,x.admira_store_id AS xpacio_id,x.twin_url AS xpacio_twin_url,x.removed_at AS xpacio_removed_at FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id LEFT JOIN admira_retailer_locations c ON c.site_id=s.id LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.created_at',owner);
  // Cada equipo lleva su ficha de ciclo de vida y el estado calculado de garantía y mantenimiento.
  const devices=(await rows(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_store_id,l.admira_device_id,l.linked_at,xd.surface_key AS xpacio_surface,${LIFECYCLE_COLUMNS} FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN admira_xpacio_devices xd ON xd.device_id=d.id LEFT JOIN device_lifecycle lc ON lc.device_id=d.id WHERE s.retailer_id=? ORDER BY d.name`,owner)).map(d=>withLifecycle(d,today));
  const incidents=(await rows(env,INCIDENT_SELECT+` WHERE s.retailer_id=? AND (i.status!='resolved' OR i.id IN (SELECT ri.id FROM installer_incidents ri JOIN retailer_device_links rl ON rl.device_id=ri.device_id JOIN retailer_sites rs ON rs.id=rl.site_id WHERE rs.retailer_id=? AND ri.status='resolved' ORDER BY ri.created_at DESC LIMIT 200)) ORDER BY i.created_at DESC`,owner,owner)).map(present);
+ if(proyecto){
+  const ids=await sitiosDelProyecto(env,owner,proyecto),dentro=new Set(ids),soloSitio=x=>dentro.has(x.site_id);
+  const statsP=await statement(env,`SELECT COUNT(CASE WHEN i.status='open' THEN 1 END) AS open,COUNT(CASE WHEN i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.status='resolved' AND r.incident_id IS NULL THEN 1 END) AS awaiting_rating FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_ratings r ON r.incident_id=i.id WHERE s.retailer_id=?${EN_PROYECTO}`,owner,patronDe(proyecto),patronDe(proyecto)).first();
+  const devicesP=devices.filter(soloSitio);
+  return {proyecto:proyecto.id,sites:sites.filter(x=>dentro.has(x.id)),devices:devicesP,incidents:incidents.filter(soloSitio),stats:{...statsP,...lifecycleStats(devicesP)}};
+ }
  const stats=await statement(env,`SELECT COUNT(CASE WHEN i.status='open' THEN 1 END) AS open,COUNT(CASE WHEN i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.status='resolved' AND r.incident_id IS NULL THEN 1 END) AS awaiting_rating FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_ratings r ON r.incident_id=i.id WHERE s.retailer_id=?`,owner).first();
- return {sites,devices,incidents,stats:{...stats,...lifecycleStats(devices)}};
+ return {proyecto:null,sites,devices,incidents,stats:{...stats,...lifecycleStats(devices)}};
 }
-async function retailerItil(request,env,owner,path,actor,channel){
+async function retailerItil(request,env,owner,path,actor,channel,access){
  const q=new URL(request.url).searchParams,method=request.method;
- if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis,(SELECT version FROM xpacio_planos p WHERE p.site_id=s.id) AS plan_version FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.name`,owner)}];
- if(path==='/itil/inventory'&&method==='GET')return [await itilInventory(env,await ownerSite(env,owner,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')}))];
+ // /proyecto también recorta el inventario ITIL que se lee (lista de establecimientos y su inventario); las altas
+ // y bajas de CI no llevan proyecto: actúan sobre un establecimiento concreto del titular, como siempre.
+ const proyecto=method==='GET'?proyectoPedido(request,access):null,pp=proyecto?[patronDe(proyecto),patronDe(proyecto)]:[];
+ if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis,(SELECT version FROM xpacio_planos p WHERE p.site_id=s.id) AS plan_version FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=?${proyecto?EN_PROYECTO:''} ORDER BY s.name`,owner,...pp),proyecto:proyecto?.id||null}];
+ if(path==='/itil/inventory'&&method==='GET'){
+  const site=await ownerSite(env,owner,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')});
+  if(proyecto&&!(await sitiosDelProyecto(env,owner,proyecto)).includes(site.id))fail(404,'Ese establecimiento no es del proyecto '+proyecto.id+'.');
+  return [{...await itilInventory(env,site),proyecto:proyecto?.id||null}];
+ }
  if(path==='/itil/cis'&&method==='POST'){const {site_id,admira_store_id,request_key,...ci}=await jsonBody(request);const r=await upsertCi(env,await ownerSite(env,owner,{site_id,admira_store_id}),ci,actor,channel);return [r,r.created?201:200];}
  const retire=/^\/itil\/cis\/([A-Z0-9-]{5,51})\/retire$/.exec(path);
  if(retire&&method==='POST'){const b=await jsonBody(request);return [await retireCi(env,ci=>ci.retailer_id===owner,retire[1],b.note,actor,channel)];}
@@ -91,7 +124,7 @@ export async function handleRetailer(request,env,principal){
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'retailer',account,path);
   if(path==='/me'&&method==='GET')return response(request,{profile:publicAccount(account),access:{role:access.role,delegated:access.delegated,actor_email:access.actor_email||null,can_edit:access.role!=='viewer'}});
   if(path==='/logout'&&method==='POST'){await statement(env,'DELETE FROM retailer_sessions WHERE token_hash=?',await hash(cookieToken(request))).run();return response(request,{ok:true},200,`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);}
-  if(path==='/dashboard'&&method==='GET')return response(request,await dashboard(env,owner));
+  if(path==='/dashboard'&&method==='GET')return response(request,await dashboard(env,owner,proyectoPedido(request,access)));
   if(['/sites/import-preview','/sites/import','/site-imports'].includes(path)){const result=await siteImports(request,env,owner,path);if(result)return result;}
   const publishSite=/^\/sites\/([a-f0-9-]{36})\/publish$/.exec(path);
   if(publishSite&&method==='POST'){const consent=await jsonBody(request);if(consent.publish_maps!==true)fail(400,'Confirma la publicación de esta ubicación en los mapas públicos.');await rateLimit(env,'retail-publish:'+owner,60,3600000);return await publishOwnedSite(request,env,owner,publishSite[1]);}
@@ -112,14 +145,15 @@ export async function handleRetailer(request,env,principal){
   // Plano maestro del Xpacio (DCL-fbee86b0016fa4cef7a7726c): GET|PUT /plano, mismo perímetro que el ITIL (docs/plano-yokup.md).
   if(path==='/plano')return await retailerPlano(request,env,owner,access.actor_email||account.email,principal?'mcp-comercio':'portal');
   // ITIL (FLT-101300): inventario tecnológico del establecimiento, en el perímetro del titular (docs/itil-yokup.md).
-  if(path.startsWith('/itil'))return response(request,...await retailerItil(request,env,owner,path,access.actor_email||account.email,principal?'mcp-comercio':'portal'));
+  if(path.startsWith('/itil'))return response(request,...await retailerItil(request,env,owner,path,access.actor_email||account.email,principal?'mcp-comercio':'portal',access));
   if(path==='/inventory'&&method==='GET')return response(request,await inventory(env,owner,new URL(request.url).searchParams));
   if(path==='/alerts'&&method==='GET')return response(request,await alerts(env,owner,new URL(request.url).searchParams));
   if(path==='/incidents'&&method==='GET'){
    const q=new URL(request.url).searchParams,status=q.get('status')||'all',site=q.get('site_id'),limit=q.has('limit')?Number(q.get('limit')):50;
    if(!Object.hasOwn(LIST_FILTERS,status))fail(400,'Estado no válido: open, assigned, resolved, to_rate o all.');if(!Number.isInteger(limit)||limit<1||limit>200)fail(400,'limit debe ser de 1 a 200.');
-   const incidents=(await rows(env,INCIDENT_SELECT+` WHERE s.retailer_id=? AND ${LIST_FILTERS[status]}${site?' AND s.id=?':''} ORDER BY i.created_at DESC LIMIT ?`,owner,...(site?[text(site,1,80)]:[]),limit)).map(present);
-   return response(request,{status,site_id:site||null,limit,incidents});
+   const proyecto=proyectoPedido(request,access);
+   const incidents=(await rows(env,INCIDENT_SELECT+` WHERE s.retailer_id=? AND ${LIST_FILTERS[status]}${site?' AND s.id=?':''}${proyecto?EN_PROYECTO:''} ORDER BY i.created_at DESC LIMIT ?`,owner,...(site?[text(site,1,80)]:[]),...(proyecto?[patronDe(proyecto),patronDe(proyecto)]:[]),limit)).map(present);
+   return response(request,{status,site_id:site||null,limit,proyecto:proyecto?.id||null,incidents});
   }
   const single=/^\/incidents\/([\w:-]+)$/.exec(path);
   if(single&&method==='GET'){const i=await ownIncident(env,single[1],owner);return response(request,{incident:present(await statement(env,INCIDENT_SELECT+' WHERE i.id=? AND s.retailer_id=?',i.id,owner).first())});}
