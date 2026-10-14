@@ -55,7 +55,10 @@ test('frame remount and existing engine never create a second engine', () => {
 
 test('fleet console remains independent and retailer loads the same frame', () => {
   const p = page('https://www.admira.app/retailer?ax_demo=app', {fleet:true}); p.run();
-  assert.equal(p.nodes.length, 0);
+  assert.equal(p.engines().length, 1);
+  assert.equal(p.engines()[0].attrs['data-commands-only'], '');
+  assert.equal(p.nodes.some(n => n.tag === 'link'), false, 'fleet keeps its native terminal styling');
+  p.run();assert.equal(p.engines().length, 1);
   const html = readFileSync(new URL('./retailer.html', import.meta.url), 'utf8');
   assert.match(html, /<script src="\/yk-frame\.js\?v=/);
   assert.match(html, /id="workspace" hidden/);
@@ -63,7 +66,7 @@ test('fleet console remains independent and retailer loads the same frame', () =
 
 // These assets are immutable for one year: changed source needs a new browser URL.
 test('native entry pages request a fresh frame URL instead of the immutable old pin', () => {
-  const expected = '/yk-frame.js?v=20261012-android-five-1';
+  const expected = '/yk-frame.js?v=20261014-supervisor-fleet-1';
   for (const file of ['index.html', 'retailer.html']) {
     const html = readFileSync(new URL('./' + file, import.meta.url), 'utf8');
     assert.ok(html.includes(expected), file);

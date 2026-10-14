@@ -2325,7 +2325,7 @@
     wireExpertResize(railB, expertResize);
     // ⌘ EXPERTO · CLI con el look de digitalavatar.ai (Carlos, 4-oct-2026): piel compartida de la
     // suite (www.admiranext.com/suite) sobre la consola LOCAL (/help, /marca…); los verbos no cambian.
-    // Sólo en modo público: la consola de CLIs de la flota (FLEET_MODE) se queda como está.
+    // En flota también se carga el motor: sólo comandos, sin revestir el terminal remoto.
     // Cerrado por defecto (Carlos, 6-oct-2026): sin data-min la piel lo oculta hasta pulsar ⌘ (.yk-ico-exp);
     // abierto se recuerda solo en la pestaña. El ?v= va con el sello de la piel para no servir la antigua de caché.
     var nativeAppDemo = false;
@@ -2333,15 +2333,16 @@
       nativeAppDemo = /^(www\.)?(admira\.app|yokup\.com)$/.test(location.hostname) &&
         new URLSearchParams(location.search).get("ax_demo") === "app";
     } catch (_) {}
-    if (!FLEET_MODE && !document.getElementById("ax-experto-js") &&
+    if (!document.getElementById("ax-experto-js") &&
         (!nativeAppDemo || !document.querySelector('script[src^="/suite/experto.js"],script[src^="https://www.admiranext.com/suite/experto.js"]'))) {
       var axCss = document.createElement("link");
       axCss.rel = "stylesheet"; axCss.href = "https://www.admiranext.com/suite/experto.css?v=20261006-experto-cerrado-1";
-      document.head.appendChild(axCss);
+      if (!FLEET_MODE) document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
       ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2" :
         "https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2";
+      if (FLEET_MODE) ax.setAttribute("data-commands-only", "");
       if (nativeAppDemo) {
         ax.setAttribute("data-admira-demo-engine", "");
         ax.setAttribute("data-pata", "admira.app");
