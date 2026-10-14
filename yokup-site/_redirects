@@ -19,8 +19,9 @@
 /carbono/         /agentes.html      200
 /consumos         /consumos.html     200
 /consumos/        /consumos.html     200
-/supervisor       /supervisor.html   200
-/supervisor/      /supervisor.html   200
+# /supervisor NO se reescribe aquí. Pages ya limpia la URL: un 200 hacia
+# /supervisor.html vuelve a /supervisor y entra en un 308 infinito en admira.app.
+# www.yokup.com lo resuelve el gate, que pide el .html por su cuenta.
 # INTERCAMBIO DE DOMINIOS (Carlos, 4-oct-2026): admira.biz pasa a ser la parte de negocio
 # (Pages clearchannel-tv) y admira.app esta casa. Estáticos de negocio que _routes.json deja
 # FUERA de las Functions (por eso no los ve el middleware de mudanza) y que páginas viejas

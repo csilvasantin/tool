@@ -1,7 +1,8 @@
 const MAX_FIELD = 80;
 // Cypher (Carlos, 6-oct-2026): deepagent de la flota (admira.live) autorizado a publicar; mismas reglas de apellido.
 // GrokBot (Carlos, 7-oct-2026): agente de la flota autorizado a publicar; mismas reglas de apellido (GrokBotMBP16 · MacBookPro16).
-const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe", "Cypher", "GrokBot"];
+// Merovingio (Carlos, 14-oct-2026): deepagent de la silla Musk en este Mac Mini. Firma MerovingioMacMini · MacMini.
+const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe", "Cypher", "GrokBot", "Merovingio"];
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
 // Apellido canónico = diccionario de la normativa (regla 02): el modelo tal cual lo
 // fija el diccionario, igual para todos. Los apellidos de la generación anterior

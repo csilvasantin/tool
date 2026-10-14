@@ -18,7 +18,8 @@ test("/supervisor entra por la sesión común y por el marco canónico", () => {
   assert.match(html, /src="\/yk-frame\.js\?[^\"]+"/);
   assert.match(frame, /\["SUPERVISOR",\s+"\/supervisor"\]/);
   assert.match(frame, /supervisor: "SUPERVISOR"/);
-  assert.match(redirects, /^\/supervisor\s+\/supervisor\.html\s+200$/m);
+  assert.doesNotMatch(redirects, /^\/supervisor\s+\/supervisor\.html\s+200$/m,
+    "esa reescritura hace bucle 308 con las clean URLs de Pages en admira.app");
 });
 
 test("la captura es sólo vídeo, acotada y secuencial", () => {

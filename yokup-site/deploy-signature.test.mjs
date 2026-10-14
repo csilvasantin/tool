@@ -79,6 +79,7 @@ test("GrokBot firma como persona de la flota con su apellido físico (Carlos, 7-
   assert.deepEqual(validateDeployIdentity("GrokBotMBP16","MacBookPro16"),{deployer:"GrokBotMBP16",machine:"MacBookPro16",signature:"GrokBotMBP16 · MacBookPro16"});
   assert.equal(validateDeployIdentity("GrokBot16","MacBook Pro 16").deployer,"GrokBotMBP16");
   assert.equal(validateDeployIdentity("GrokBotMacMini","MacMini").signature,"GrokBotMacMini · MacMini");
+  assert.deepEqual(validateDeployIdentity("MerovingioMacMini","MacMini"),{deployer:"MerovingioMacMini",machine:"MacMini",signature:"MerovingioMacMini · MacMini"});
   assert.equal(validateDeployIdentity("SubGrokBotMBP16","macbook-pro-16").deployer,"SubGrokBotMBP16");
   assert.throws(()=>validateDeployIdentity("GrokBot","MacBookPro16"),/apellido físico|runtime o identidad interna/);
   assert.throws(()=>validateDeployIdentity("GrokBotMBP16","MacMini"),/no coincide/);

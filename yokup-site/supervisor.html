@@ -17,15 +17,31 @@
 <main class="sv-shell">
   <header class="sv-hero">
     <div>
-      <p class="sv-kicker"><span aria-hidden="true"></span> Agente de visión · vigilancia local</p>
-      <h1>Supervisor de pantallas</h1>
-      <p class="sv-lead">Supervisor inicia en admira.tv: una cámara observa la emisión, la visión artificial confirma la incidencia y Yokup abre el ticket. Dos lecturas críticas consecutivas evitan falsas alarmas.</p>
+      <p class="sv-kicker"><span aria-hidden="true"></span> Insta360 · Mac Mini</p>
+      <h1>Supervisor de soluciones</h1>
+      <p class="sv-lead">Estado en vivo de cada pantalla, el recorrido de la cámara y las incidencias abiertas y cerradas. Las personas van pixeladas.</p>
     </div>
     <div class="sv-project" id="projectBadge" aria-live="polite">
       <span>Proyecto activo</span>
       <strong id="projectName">admira.tv</strong>
     </div>
   </header>
+
+  <section class="sol-board" id="soluciones" aria-label="Supervisor de soluciones">
+    <p class="sol-recorrido" id="solRecorrido" aria-live="polite">Recorrido en espera</p>
+    <div class="sol-grid" id="solGrid" aria-live="polite"></div>
+    <div class="sol-inc">
+      <article>
+        <h2>Abiertas</h2>
+        <ul id="solAbiertas"><li class="sol-vacio">Ninguna abierta</li></ul>
+      </article>
+      <article>
+        <h2>Cerradas</h2>
+        <ul id="solCerradas"><li class="sol-vacio">Ninguna cerrada</li></ul>
+      </article>
+    </div>
+    <p class="sol-cuando" id="solCuando">Sin publicación todavía</p>
+  </section>
 
   <section class="sv-grid" aria-label="Puesto de supervisión">
     <article class="sv-card sv-vision">
@@ -143,6 +159,7 @@
   </footer>
 </main>
 
+<script type="module" src="/yk-soluciones.js?v=r1"></script>
 <script type="module" src="/yk-supervisor.js?v=r8"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=r35"></script>

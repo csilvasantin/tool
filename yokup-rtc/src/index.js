@@ -69,6 +69,7 @@ import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE
 import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
 import { createAdmiraMcpClient, handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL, SUPERVISOR_IDENTITY_TRACKS_SQL } from "./supervisor.js";
+import { handleSolucionesIngest } from "./supervisor-soluciones.js";
 import { normalizeAccessDirectory, supervisorAccessForSession, supervisorSessionInfo } from "./supervisor-access.js";
 import { INCIDENT_STATUS_CACHE_S, INCIDENT_STATUS_MAX_ACTIVE, INCIDENT_STATUS_PREFIX, isMonitoredScreen, normalizeIncidentStatusQuery, prefixUpperBound, serializeIncidentStatus, normalizeIncidentAction, applyIncidentAction } from "./incident-status.js";
 var __defProp = Object.defineProperty;
@@ -12043,6 +12044,19 @@ var worker_app = {
         }
         return json({ok:false,error:'method_not_allowed'},405);
       } catch (error) { return json({ok:false,error:String(error.code || error.message || 'mode_failed').slice(0,120)},Number(error.status) || 500); }
+    }
+    if (url.pathname === "/supervisor/soluciones") {
+      const responder = (o, s = 200) => {
+        const res = json(o, s);
+        const headers = new Headers(res.headers);
+        headers.set("cache-control", "no-store");
+        return new Response(res.body, { status: res.status, headers });
+      };
+      try {
+        return await handleSolucionesIngest(req, env, url, responder);
+      } catch (error) {
+        return responder({ ok:false, error:"soluciones_failed", detail:String(error && error.message || error).slice(0, 180) }, 500);
+      }
     }
     if (url.pathname.startsWith("/supervisor/")) {
       const session = await requireAuth(env, req);
