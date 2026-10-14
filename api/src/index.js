@@ -13,6 +13,7 @@ import { scheduledNetworkSync } from './network-sync.js';
 import { sweepLifecycleAlerts } from './device-lifecycle.js';
 import { syncIncidentLinks, handleIncidentLinksInternal } from './incident-links.js';
 import { handleItilInternal, handleItilPublic } from './itil.js';
+import { handlePlanoInternal, handlePlanoPublic } from './xpacio-plano.js';
 import { handleLectura, lecturaWriteForbidden } from './lectura-box.js';
 /**
  * yokup-api — Cloudflare Worker
@@ -41,6 +42,7 @@ import { handleLectura, lecturaWriteForbidden } from './lectura-box.js';
  *   POST   /api/ratings                        {intervention_id,technician_id,stars,...}
  *   POST   /api/ingest/admira                  webhook firmado de Admira (idempotente)
  *   GET    /api/itil/xpacios/:admira_store_id  inventario ITIL para la Galaxia (docs/itil-yokup.md)
+ *   GET    /api/plano/xpacios/:id              plano del Xpacio para la Galaxia: admira_store_id o yokup-<site_id> (docs/plano-yokup.md)
  */
 
 const ALLOWED_ORIGINS = new Set([
@@ -75,6 +77,8 @@ export default {
     // escritura con éxito del portal, el Desk o los MCP, el diff con la bandeja Yokup (docs/incidencias-unificadas.md).
     // ITIL (FLT-101300): /internal/itil/* también solo por binding (MCP de flota desde el gate · binding DESK).
     if(new URL(request.url).pathname.startsWith('/internal/itil/'))return handleItilInternal(request,env);
+    // Plano maestro del Xpacio (DCL-fbee86b0016fa4cef7a7726c): /internal/plano/* también solo por binding (gate · DESK).
+    if(new URL(request.url).pathname.startsWith('/internal/plano/'))return handlePlanoInternal(request,env);
     if(new URL(request.url).pathname.startsWith('/internal/'))return handleIncidentLinksInternal(request,env);
     const res=await routeRequest(request,env,ctx);
     if(ctx&&env.RTC&&!['GET','HEAD','OPTIONS'].includes(request.method)&&res.status<400&&/^\/(api\/(retailer|installer|desk)\/|mcp\/)/.test(new URL(request.url).pathname))ctx.waitUntil(syncIncidentLinks(env).catch(e=>console.error('incident_links_sync_failed',e&&e.message)));
@@ -94,6 +98,8 @@ async function routeRequest(request, env, ctx) {
     if(early.pathname==='/mcp/calls')return handleCallsMcp(request,env);
     // Lectura ITIL para las soluciones de la Galaxia (CORS propio, sin datos privados; ver docs/itil-yokup.md).
     if(new URL(request.url).pathname.startsWith('/api/itil/'))return handleItilPublic(request,env);
+    // Plano del Xpacio para la Galaxia: mismo acceso que el ITIL (mínimo sin clave; completo sin datos privados con yki_).
+    if(new URL(request.url).pathname.startsWith('/api/plano/'))return handlePlanoPublic(request,env);
     if(new URL(request.url).pathname.startsWith('/api/calls/'))return handleCalls(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-access/'))return handleAccess(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-admin/'))return handleAdmin(request,env);

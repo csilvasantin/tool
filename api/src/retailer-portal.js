@@ -9,6 +9,7 @@ import {isBrandEmail} from './admira-xpacio-sync.js';
 import {isoDay,LIFECYCLE_COLUMNS,withLifecycle,lifecycleStats,readLifecycle,updateLifecycle,inventory,alerts} from './device-lifecycle.js';
 import {ownerSite,inventory as itilInventory,upsertCi,retireCi} from './itil.js';
 import {lecturaRetailerGate} from './lectura-box.js';
+import {retailerPlano} from './xpacio-plano.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
 const publicAccount=({id,name,email})=>({id,name,email});
@@ -48,7 +49,7 @@ async function dashboard(env,owner){
 }
 async function retailerItil(request,env,owner,path,actor,channel){
  const q=new URL(request.url).searchParams,method=request.method;
- if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.name`,owner)}];
+ if(path==='/itil'&&method==='GET')return [{sites:await rows(env,`SELECT s.id AS site_id,s.name,s.city,x.admira_store_id,(SELECT COUNT(*) FROM itil_items i WHERE i.site_id=s.id AND i.managed_by='itil') AS itil_cis,(SELECT COUNT(*) FROM itil_items i LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=s.id AND i.managed_by='catalogo' AND COALESCE(lc.status,'operational')!='retired') AS catalog_cis,(SELECT version FROM xpacio_planos p WHERE p.site_id=s.id) AS plan_version FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id WHERE s.retailer_id=? ORDER BY s.name`,owner)}];
  if(path==='/itil/inventory'&&method==='GET')return [await itilInventory(env,await ownerSite(env,owner,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')}))];
  if(path==='/itil/cis'&&method==='POST'){const {site_id,admira_store_id,request_key,...ci}=await jsonBody(request);const r=await upsertCi(env,await ownerSite(env,owner,{site_id,admira_store_id}),ci,actor,channel);return [r,r.created?201:200];}
  const retire=/^\/itil\/cis\/([A-Z0-9-]{5,51})\/retire$/.exec(path);
@@ -108,6 +109,8 @@ export async function handleRetailer(request,env,principal){
   const lifecycle=/^\/devices\/([\w:-]+)\/lifecycle$/.exec(path);
   if(lifecycle&&method==='GET')return response(request,await readLifecycle(env,await ownDevice(env,lifecycle[1],owner)));
   if(lifecycle&&method==='PUT'){const device=await ownDevice(env,lifecycle[1],owner);return response(request,await updateLifecycle(env,device,await jsonBody(request),access.actor_email||account.email));}
+  // Plano maestro del Xpacio (DCL-fbee86b0016fa4cef7a7726c): GET|PUT /plano, mismo perímetro que el ITIL (docs/plano-yokup.md).
+  if(path==='/plano')return await retailerPlano(request,env,owner,access.actor_email||account.email,principal?'mcp-comercio':'portal');
   // ITIL (FLT-101300): inventario tecnológico del establecimiento, en el perímetro del titular (docs/itil-yokup.md).
   if(path.startsWith('/itil'))return response(request,...await retailerItil(request,env,owner,path,access.actor_email||account.email,principal?'mcp-comercio':'portal'));
   if(path==='/inventory'&&method==='GET')return response(request,await inventory(env,owner,new URL(request.url).searchParams));

@@ -14,7 +14,10 @@ import {ITIL_SCHEMA,ITIL_CATEGORIES,ITIL_ORIENTATIONS,ITIL_LIFECYCLE_TEXTS,ITIL_
 import {syncAllNetworkRouters} from './network-sync.js';
 // Intercambio de dominios (Carlos, 4-oct-2026): admira.biz pasa a servir la solución de negocio
 // (Pages clearchannel-tv). admira.app se conserva mientras dure la transición.
-export const GALAXY_ORIGINS=new Set(['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv']);
+// Plano maestro (14-oct-2026, DCL-fbee86b0016fa4cef7a7726c): las cinco soluciones comparten plano e ITIL, así que
+// también leen desde sus dominios Admira: admira.store (gemelo), admira.studio (contenidos) y admira.tv (lanzador).
+export const GALAXY_ORIGINS=new Set(['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv',
+ 'https://www.admira.store','https://admira.store','https://www.admira.studio','https://admira.studio','https://www.admira.tv','https://admira.tv']);
 export const ITIL_DOCS='https://www.yokup.com/mcp/llms.txt';
 const bad=(status,code,message)=>{throw Object.assign(new Error(message),{status,code});};
 const CONTROL=/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
@@ -54,6 +57,7 @@ export function parseCi(b){
 }
 const SITE_SELECT='SELECT s.*,x.admira_store_id,x.circuit_id,x.brand_key,x.twin_url,x.removed_at AS xpacio_removed_at FROM retailer_sites s LEFT JOIN admira_xpacio_sites x ON x.site_id=s.id';
 export const xpacioSite=(env,storeId)=>statement(env,SITE_SELECT+' WHERE x.admira_store_id=?',storeId).first();
+export const siteById=(env,siteId)=>statement(env,SITE_SELECT+' WHERE s.id=?',siteId).first();
 export async function ownerSite(env,owner,{site_id,admira_store_id}){
  if(!site_id&&!admira_store_id)bad(400,'site_required','Indica site_id o admira_store_id.');
  const s=site_id?await statement(env,SITE_SELECT+' WHERE s.id=? AND s.retailer_id=?',String(site_id).slice(0,80),owner).first():await statement(env,SITE_SELECT+' WHERE x.admira_store_id=? AND s.retailer_id=?',String(admira_store_id).slice(0,160),owner).first();
@@ -244,7 +248,7 @@ export async function resolveEquipo(env,{ref='',loc='',code='',portal_incident='
 }
 // ── /internal/itil/* · solo por service binding (MCP de flota desde el gate). El autor lo pone el gate.
 const internalReply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
-function author(b){
+export function author(b){
  const ok=v=>typeof v==='string'&&v.trim().length>=1&&v.length<=80&&!CONTROL.test(v);
  if(!ok(b.actor)||!ok(b.machine))bad(400,'author_required','actor y machine requeridos.');
  return b.actor.trim()+' · '+b.machine.trim();
@@ -274,10 +278,23 @@ export async function handleItilInternal(request,env){
 // ── Lectura para la Galaxia: GET https://data.yokup.com/api/itil/xpacios/:admira_store_id
 // Sin clave: solo lo mínimo (Xpacio, marca y recuento por categoría). Con X-Yokup-Itil-Key: CIs sin datos privados.
 const READ_KEY=/^yki_[a-f0-9]{64}$/;
-function galaxyHeaders(request,cache){
+export function galaxyHeaders(request,cache){
  const origin=request.headers.get('origin'),h={'Content-Type':'application/json; charset=utf-8','X-Content-Type-Options':'nosniff','Vary':'Origin, X-Yokup-Itil-Key','Cache-Control':cache};
  if(origin&&GALAXY_ORIGINS.has(origin))Object.assign(h,{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET, OPTIONS','Access-Control-Allow-Headers':'X-Yokup-Itil-Key','Access-Control-Max-Age':'600'});
  return h;
+}
+// Clave de lectura de la Galaxia (X-Yokup-Itil-Key), compartida por el ITIL y el plano (xpacio-plano.js).
+// Devuelve {key} (null sin clave, con el límite por IP) o {error:[cuerpo,estado]}. bucket separa los límites por puerta.
+export async function galaxyKey(request,env,now,bucket){
+ const origin=request.headers.get('origin'),raw=request.headers.get('x-yokup-itil-key');
+ if(raw===null){await rateLimit(env,bucket+'-pub:'+(request.headers.get('CF-Connecting-IP')||'local'),60,60000);return {key:null};}
+ if(!READ_KEY.test(raw))return {error:[{error:'invalid_key',documentation:ITIL_DOCS},401]};
+ const key=await statement(env,'SELECT * FROM itil_read_keys WHERE key_hash=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)',await hash(raw),now).first();
+ if(!key)return {error:[{error:'invalid_key',documentation:ITIL_DOCS},401]};
+ const origins=JSON.parse(key.origins||'[]');if(origin&&origins.length&&!origins.includes(origin))return {error:[{error:'origin_not_allowed_for_key'},403]};
+ await rateLimit(env,bucket+'-key:'+key.id,1200,60000);
+ await statement(env,'UPDATE itil_read_keys SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at<?)',now,key.id,now-60000).run();
+ return {key};
 }
 export async function handleItilPublic(request,env,now=Date.now()){
  const out=(body,status=200,cache='no-store')=>new Response(JSON.stringify(body),{status,headers:galaxyHeaders(request,cache)});
@@ -288,15 +305,7 @@ export async function handleItilPublic(request,env,now=Date.now()){
  const m=/^\/api\/itil\/xpacios\/([^/]+)$/.exec(new URL(request.url).pathname);let id='';try{id=m?decodeURIComponent(m[1]):'';}catch{}
  if(!STORE.test(id))return out({error:'not_found',documentation:ITIL_DOCS},404);
  try{
-  const raw=request.headers.get('x-yokup-itil-key');let key=null;
-  if(raw!==null){
-   if(!READ_KEY.test(raw))return out({error:'invalid_key',documentation:ITIL_DOCS},401);
-   key=await statement(env,'SELECT * FROM itil_read_keys WHERE key_hash=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)',await hash(raw),now).first();
-   if(!key)return out({error:'invalid_key',documentation:ITIL_DOCS},401);
-   const origins=JSON.parse(key.origins||'[]');if(origin&&origins.length&&!origins.includes(origin))return out({error:'origin_not_allowed_for_key'},403);
-   await rateLimit(env,'itil-key:'+key.id,1200,60000);
-   await statement(env,'UPDATE itil_read_keys SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at<?)',now,key.id,now-60000).run();
-  }else await rateLimit(env,'itil-pub:'+(request.headers.get('CF-Connecting-IP')||'local'),60,60000);
+  const access=await galaxyKey(request,env,now,'itil');if(access.error)return out(...access.error);const key=access.key;
   const site=await xpacioSite(env,id),brands=key?.brands?JSON.parse(key.brands):null;
   if(!site||site.xpacio_removed_at||(brands&&!brands.includes(site.brand_key)))return out({error:'xpacio_not_found',documentation:ITIL_DOCS},404,'public, max-age=60');
   const inv=await inventory(env,site,now),brand=await statement(env,'SELECT name FROM brand_accounts WHERE brand_key=?',site.brand_key).first();

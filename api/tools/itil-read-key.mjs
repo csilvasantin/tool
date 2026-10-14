@@ -7,9 +7,12 @@ import {randomBytes,createHash} from 'node:crypto';
 import {writeFile,mkdir} from 'node:fs/promises';
 import {dirname,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
-export const SOLUTIONS=['xpaceos','pixeria','admira-app','clearchannel-tv'];
+// admira-tv (14-oct-2026, plano maestro): el lanzador de las cinco soluciones también lee plano e ITIL.
+export const SOLUTIONS=['xpaceos','pixeria','admira-app','clearchannel-tv','admira-tv'];
 // admira.biz: la solución de negocio tras el intercambio de dominios (Carlos, 4-oct-2026).
-export const KNOWN_ORIGINS=['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv'];
+// admira.store, admira.studio y admira.tv: los dominios Admira de gemelo, contenidos y lanzador (plano maestro, 14-oct-2026).
+export const KNOWN_ORIGINS=['https://www.xpaceos.com','https://xpaceos.com','https://www.pixeria.com','https://pixeria.com','https://www.admira.app','https://admira.app','https://www.admira.biz','https://admira.biz','https://www.clearchannel.tv','https://clearchannel.tv',
+ 'https://www.admira.store','https://admira.store','https://www.admira.studio','https://admira.studio','https://www.admira.tv','https://admira.tv'];
 const quote=v=>v==null?'NULL':"'"+String(v).replaceAll("'","''")+"'";
 export function readKeyRecord(solution,{origins=[],brands=null,days=365,now=Date.now(),token='yki_'+randomBytes(32).toString('hex')}={}){
  if(!SOLUTIONS.includes(solution))throw new Error('Solución: '+SOLUTIONS.join(', '));
@@ -27,7 +30,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
  if(action!=='issue'||!out)throw new Error('Uso: node api/tools/itil-read-key.mjs issue <solución> /ruta/privada/clave.json [--origins …] [--brands …] [--days 365]');
  const r=readKeyRecord(solution,{origins,brands:brands?brands.split(','):null,days}),file=resolve(out);
  await mkdir(dirname(file),{recursive:true,mode:0o700});
- await writeFile(file,JSON.stringify({endpoint:'https://data.yokup.com/api/itil/xpacios/{admira_store_id}',header:'X-Yokup-Itil-Key',solution,origins,expires_at:r.expires_at,token:r.token},null,2)+'\n',{mode:0o600,flag:'wx'});
+ await writeFile(file,JSON.stringify({endpoint:'https://data.yokup.com/api/itil/xpacios/{admira_store_id}',plano_endpoint:'https://data.yokup.com/api/plano/xpacios/{admira_store_id|yokup-<site_id>}',header:'X-Yokup-Itil-Key',solution,origins,expires_at:r.expires_at,token:r.token},null,2)+'\n',{mode:0o600,flag:'wx'});
  await writeFile(file+'.sql',r.sql+'\n',{mode:0o600,flag:'wx'});
  console.log('Clave privada: '+file+' (0600, no la pegues en chats ni en el repo).');
  console.log('Alta (operador): cd api && npx wrangler d1 execute yokup-db --remote --file '+file+'.sql');

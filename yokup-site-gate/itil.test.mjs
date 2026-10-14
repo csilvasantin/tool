@@ -29,7 +29,8 @@ const ci={admira_store_id:'alsea-sbux-021',itil_code:'PDG103-PAN-01',name:'Menu 
 
 test('ITIL en el MCP de flota: scopes itil e itil:write separados; sin ellos ni se listan ni llegan a yokup-api',async()=>{
  const h=await setup();
- assert.deepEqual(TOOLS.filter(t=>t.scope.startsWith('itil')).map(t=>t.name),ITIL_TOOLS);
+ // Desde 1.5.0 los scopes itil/itil:write también abren plano_get/plano_upsert (plano.test.mjs).
+ assert.deepEqual(TOOLS.filter(t=>t.scope.startsWith('itil')&&t.name.startsWith('itil_')).map(t=>t.name),ITIL_TOOLS);
  assert.ok(FLEET_SCOPES.includes('itil')&&FLEET_SCOPES.includes('itil:write'),'la clave de flota los trae');
  const old=await h.list(legacy);assert.ok(ITIL_TOOLS.every(n=>!old.includes(n)));
  const ro=await h.list(reader);assert.ok(ro.includes('itil_xpacios_list')&&ro.includes('itil_inventory_get'));assert.ok(!ro.includes('itil_ci_upsert')&&!ro.includes('itil_ci_retire'));

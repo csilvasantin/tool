@@ -2,9 +2,10 @@ import {NATIVE_PLAYER_DOC, NATIVE_PLAYER_URI} from './native-player-docs.mjs';
 import { parseAgentIdentity, machineSuffix, canonicalMachineSuffix, groupingIdentityKey, isKnownPersona, identityKey } from '../../yokup-rtc/src/agent-identity.js';
 import { identidadPorClave } from './identidad-flota.mjs';
 import { ITIL_CI_PROPERTIES, ITIL_CI_REQUIRED, ITIL_CODE_SCHEMA, ITIL_NOTE_SCHEMA, ciArgs } from '../../api/src/itil-model.js';
+import { PLANO_GET_PROPERTIES, PLANO_UPSERT_PROPERTIES } from '../../api/src/xpacio-plano-model.js';
 import { FLEET_INCIDENTS_PREFIX, INCIDENT_LIST_STATES, INCIDENT_STATUSES, INCIDENT_BULK_STATUSES, INCIDENT_KINDS, INCIDENT_SEVERITIES, INCIDENT_LIST_MAX, INCIDENT_BULK_MAX } from '../../yokup-rtc/src/fleet-incidents.js';
 
-export const MCP_VERSION = '1.4.1';
+export const MCP_VERSION = '1.5.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 // admira.biz es el espejo (2-oct-2026). Sin estos orígenes un navegador en la
 // casa recibe origin_not_allowed aunque la clave sea válida. No es el login.
@@ -26,6 +27,9 @@ const incidentId = {id:str(64)};
 // cuelgan de cuentas de marca, no de proyectos del censo). Van por el binding DESK a yokup-api /internal/itil/*.
 export const FLEET_SCOPES = Object.freeze(['read','inbox','send','work','incidents','incidents:write','itil','itil:write']);
 export const ITIL_PREFIX = '/internal/itil';
+// Plano maestro del Xpacio (1.5.0 · DCL-fbee86b0016fa4cef7a7726c): mismos scopes que el ITIL (plano e inventario van juntos)
+// y mismo binding DESK a yokup-api /internal/plano/*. El plan viaja como objeto libre: lo valida yokup-api.
+export const PLANO_PREFIX = '/internal/plano';
 const definition = (name, description, inputSchema, scope, readOnly = true, idempotent = readOnly) => ({name, description, inputSchema, scope,
  annotations:{readOnlyHint:readOnly, destructiveHint:false, idempotentHint:idempotent, openWorldHint:!readOnly}});
 export const TOOLS = [
@@ -50,7 +54,9 @@ export const TOOLS = [
  definition('itil_xpacios_list','Xpacios de Yokup con su estado ITIL (managed_by itil o catalogo, nº de CIs ITIL y de equipos provisionales del catálogo). Filtros opcionales brand (brand_key: alsea, jti, caixabank…) y q (nombre, ciudad o admira_store_id). limit ≤ 200 (50).',obj({brand:str(40),q:str(120),limit:{type:'integer',minimum:1,maximum:200}}),'itil'),
  definition('itil_inventory_get','Inventario ITIL de un Xpacio: establecimiento, CIs (código, nombre, categoría, rol, grupo, posición, orientación, padre, managed_by, incidencias abiertas) con su ficha de ciclo de vida completa (fabricante, modelo, serie, compra, garantía, instalación, mantenimiento) y equipos aún sin ficha. Datos internos de Admira: no los publiques.',obj({admira_store_id:str(160)},['admira_store_id']),'itil'),
  definition('itil_ci_upsert','Alta o actualización de un CI (equipo) ITIL de un Xpacio, idempotente por itil_code (único global, p. ej. PDG103-PAN-01). Lo omitido se conserva; cadena vacía borra. adopt_device_id convierte un equipo existente en CI ITIL. Al primer CI ITIL del Xpacio, los equipos provisionales del catálogo se retiran («Sustituido por ITIL») salvo los que tienen incidencias abiertas. lifecycle solo con datos reales. Firmado con TU identidad.',obj({admira_store_id:str(160),...ITIL_CI_PROPERTIES},['admira_store_id',...ITIL_CI_REQUIRED]),'itil:write',false,true),
- definition('itil_ci_retire','Retira un CI ITIL (no se borra: queda retirado con el motivo en su ficha y en la auditoría). note obligatoria. Firmado con TU identidad.',obj({itil_code:ITIL_CODE_SCHEMA,note:ITIL_NOTE_SCHEMA},['itil_code','note']),'itil:write',false,true)
+ definition('itil_ci_retire','Retira un CI ITIL (no se borra: queda retirado con el motivo en su ficha y en la auditoría). note obligatoria. Firmado con TU identidad.',obj({itil_code:ITIL_CODE_SCHEMA,note:ITIL_NOTE_SCHEMA},['itil_code','note']),'itil:write',false,true),
+ definition('plano_get','Plano vigente (admira.xpacio-plano/1) de un Xpacio por admira_store_id o, por site_id, de un establecimiento permitido para la flota (p. ej. el laboratorio de Gran de Gràcia 51); uno de los dos. Devuelve plan, versión, sha256, autor (los titulares salen como «titular»), cruce con su inventario ITIL (avisos) y últimas versiones del histórico (history ≤ 50, 10 por defecto). seq abre una versión anterior. Datos internos: no los publiques.',obj(PLANO_GET_PROPERTIES),'itil'),
+ definition('plano_upsert','Guarda el plano (admira.xpacio-plano/1) de un Xpacio (admira_store_id; el id del plano debe coincidir) o de un establecimiento permitido para la flota (site_id). Idempotente por sha256 del JSON canónico: el mismo plano no escribe (changed:false, antes de mirar base_sha256); cada versión distinta va al histórico, que no se borra. base_sha256 = el sha256 que leíste (\'\' si no había plano): si otro lo cambió, 409. Validación estructural y avisos de cruce con el ITIL. Máx. 256 KB (por MCP, lo que quepa en 32 KiB de petición). Firmado con TU identidad.',obj(PLANO_UPSERT_PROPERTIES,['plan']),'itil:write',false,true)
 ];
 const noSecrets = { 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' };
 const json = (value, status = 200, headers = {}) => Response.json(value,{status,headers:{...noSecrets,...headers}});
@@ -64,6 +70,8 @@ function canonicalTarget(actor, machine) {
  return {actor:p.persona+suffix, machine, persona:p.persona};
 }
 export function validate(schema, value) {
+ // Objeto libre (plano_upsert.plan): aquí solo se exige que sea un objeto; lo valida el servicio de destino.
+ if(schema.type==='object' && schema.additionalProperties===true && !schema.properties) return !!value && typeof value==='object' && !Array.isArray(value);
  if(schema.type==='object') {
   if(!value || typeof value!=='object' || Array.isArray(value)) return false;
   return (schema.required||[]).every(k=>Object.hasOwn(value,k)) && Object.entries(value).every(([k,v])=>Object.hasOwn(schema.properties,k)&&validate(schema.properties[k],v));
@@ -115,7 +123,7 @@ async function service(env, binding, path, body) {
  const origin=binding==='TELEGRAM'?'https://bot.yokup.com':binding==='DESK'?'https://yokup-api.internal':'https://api.yokup.com';
  const response=await env[binding].fetch(new Request(origin+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(25000)}));
  const data=await response.json();
- if(!response.ok || data.ok===false) throw new ToolError('Yokup rechazó la operación: '+(data.code||'HTTP '+response.status)+(binding==='DESK'&&data.error?' · '+String(data.error).slice(0,200):''));
+ if(!response.ok || data.ok===false) throw new ToolError('Yokup rechazó la operación: '+(data.code||'HTTP '+response.status)+(binding==='DESK'&&data.error?' · '+String(data.error).slice(0,600):''));
  return data;
 }
 async function projects(env,p) {
@@ -208,6 +216,14 @@ async function itilTool(name,a,p,env) {
  if(name==='itil_ci_retire') return strip(await service(env,'DESK',ITIL_PREFIX+'/ci/retire',{...a,...who}));
  throw new ToolError('Herramienta desconocida.');
 }
+// Plano: el gate autentica y pone la identidad; yokup-api valida, versiona, cruza con el ITIL y audita (api/src/xpacio-plano.js).
+async function planoTool(name,a,p,env) {
+ const strip=({ok,...data})=>data, who={actor:p.actor,machine:p.machine};
+ if(!a.admira_store_id===!a.site_id) throw new ToolError('Indica admira_store_id (Xpacio del catálogo) o site_id (establecimiento permitido para la flota), uno de los dos.');
+ if(name==='plano_get') return strip(await service(env,'DESK',PLANO_PREFIX+'/get?'+new URLSearchParams(Object.entries(a).map(([k,v])=>[k,String(v)]))));
+ if(name==='plano_upsert') return strip(await service(env,'DESK',PLANO_PREFIX+'/upsert',{...a,...who}));
+ throw new ToolError('Herramienta desconocida.');
+}
 export async function runTool(name,a,p,env) {
  if(name==='yokup_whoami') return {actor:p.actor,machine:p.machine,projects:p.projects,scopes:p.scopes,expires_at:p.expires_at};
  if(name==='yokup_projects') return {projects:await projects(env,p)};
@@ -245,6 +261,7 @@ export async function runTool(name,a,p,env) {
  }
  if(name.startsWith('yokup_incident')) return incidentTool(name,a,p,env);
  if(name.startsWith('itil_')) return itilTool(name,a,p,env);
+ if(name.startsWith('plano_')) return planoTool(name,a,p,env);
  if(name==='yokup_activity') {
   await getMission(env,p,a,true);
   return service(env,'RTC','/fleet/progress',{mission:a.mission,owner:p.actor,activity:{kind:a.kind,detail:a.detail},work_session:{runtime:a.runtime,host:'app',session_id:a.session_id}});

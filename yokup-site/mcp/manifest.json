@@ -2,7 +2,7 @@
   "name": "yokup-fleet",
   "title": "Yokup · yokup.com — El marcador y el tablero de la flota AdmiraNeXT",
   "description": "Servidor MCP de Yokup para comunicar consejeros y agentes, consultar misiones y registrar trabajo con identidad y permisos por proyecto.",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "site": "https://www.yokup.com",
   "hub": "https://www.yokup.com/mcp/",
   "llms_txt": "https://www.yokup.com/mcp/llms.txt",
@@ -1151,6 +1151,88 @@
           "openWorldHint": true
         },
         "required_scope": "itil:write"
+      },
+      {
+        "name": "plano_get",
+        "description": "Plano vigente (admira.xpacio-plano/1) de un Xpacio por admira_store_id o, por site_id, de un establecimiento permitido para la flota (p. ej. el laboratorio de Gran de Gràcia 51); uno de los dos. Devuelve plan, versión, sha256, autor (los titulares salen como «titular»), cruce con su inventario ITIL (avisos) y últimas versiones del histórico (history ≤ 50, 10 por defecto). seq abre una versión anterior. Datos internos: no los publiques.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "admira_store_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][\\w.:-]{0,159}$"
+            },
+            "site_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[\\w-]{1,80}$"
+            },
+            "history": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "required_scope": "itil"
+      },
+      {
+        "name": "plano_upsert",
+        "description": "Guarda el plano (admira.xpacio-plano/1) de un Xpacio (admira_store_id; el id del plano debe coincidir) o de un establecimiento permitido para la flota (site_id). Idempotente por sha256 del JSON canónico: el mismo plano no escribe (changed:false, antes de mirar base_sha256); cada versión distinta va al histórico, que no se borra. base_sha256 = el sha256 que leíste ('' si no había plano): si otro lo cambió, 409. Validación estructural y avisos de cruce con el ITIL. Máx. 256 KB (por MCP, lo que quepa en 32 KiB de petición). Firmado con TU identidad.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "admira_store_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][\\w.:-]{0,159}$"
+            },
+            "site_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[\\w-]{1,80}$"
+            },
+            "plan": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "base_sha256": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 64,
+              "pattern": "^([a-f0-9]{64})?$"
+            }
+          },
+          "required": [
+            "plan"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "required_scope": "itil:write"
       }
     ]
   },
@@ -1228,11 +1310,49 @@
         "https://www.xpaceos.com",
         "https://www.pixeria.com",
         "https://www.admira.app",
+        "https://www.admira.biz",
+        "https://www.admira.studio",
+        "https://www.admira.store",
+        "https://www.admira.tv",
         "https://www.clearchannel.tv",
         "y sus variantes sin www"
       ],
       "cache": "max-age=60"
     }
+  },
+  "plano": {
+    "what": "Plano maestro del Xpacio (admira.xpacio-plano/1): Yokup guarda el plano vigente de cada establecimiento junto a su inventario ITIL, con versión e histórico append-only; las cinco soluciones (admira.biz, admira.app, admira.studio, admira.store, admira.tv) lo leen de aquí.",
+    "docs": "https://github.com/csilvasantin/tool/blob/main/docs/plano-yokup.md",
+    "mcp_tools": [
+      "plano_get",
+      "plano_upsert"
+    ],
+    "retailer_rest": {
+      "read": "GET https://data.yokup.com/api/retailer/plano?site_id=|admira_store_id=",
+      "write": "PUT https://data.yokup.com/api/retailer/plano {site_id|admira_store_id, plan, base_sha256?}",
+      "auth": "Sesión del comercio: titular o miembro con edición escriben; viewer lee."
+    },
+    "galaxy_read": {
+      "method": "GET",
+      "url": "https://data.yokup.com/api/plano/xpacios/{admira_store_id|yokup-<site_id>}",
+      "auth": "Sin clave: si hay plano, versión y nº de pantallas, solo de Xpacios públicos en los mapas. Con cabecera X-Yokup-Itil-Key (la misma clave del ITIL): plano por lista blanca del esquema (sin dirección, contactos ni ids internos), cruce con el ITIL y ETag. Un yokup-<site_id> solo si está publicado en los mapas o permitido para la flota.",
+      "schema": "yokup.plano/1",
+      "plan_schema": "admira.xpacio-plano/1",
+      "max_bytes": 262144,
+      "cors": [
+        "https://www.admira.biz",
+        "https://www.admira.app",
+        "https://www.admira.studio",
+        "https://www.admira.store",
+        "https://www.admira.tv",
+        "https://www.xpaceos.com",
+        "https://www.pixeria.com",
+        "https://www.clearchannel.tv",
+        "y sus variantes sin www"
+      ],
+      "cache": "max-age=60"
+    },
+    "fleet_scope": "MCP de flota: Xpacios del catálogo por admira_store_id y, por site_id, solo los establecimientos de xpacio_plano_fleet_sites (empezando por el laboratorio de Gran de Gràcia 51). Sin correos de titulares."
   },
   "native_players": {
     "doc": "https://www.yokup.com/mcp/native-players.md",
