@@ -2078,7 +2078,7 @@
   // apagados) > apagado. Las preguntas van a /avatar-ask (Pages; en yokup.com lo reenvía
   // el guardián). Donde ya está el copiloto de la flota (avatar-widget.js) no se carga
   // nada: un segundo avatar en la misma esquina solo estorba. Tampoco dentro de un iframe.
-  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261012-unified-1";
+  var AVATAR_LOADER = "https://www.admiranext.com/assets/avatar.js?v=20261014-personajes-2";
   var cargadorPromesa = null;
   function conCopiloto() { return !!document.querySelector('script[src*="avatar-widget"]'); }
   function enIframe() { try { return window.self !== window.top; } catch (e) { return true; } }
@@ -2341,8 +2341,8 @@
       document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261013-alsea-1" :
-        "https://www.admiranext.com/suite/experto.js?v=20261013-alsea-1";
+      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2" :
+        "https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2";
       if (nativeAppDemo) {
         ax.setAttribute("data-admira-demo-engine", "");
         ax.setAttribute("data-pata", "admira.app");
