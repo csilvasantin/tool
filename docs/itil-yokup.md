@@ -233,6 +233,33 @@ este inventario: modelo, nº de serie, compra, proveedor, garantía (meses, fin 
   `/retailer?itil_alta=1&xpacio=&categoria=&nombre=&adoptar=&incidencia=#itil` abre el alta prefijada).
   Lógica compartida: `yokup-site/yk-equipo.js`.
 
+## Importar inventario del Arquitecto (14-oct-2026)
+
+DCL-66d9ae0d5e756d0067127f24 · SubNeoMBP14 · MBP14. El estudio del Arquitecto de admira.biz
+(`/arquitecto inventariar`: Admirito con casco de obra estima el plano y los equipos de un Xpacio desde fotos, vídeo o
+una descripción) entrega el plano `admira.xpacio-plano/1` y la lista de CI sugeridos al Portal del comercio:
+
+- **Traspaso sin servidores**: `https://admira.app/retailer#arquitecto=v1.<base64url del JSON en deflate-raw>` (o `v0.`
+  sin comprimir), esquema `admira.arquitecto-inventario/1` (`{schema, creado, origen, xpacio:{id,nombre,tipo}, prefijo,
+  plan, cis:[{itil_code,name,category,role,group_name,position,orientation,parent_itil_code}]}`). El fragmento no viaja a
+  ningún servidor; el portal lo lee una vez y lo quita de la barra de direcciones. Si no cabe en el enlace (más de
+  120 000 caracteres en el estudio), el titular descarga el JSON y lo sube en la misma pantalla. Contrato compartido:
+  `docs/arquitecto-traspaso.json` (idéntico a `clearchannel-tv/tests/fixtures/arquitecto-traspaso.json`).
+- **Contenido no confiable**: `yokup-site/arquitecto-traspaso.js` valida esquema, códigos (regex de arriba, únicos),
+  categorías, orientación, relaciones (sin ciclos), textos (recortados y sin caracteres de control), 200 CI como máximo,
+  el plano ≤ 256 KB y el JSON ≤ 300 KB **también descomprimido** (se corta la descompresión al pasarlo).
+- **Nada sin el titular**: «Importar inventario del Arquitecto» (`retailer-arquitecto.js`, dentro del espacio de trabajo,
+  junto al Inventario ITIL) enseña el Xpacio, el establecimiento elegido (o el alta de uno nuevo con el diálogo de
+  siempre, con nombre y tipo ya puestos), qué pasará con cada CI (se crea · se actualiza · ya está igual · conflicto ·
+  depende de un CI que no estará) y los avisos (retirada de los provisionales del catálogo con el primer CI ITIL,
+  versión nueva del plano). El alta exige marcar «He revisado…» y pulsar «Dar de alta en Yokup».
+- **Orden e idempotencia**: CI con `POST /api/retailer/itil/cis` en orden de dependencia (players antes que sus
+  pantallas; al actualizar solo se mandan los campos con valor, lo omitido se conserva) y después `PUT
+  /api/retailer/plano` con `base_sha256` del vigente (el plano lleva el `admira_store_id` como id en un Xpacio del
+  catálogo y `yokup.site_id` del establecimiento). Repetir no escribe: los CI iguales no se mandan y el plano igual da
+  `changed:false`. Un código de otro establecimiento (409) falla solo él y sus hijos no se mandan.
+- Pruebas: `cd yokup-site && node --test retailer-arquitecto.test.mjs`.
+
 ## Routers de tienda (categoría red)
 
 05-oct-2026 · SmithMacMini · MacMini. Un router por Xpacio vivo, detrás de un adaptador que no nombra al fabricante en la puerta (`NetworkVendorAdapter`: `listDevices`, `getDeviceStatistics`, `mapToItilCi`). El rótulo visible es «Teltonika o similar».
