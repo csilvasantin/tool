@@ -2,11 +2,7 @@
 // Va delante de la verja de /supervisor/* : el bucle de la cámara no tiene sesión Google.
 // Solo guarda un JSON corto. Las fotos viven en media de flota, ya pixeladas.
 
-export const SOLUCIONES_SQL = `CREATE TABLE IF NOT EXISTS supervisor_soluciones (
-  id TEXT PRIMARY KEY,
-  payload TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
-)`;
+export const SOLUCIONES_SQL = "CREATE TABLE IF NOT EXISTS supervisor_soluciones (id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)";
 
 const ID_RE = /^[a-z0-9-]{1,40}$/;
 const FOTO_RE = /^https:\/\/api\.yokup\.com\/media\/fleet\/[a-f0-9]{8,64}\.(?:jpe?g|png|webp)$/i;
