@@ -1820,11 +1820,14 @@
     FLEET.cliInput=el("textarea","yk-cli-terminal-input");FLEET.cliInput.rows=2;FLEET.cliInput.maxLength=4000;FLEET.cliInput.disabled=true;FLEET.cliInput.setAttribute("aria-label","Mensaje para el agente CLI seleccionado");form.appendChild(FLEET.cliInput);
     FLEET.cliSend=fleetText("button","yk-cli-terminal-send","Enviar ⌘↵");FLEET.cliSend.type="submit";FLEET.cliSend.disabled=true;form.appendChild(FLEET.cliSend);
     // /marca y /brand nunca viajan al tmux del agente: los resuelve la consola
-    // LOCAL de este navegador (FLT-101338). El resto del texto, /help incluido
-    // (que es la ayuda del propio CLI remoto), se envía como siempre.
-    function submitCliEditor(){var text=FLEET.cliInput.value;if(!text.trim()||FLEET.busy)return;if(LOCAL_CLI.isLocalOnly(text)){FLEET.cliInput.value="";LOCAL_CLI.run(text.trim());return;}terminalAction("write",text);}
+    // LOCAL de este navegador (FLT-101338). Tampoco los verbos de la página
+    // (/proyecto…, encargo #5980), que además salen con Enter a secas y aunque el
+    // agente esté ocupado. El resto del texto, /help incluido (que es la ayuda del
+    // propio CLI remoto), se envía como siempre con ⌘↵.
+    function localDeCaja(text){return LOCAL_CLI.isLocalOnly(text)||LOCAL_CLI.isPageVerb(text);}
+    function submitCliEditor(){var text=FLEET.cliInput.value;if(!text.trim())return;if(localDeCaja(text)){FLEET.cliInput.value="";LOCAL_CLI.run(text.trim());return;}if(FLEET.busy)return;terminalAction("write",text);}
     form.addEventListener("submit",function(event){event.preventDefault();submitCliEditor();});
-    FLEET.cliInput.addEventListener("keydown",function(event){var enter=event.key==="Enter"||event.code==="Enter"||event.code==="NumpadEnter";if(enter&&(event.metaKey||event.ctrlKey)&&!event.isComposing){event.preventDefault();event.stopPropagation();submitCliEditor();}});
+    FLEET.cliInput.addEventListener("keydown",function(event){var enter=event.key==="Enter"||event.code==="Enter"||event.code==="NumpadEnter";if(!enter||event.isComposing)return;var una=FLEET.cliInput.value.indexOf("\n")<0;if(event.metaKey||event.ctrlKey||(!event.shiftKey&&una&&localDeCaja(FLEET.cliInput.value))){event.preventDefault();event.stopPropagation();submitCliEditor();}});
     terminal.appendChild(form);
     section.appendChild(terminal);return section;
   }
@@ -1939,6 +1942,10 @@
   var LOCAL_CLI = {
     log: null, input: null,
     isLocalOnly: function (text) { return /^\s*\/(?:marca|brand|marcablanca)(?:\s|$)/i.test(String(text || "")) || /^\s*\/(?:avatarDigital|digitalAvatar)\b/i.test(String(text || "")) || /^\s*\/(?:avatarON|avatarOFF|avatar)(?:\s|$)/i.test(String(text || "")) || /^\s*\/cli\s+(?:ayudante|helper)\b/i.test(String(text || "")); },
+    // Los verbos propios de la página (/proyecto del portal del comercio, encargo #5980…) tampoco salen de este
+    // navegador aunque se escriban en la caja del CLI de un agente: si no, se iban a su tmux y la página no se
+    // enteraba. /cli es la excepción: solo «/cli ayudante» es local (arriba); el resto sigue yendo al agente.
+    isPageVerb: function (text) { var m = /^\s*\/([a-z0-9-]+)(?:\s|$)/i.exec(String(text || "")); if (!m) return false; var name = m[1].toLowerCase(); return name !== "cli" && Object.prototype.hasOwnProperty.call(PAGE_VERBS, name); },
     print: function (text, cls) {
       var ol = LOCAL_CLI.log; if (!ol) return;
       String(text == null ? "" : text).split("\n").forEach(function (line) {
