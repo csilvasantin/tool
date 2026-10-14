@@ -21,13 +21,15 @@ Ninguna tabla existente cambia.
 |---|---|
 | `xpacio_planos` (PK `site_id`) | El plano **vigente** del establecimiento: `admira_store_id` (copia del catálogo; NULL en los propios de Yokup), `plan_id` (el `id` del JSON), `schema`, `version` (la del JSON), `plan_json` (compacto, en el orden en que llegó), `sha256`, `seq`, `screens`, `bytes`, `source` (`portal` \| `mcp-flota` \| `mcp-comercio`), `created_by/at`, `updated_by/at`. Se sustituye, nunca se borra (trigger). |
 | `xpacio_plano_versions` | **Histórico append-only**: una fila por cada versión distinta que pasó a vigente, con `seq` 1, 2, 3… por establecimiento (`UNIQUE(site_id, seq)`). Triggers que abortan cualquier `UPDATE` o `DELETE`. |
+| `xpacio_plano_fleet_sites` (PK `site_id`) | Establecimientos que la **flota** puede alcanzar por `site_id` (y que la Galaxia con clave puede leer aunque no estén publicados en los mapas): `note`, `granted_by`, `created_at`, `revoked_at`. Sin FK a propósito. La migración siembra el laboratorio `4723419e-5bf2-4f7c-b5d2-b87171503754`. |
 | `itil_audit` (ya existía) | Cada versión nueva deja `action = 'plan-update'`, actor, canal, `site_id` y detalle (`Primer plano · <versión> · N pantallas · sha256 <12>`). |
 
 Reglas:
 
 1. **Idempotente.** El hash es el SHA-256 del **JSON canónico** (claves ordenadas, sin espacios). Repetir el
    mismo plano, aunque llegue con otro orden de claves o sangría, devuelve `changed:false` y no escribe nada
-   (ni versión, ni auditoría), como el upsert del ITIL.
+   (ni versión, ni auditoría), como el upsert del ITIL. La idempotencia va **antes** que el conflicto: si el
+   vigente ya es ese plano, `changed:false` aunque `base_sha256` esté desfasado (no hay nada que pisar).
 2. **Cada versión distinta va al histórico.** Volver a un plano anterior es una versión nueva (`seq` sigue
    subiendo): el histórico cuenta qué estuvo vigente y cuándo, no qué contenidos distintos hubo.
 3. **Sin pisar a nadie.** `base_sha256` (opcional) es el sha256 que leíste; `''` o `null` = «espero que no
@@ -80,8 +82,16 @@ del guardado) y en `itil` (Galaxia con clave):
 | Puerta | Quién | Alcance |
 |---|---|---|
 | Portal `GET\|PUT https://data.yokup.com/api/retailer/plano` (cookie, también en «Ver como») | Titular o miembro con edición (`owner`, `manager`, superusuario); `viewer` solo lee | Sus establecimientos (mismo `ownerSite` que el ITIL). Canal `portal`; vía MCP del comercio (principal), `mcp-comercio`. |
-| MCP de flota `https://yokup.com/mcp` 1.5.0 | Clave de flota o `ykm_` con `itil` / `itil:write` | `plano_get` / `plano_upsert` en cualquier Xpacio (`admira_store_id`) o establecimiento (`site_id`). Canal `mcp-flota`. Ver `yokup-site-gate/MCP.md`. |
+| MCP de flota `https://yokup.com/mcp` 1.5.0 | Clave de flota o `ykm_` con `itil` / `itil:write` | `plano_get` / `plano_upsert` en los Xpacios del catálogo (`admira_store_id`, como el ITIL) y, por `site_id`, **solo** en los establecimientos de `xpacio_plano_fleet_sites`. Un comercio del portal no es de la flota: no permitido e inexistente responden igual, `404 site_not_found`. Vista sin correos: lo guardado desde el portal o el MCP del comercio sale como `titular`; lo de los agentes, con su `Persona · Máquina`. El plano va entero (un agente que lo edite y lo vuelva a guardar no pierde campos). Canal `mcp-flota`. Ver `yokup-site-gate/MCP.md`. |
 | Lectura Galaxia `GET https://data.yokup.com/api/plano/xpacios/:id` | Público mínimo; completo con la clave `yki_` del ITIL | Sin datos privados. |
+
+**Dar acceso de flota a un establecimiento** (orden explícita de Carlos; el titular sigue mandando desde el portal):
+
+```sh
+cd api && npx wrangler d1 execute yokup-db --remote --command \
+ "INSERT INTO xpacio_plano_fleet_sites(site_id,note,granted_by,created_at) VALUES('<site_id>','<nombre del establecimiento>','<Persona · Máquina> · <misión>',$(date +%s)000)"
+# Revocar (nada se borra): … --command "UPDATE xpacio_plano_fleet_sites SET revoked_at=$(date +%s)000 WHERE site_id='<site_id>'"
+```
 
 `/internal/plano/{get,upsert}` solo responde por el service binding (host `yokup-api.internal` y sin
 `CF-Connecting-IP`/`CF-Ray`, el mismo guardado que `/internal/itil/*`); desde Internet, 404.
@@ -112,7 +122,9 @@ pared, a qué altura, dónde están puertas y mobiliario): no debe estar abierto
   `Cache-Control: public, max-age=60`; 60 peticiones/min por IP (cubo `plano-pub`, aparte del ITIL).
 - Un `yokup-*` sin publicar (o que no existe) sin clave: **401 `key_required`**, igual en ambos casos para no
   revelar si existe.
-- **Con `X-Yokup-Itil-Key: yki_…`**: el plano completo **sin datos privados**, `sha256`, `updated_at`,
+- **Con `X-Yokup-Itil-Key: yki_…`**: un `yokup-*` solo si está publicado en los mapas o permitido para la flota
+  (`xpacio_plano_fleet_sites`); si no, **404** (la clave de una solución no abre el plano de cualquier comercio del
+  portal). Devuelve el plano **sin datos privados**, `sha256`, `updated_at`,
   `summary` (paredes, pantallas, dispositivos, enlazados al ITIL) e `itil` (`cis`, `linked`, `warnings`).
   `Cache-Control: private, max-age=60`, `ETag: "<sha256>"` (con `If-None-Match` → 304). 1200/min por clave.
   Clave inválida, revocada o caducada: 401. Restringida a orígenes (403 fuera) y marcas (404 fuera; los
@@ -121,10 +133,22 @@ pared, a qué altura, dónde están puertas y mobiliario): no debe estar abierto
   y clearchannel.tv (con y sin www). Otro `Origin`: 403. Sin credenciales. Expone `ETag`.
 - Xpacio inexistente o retirado del catálogo: 404.
 
-**Nunca viajan** (se quitan a cualquier profundidad, `publicPlan`): `direccion`/`address`, coordenadas
-(`lat`, `lng`, `coords`…), `serie`/`serial`, `factura`, `proveedor`, `fabricante`, `modelo`, importes,
-`compra`, `garantia`, correos, teléfonos, IMEI/MAC/IP y los ids internos (`site_id` —incluido
-`yokup.site_id`—, `device_id`, `retailer_id`). Tampoco el autor (`updated_by`) ni la fuente del guardado.
+**Lista blanca** (`publicPlan`, `PLANO_PUBLIC_FIELDS`, como `publicCi` del ITIL): solo viajan los campos conocidos
+de `admira.xpacio-plano/1` y con su tipo; un campo conocido con otro tipo tampoco viaja.
+
+| Bloque | Campos que viajan |
+|---|---|
+| raíz | `schema`, `id`, `version`, `nombre`, `fuente{titulo, medidas, pantallas, itil}`, `planta{ancho, fondo, alto}`, `criterios{alturaMinima, alturaMinimaEscaparate, holguraTecho, separacionMinima, profundidadMueble}`, `contenidos{instalacion, grupo, url}`, `yokup{managed_by, cis}` |
+| `paredes[]` | `id`, `nombre`, `a`, `b`, `alto` |
+| `huecos[]` | `id`, `tipo`, `nombre`, `pared`, `desde`, `ancho`, `base`, `alto` |
+| `mobiliario[]` | `id`, `tipo`, `nombre`, `x`, `y`, `w`, `d`, `alto` |
+| `pantallas[]` | `id`, `itil`, `screenId`, `nombre`, `corto`, `tipo`, `grupo`, `grupoNombre`, `subgrupo`, `player`, `orientacion`, `pulgadas`, `resolucion`, `aspecto`, `dimensiones{ancho, alto}`, `escaparate`, `estado`, `pared`, `s`, `z`, `fuente` |
+| `dispositivos[]` | `id`, `nombre`, `categoria`, `rol`, `pared`, `s`, `z`, `itil` |
+
+Todo lo demás se queda en Yokup: `direccion`, contactos (`contact_email`, teléfonos), calle y código postal,
+coordenadas (`geo`, `location`…), series, MAC/IP, NIF, `yokup.site_id` y `yokup.portal`, la máquina de flota de un
+dispositivo (`fleet`) y cualquier campo que alguien añada mañana. Un campo nuevo del esquema que deba viajar se
+añade a `PLANO_PUBLIC_FIELDS` con su prueba. Tampoco viajan el autor (`updated_by`) ni la fuente del guardado.
 
 Los orígenes admira.store, admira.studio y admira.tv (y sus variantes sin www) se añadieron también a la
 lectura del ITIL (`GALAXY_ORIGINS` es común) y a `api/tools/itil-read-key.mjs` (`--origins`), junto a la
@@ -160,18 +184,28 @@ curl -s https://yokup.com/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":1,"method":"to
 
 No hay secretos nuevos. yokup-db se migra fichero a fichero (su `d1_migrations` está vacía):
 
-1. **yokup-api**: `cd api && npx wrangler d1 execute yokup-db --remote --file migrations/0024_xpacio_plano.sql`
-   y después `npx wrangler deploy`. Al revés, el código nuevo fallaría al leer `xpacio_planos`
-   (`/api/retailer/itil` también la lee para `plan_version`): migrar primero.
-2. **yokup-site** (Pages): manifiesto 1.5.0, `llms.txt` y hub `/mcp` (`yokup-site/deploy.mjs`).
-3. **yokup-site-gate**: `plano_get` / `plano_upsert` (`yokup-site/deploy.mjs` o `yokup-site-gate/deploy.sh`).
-   Al revés, saldrían en `tools/list` y responderían «HTTP 404» hasta publicar yokup-api.
+1. **Migración**: `cd api && npx wrangler d1 execute yokup-db --remote --file migrations/0024_xpacio_plano.sql`.
+   Comprobación: `npx wrangler d1 execute yokup-db --remote --command "SELECT type,name FROM sqlite_master WHERE name LIKE 'xpacio_plano%' ORDER BY type,name"`
+   → **3 tablas** (`xpacio_planos`, `xpacio_plano_versions`, `xpacio_plano_fleet_sites`), **2 índices**
+   (`xpacio_planos_store`, `xpacio_plano_versions_site`) y **3 triggers** (`xpacio_planos_no_delete`,
+   `xpacio_plano_versions_no_update`, `xpacio_plano_versions_no_delete`); y
+   `SELECT site_id,revoked_at FROM xpacio_plano_fleet_sites` → el laboratorio, sin revocar.
+2. **yokup-api**: `cd api && npx wrangler deploy`. Después de la migración: el código nuevo lee `xpacio_planos`
+   (también `/api/retailer/itil`, para `plan_version`).
+3. **yokup-site-gate** y 4. **yokup-site** (Pages), al final y juntos: `YOKUP_DEPLOY_AGENT=… YOKUP_DEPLOY_MACHINE=… node yokup-site/deploy.mjs`
+   desde `origin/main`. Publica Pages (manifiesto 1.5.0, `llms.txt`, hub `/mcp`) y, a continuación, el gate con
+   `plano_get` / `plano_upsert` como una sola release. El gate no se puede publicar antes por separado con
+   `yokup-site-gate/deploy.sh`: ese script exige que `yokup-site` en HEAD sea idéntico al sello publicado en Pages,
+   y este cambio toca `yokup-site/mcp/*`. Queda una ventana de segundos entre Pages y el gate en la que el
+   manifiesto anuncia las herramientas antes de que respondan; yokup-api ya está publicado (paso 2), así que en
+   cuanto sale el gate funcionan.
 
 ## Pruebas
 
 `node --test api/*.test.mjs` (`api/xpacio-plano.test.mjs`: validación, hash canónico, cruce con el ITIL,
-`publicPlan`, migración idempotente y append-only, idempotencia e histórico, `base_sha256`, perímetro
-titular/manager/viewer/otro comercio, internas solo por binding, lectura Galaxia sin/con clave, `yokup-*`,
-ETag y CORS; y, si `~/Claude/repos/clearchannel-tv` está en la máquina, que los dos planos reales validan) ·
+`publicPlan` por lista blanca con campos hostiles, migración idempotente y append-only (y su recuento de objetos),
+idempotencia e histórico, idempotencia antes que `base_sha256`, perímetro titular/manager/viewer/otro comercio,
+internas solo por binding, flota por `site_id` solo en lo permitido y sin correos, lectura Galaxia sin/con clave,
+`yokup-*` solo publicado o permitido, ETag y CORS; y, si `~/Claude/repos/clearchannel-tv` está en la máquina, que los dos planos reales validan) ·
 `cd yokup-site-gate && node --test ./*.test.mjs` (`plano.test.mjs`: scopes, esquema, extremo a extremo
 gate → DESK → yokup-api).

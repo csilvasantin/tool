@@ -72,6 +72,20 @@ test('plano de extremo a extremo: gate → DESK (host interno, sin borde ni toke
  assert.ok(!JSON.stringify(h.seen).includes('executor-secret'));
 });
 
+test('plano por site_id: un comercio del portal no es de la flota (site_not_found) hasta que se permite de forma explícita',async()=>{
+ const h=await setup(),db=h.api.db;
+ db.prepare("INSERT INTO retailer_accounts VALUES('shop-1','dueno@comercio.test','Comercio','x','salt',1)").run();
+ db.prepare("INSERT INTO retailer_sites VALUES('site-comercio-1','shop-1','Estanco','tobacco','ES','Barcelona','Calle privada 1',41.4,2.15,1)").run();
+ const lab=plan({id:'estanco-1',yokup:{site_id:'site-comercio-1'}});
+ for(const [name,args] of [['plano_get',{site_id:'site-comercio-1'}],['plano_upsert',{site_id:'site-comercio-1',plan:lab}]]){
+  const r=await h.call(name,args);assert.equal(r.result.isError,true,name);assert.match(r.result.content[0].text,/site_not_found/);
+ }
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM xpacio_planos').get().n,0);
+ db.prepare("INSERT INTO xpacio_plano_fleet_sites(site_id,note,granted_by,created_at) VALUES('site-comercio-1','prueba','test',1)").run();
+ const up=await h.call('plano_upsert',{site_id:'site-comercio-1',plan:lab});assert.equal(up.result.isError,false,JSON.stringify(up));assert.equal(up.result.structuredContent.admira_store_id,null);
+ assert.equal((await h.call('plano_get',{site_id:'site-comercio-1'},reader)).result.structuredContent.current.updated_by,'OraculoMacMini · MacMini');
+});
+
 test('plano sin binding DESK: error claro y nada se escribe',async()=>{
  const h=await setup({desk:false});const r=await h.call('plano_upsert',{admira_store_id:'alsea-sbux-021',plan:plan()});
  assert.equal(r.result.isError,true);assert.match(r.result.content[0].text,/DESK/);

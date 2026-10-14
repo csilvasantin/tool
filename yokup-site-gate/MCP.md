@@ -228,12 +228,13 @@ Mismos scopes que el ITIL (plano e inventario son la misma ficha del Xpacio).
 
 | Herramienta | Scope | Qué hace |
 |---|---|---|
-| `plano_get` | `itil` | `{admira_store_id \| site_id, history? ≤50, seq?}` → plano vigente (o la versión `seq`), `current` (versión, sha256, autor, fuente), `itil_check` (avisos de cruce) y `history`. |
-| `plano_upsert` | `itil:write` | `{admira_store_id \| site_id, plan, base_sha256?}`. Idempotente por sha256 del JSON canónico (`changed:false`); cada versión distinta va a `xpacio_plano_versions` (no se borra). `base_sha256` = el leído (`''` si no había): si cambió, `plan_conflict`. El `id` del plano debe ser el `admira_store_id` del Xpacio (`plan_id_mismatch`). |
+| `plano_get` | `itil` | `{admira_store_id \| site_id, history? ≤50, seq?}` → plano vigente (o la versión `seq`), `current` (versión, sha256, autor, fuente), `itil_check` (avisos de cruce) y `history`. Sin correos: lo guardado por el comercio sale como `titular`. |
+| `plano_upsert` | `itil:write` | `{admira_store_id \| site_id, plan, base_sha256?}`. Idempotente por sha256 del JSON canónico (`changed:false`, antes de mirar `base_sha256`); cada versión distinta va a `xpacio_plano_versions` (no se borra). `base_sha256` = el leído (`''` si no había): si cambió, `plan_conflict`. El `id` del plano debe ser el `admira_store_id` del Xpacio (`plan_id_mismatch`). |
 
-Exactamente uno de `admira_store_id` (Xpacio del catálogo) o `site_id` (establecimiento propio de
-Yokup, como el laboratorio de Gran de Gràcia 51, que no tiene `admira_store_id`); si no, error sin
-llamar a yokup-api. `plan` es un objeto libre en el esquema (el validador del gate solo comprueba que
+Exactamente uno de `admira_store_id` (Xpacio del catálogo, como el ITIL) o `site_id`; si no, error sin
+llamar a yokup-api. Por `site_id` **solo** los establecimientos de `xpacio_plano_fleet_sites` (la migración
+siembra el laboratorio de Gran de Gràcia 51, que no tiene `admira_store_id`): un comercio del portal no es de la
+flota y responde `404 site_not_found`, igual que uno inexistente. Alta y revocación: `docs/plano-yokup.md`. `plan` es un objeto libre en el esquema (el validador del gate solo comprueba que
 sea un objeto): la validación estructural la hace yokup-api y sus errores llegan como `isError:true`
 con `invalid_plan · Plano no válido: …`. Límite práctico por MCP: la petición entera cabe en 32 KiB
 (los planos reales pesan 7-9 KB); planos mayores, hasta 256 KB, por el portal (`PUT /api/retailer/plano`).
@@ -243,9 +244,11 @@ Autor = `Persona · Máquina` de la credencial; auditoría en `itil_audit` (`act
 con el mismo guardado que `/internal/itil/*` (host interno y sin `CF-Connecting-IP`/`CF-Ray`; desde
 Internet, 404). Sin secreto nuevo.
 
-**Orden de despliegue.** 1) yokup-api: `d1 execute --file migrations/0024_xpacio_plano.sql` y
-`wrangler deploy`; 2) yokup-site (Pages: manifiesto, llms.txt y hub); 3) el gate. Al revés, `plano_*`
-saldrían en `tools/list` y fallarían con «HTTP 404» hasta publicar yokup-api.
+**Orden de despliegue.** 1) migración `d1 execute --file migrations/0024_xpacio_plano.sql` y su comprobación
+(3 tablas, 2 índices y 3 triggers `xpacio_plano%`); 2) yokup-api (`wrangler deploy`); 3+4) gate y yokup-site
+juntos y al final con `yokup-site/deploy.mjs` (Pages y después el gate). `deploy.sh` solo no sirve aquí: exige que
+`yokup-site` en HEAD sea igual al sello de Pages, y este cambio toca `yokup-site/mcp/*`. Con yokup-api antes, las
+`plano_*` funcionan desde que sale el gate.
 
 ## La web: marca blanca y /marca (FLT-101338)
 

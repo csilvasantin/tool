@@ -154,10 +154,12 @@ Yokup guarda también el PLANO de cada Xpacio (admira.xpacio-plano/1) junto a su
 ITIL; admira.biz, admira.app, admira.studio, admira.store y admira.tv lo leen de aquí.
 
 - `plano_get {admira_store_id | site_id, history? ≤50, seq?}` — plano vigente (o la versión
-  seq), versión, sha256, autor, cruce con el ITIL (avisos) y últimas versiones. Uno de los dos:
-  admira_store_id (Xpacio del catálogo) o site_id (establecimiento propio de Yokup).
+  seq), versión, sha256, autor (el comercio sale como «titular»), cruce con el ITIL (avisos) y
+  últimas versiones. Uno de los dos: admira_store_id (Xpacio del catálogo) o site_id, este solo
+  para establecimientos permitidos para la flota (p. ej. el laboratorio de Gran de Gràcia 51);
+  cualquier otro comercio responde site_not_found.
 - `plano_upsert {admira_store_id | site_id, plan, base_sha256?}` — idempotente por sha256 del
-  JSON canónico (mismo plano: changed:false); cada versión distinta va al histórico, que no se
+  JSON canónico (mismo plano: changed:false, antes de mirar base_sha256); cada versión distinta va al histórico, que no se
   borra. El id del plano debe ser el admira_store_id del Xpacio. base_sha256 = el que leíste
   ('' si no había plano): si otro lo cambió, plan_conflict. Validación estructural (sala,
   paredes ≥3 con a/b, pantallas con pared/s/z/orientacion/pulgadas, itil null o código ITIL);
@@ -165,7 +167,8 @@ ITIL; admira.biz, admira.app, admira.studio, admira.store y admira.tv lo leen de
 
 Lectura para las soluciones: GET https://data.yokup.com/api/plano/xpacios/{admira_store_id |
 yokup-<site_id>} — sin clave, si hay plano, versión y nº de pantallas; con X-Yokup-Itil-Key, el
-plano sin datos privados (sin dirección ni ids internos), su cruce con el ITIL y ETag.
+plano por lista blanca del esquema (sin dirección, contactos ni ids internos), su cruce con el ITIL
+y ETag. Un yokup-<site_id> solo si está publicado en los mapas o permitido para la flota.
 
 Los esquemas exactos están en tools/list y en mcp/manifest.json. Permisos: read,
 inbox, send, work, incidents, incidents:write, itil, itil:write. La credencial dura 30 días; el operador puede revocarla antes.

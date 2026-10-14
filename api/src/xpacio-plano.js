@@ -25,10 +25,15 @@ export async function planBody(request){
 }
 // CIs del establecimiento para el cruce (código, categoría, estado de su ficha).
 const ciRows=(env,siteId)=>rows(env,"SELECT i.itil_code,i.category,i.managed_by,d.name,COALESCE(lc.status,'operational') AS status FROM itil_items i JOIN installer_devices d ON d.id=i.device_id LEFT JOIN device_lifecycle lc ON lc.device_id=i.device_id WHERE i.site_id=? ORDER BY i.itil_code",siteId);
-const meta=r=>r?{plan_id:r.plan_id,schema:r.schema,version:r.version,sha256:r.sha256,seq:r.seq,screens:r.screens,bytes:r.bytes,source:r.source,updated_by:r.updated_by,updated_at:r.updated_at,
- ...(r.created_by?{created_by:r.created_by,created_at:r.created_at}:{})}:null;
+// Vista de flota: sin correos. Quien guardó desde el portal o el MCP del comercio sale como «titular»; los agentes, con su
+// «Persona · Máquina» (el autor del gate nunca es un correo).
+const actorView=(fleet,v)=>fleet&&/@/.test(String(v??''))?'titular':v;
+const meta=(r,fleet=false)=>r?{plan_id:r.plan_id,schema:r.schema,version:r.version,sha256:r.sha256,seq:r.seq,screens:r.screens,bytes:r.bytes,source:r.source,updated_by:actorView(fleet,r.updated_by),updated_at:r.updated_at,
+ ...(r.created_by?{created_by:actorView(fleet,r.created_by),created_at:r.created_at}:{})}:null;
 // Vista privada (portal y MCP): plano vigente (o la versión seq del histórico), cruce con el ITIL y últimas versiones.
-export async function readPlan(env,site,{history=10,seq=null}={}){
+// fleet:true = vista del MCP de flota, sin correos de los titulares. El plano va entero: un agente que lo edite y lo
+// vuelva a guardar no debe perder campos (la dirección incluida); por eso la flota solo llega a lo permitido (fleetSite).
+export async function readPlan(env,site,{history=10,seq=null,fleet=false}={}){
  const n=Number(history);if(!Number.isInteger(n)||n<0||n>50)bad(400,'invalid_history','history debe ser de 0 a 50.');
  const cur=await statement(env,'SELECT * FROM xpacio_planos WHERE site_id=?',site.id).first();let row=cur;
  if(seq!==null&&seq!==undefined&&seq!==''){
@@ -36,14 +41,15 @@ export async function readPlan(env,site,{history=10,seq=null}={}){
   row=await statement(env,'SELECT * FROM xpacio_plano_versions WHERE site_id=? AND seq=?',site.id,s).first();if(!row)bad(404,'version_not_found','Esa versión del plano no existe.');
  }
  const plan=row?JSON.parse(row.plan_json):null;
- const versions=n?await rows(env,'SELECT seq,plan_id,version,sha256,screens,bytes,source,updated_by,updated_at FROM xpacio_plano_versions WHERE site_id=? ORDER BY seq DESC LIMIT ?',site.id,n):[];
+ const versions=(n?await rows(env,'SELECT seq,plan_id,version,sha256,screens,bytes,source,updated_by,updated_at FROM xpacio_plano_versions WHERE site_id=? ORDER BY seq DESC LIMIT ?',site.id,n):[]).map(h=>({...h,updated_by:actorView(fleet,h.updated_by)}));
  return {site:{id:site.id,name:site.name,city:site.city,country:site.country},
   xpacio:site.admira_store_id?{admira_store_id:site.admira_store_id,brand_key:site.brand_key,twin_url:site.twin_url,removed_at:site.xpacio_removed_at}:null,
-  has_plan:!!cur,current:meta(cur),...(row&&row!==cur?{selected:meta(row)}:{}),plan,itil_check:plan?crossCheck(plan,await ciRows(env,site.id)):null,history:versions};
+  has_plan:!!cur,current:meta(cur,fleet),...(row&&row!==cur?{selected:meta(row,fleet)}:{}),plan,itil_check:plan?crossCheck(plan,await ciRows(env,site.id)):null,history:versions};
 }
-// Alta o nueva versión del plano de un establecimiento. Idempotente por hash; base_sha256 (opcional) evita pisar el
-// plano de otro: '' o null = «espero que no haya plano». El lote va guardado por el hash vigente: si alguien escribió
-// entre la lectura y el lote, no se aplica nada (409). Auditoría en itil_audit (action 'plan-update').
+// Alta o nueva versión del plano de un establecimiento. Idempotente por hash, ANTES que cualquier conflicto: si el
+// vigente ya es este plano, changed:false aunque base_sha256 no cuadre (nada que pisar). base_sha256 (opcional) evita
+// pisar el plano de otro: '' o null = «espero que no haya plano». El lote va guardado por el hash vigente: si alguien
+// escribió entre la lectura y el lote, no se aplica nada (409). Auditoría en itil_audit (action 'plan-update').
 export async function upsertPlan(env,site,body,actor,source,now=Date.now()){
  const extra=Object.keys(body).filter(k=>!['plan','base_sha256'].includes(k));if(extra.length)bad(400,'unknown_fields','Campos no válidos: '+extra.join(', ')+'.');
  const v=validatePlan(body.plan);
@@ -54,9 +60,9 @@ export async function upsertPlan(env,site,body,actor,source,now=Date.now()){
  let expected;
  if(Object.hasOwn(body,'base_sha256')){const b=body.base_sha256;if(b!==null&&b!==''&&!(typeof b==='string'&&SHA.test(b)))bad(400,'invalid_base','base_sha256 no válido (64 hexadecimales, o vacío si no hay plano).');expected=b||'';}
  const sha=await planHash(plan),cur=await statement(env,'SELECT sha256,seq FROM xpacio_planos WHERE site_id=?',site.id).first();
- if(expected!==undefined&&(cur?.sha256||'')!==expected)bad(409,'plan_conflict','El plano vigente ya no es el que tenías: vuelve a cargarlo antes de guardar.');
  const base={ok:true,site_id:site.id,admira_store_id:site.admira_store_id||null,plan_id:plan.id,version,sha256:sha,screens:v.summary.screens,bytes:v.bytes};
  if(cur&&cur.sha256===sha)return {...base,changed:false,created:false,seq:cur.seq,itil_check:crossCheck(plan,await ciRows(env,site.id))};
+ if(expected!==undefined&&(cur?.sha256||'')!==expected)bad(409,'plan_conflict','El plano vigente ya no es el que tenías: vuelve a cargarlo antes de guardar.');
  await rateLimit(env,'plano:'+site.id,60,3600000);
  const who=String(actor).slice(0,254),prev=cur?.sha256||'',guard="COALESCE((SELECT sha256 FROM xpacio_planos WHERE site_id=?),'')=?";
  const detail=(cur?'Nueva versión':'Primer plano')+' · '+version+' · '+v.summary.screens+' pantallas · sha256 '+sha.slice(0,12);
@@ -90,8 +96,10 @@ export async function retailerPlano(request,env,owner,actor,channel){
 }
 // ── /internal/plano/* · solo por service binding (MCP de flota desde el gate). El autor lo pone el gate.
 const internalReply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
-// Alcance global de flota, como el ITIL: un Xpacio del catálogo por admira_store_id o cualquier establecimiento por site_id
-// (los propios de Yokup, como el laboratorio de Gran de Gràcia 51, no tienen admira_store_id).
+// Alcance de flota: los Xpacios del catálogo por admira_store_id (como el ITIL) y, por site_id, SOLO los establecimientos
+// permitidos de forma explícita en xpacio_plano_fleet_sites (empezando por el laboratorio de Gran de Gràcia 51, propio de
+// Yokup y sin admira_store_id). Un comercio del portal no es de la flota: inexistente y no permitido responden igual (404).
+export const fleetAllowed=async(env,siteId)=>!!await statement(env,'SELECT 1 AS ok FROM xpacio_plano_fleet_sites WHERE site_id=? AND revoked_at IS NULL',siteId).first();
 async function fleetSite(env,{site_id,admira_store_id}){
  if(!!site_id===!!admira_store_id)bad(400,'site_required','Indica admira_store_id o site_id (uno de los dos).');
  if(admira_store_id){
@@ -99,13 +107,14 @@ async function fleetSite(env,{site_id,admira_store_id}){
   const s=await xpacioSite(env,admira_store_id);if(!s)bad(404,'xpacio_not_found','Xpacio no encontrado en Yokup.');return s;
  }
  if(typeof site_id!=='string'||!SITE.test(site_id))bad(400,'invalid_site','site_id no válido.');
- const s=await siteById(env,site_id);if(!s)bad(404,'site_not_found','Establecimiento no encontrado en Yokup.');return s;
+ const s=await fleetAllowed(env,site_id)?await siteById(env,site_id):null;
+ if(!s)bad(404,'site_not_found','Establecimiento no encontrado o no permitido para la flota (por site_id solo los de xpacio_plano_fleet_sites; los Xpacios, por admira_store_id).');return s;
 }
 export async function handlePlanoInternal(request,env){
  if(!viaBinding(request,INTERNAL_HOST))return internalReply({ok:false,code:'not_found',error:'Ruta no encontrada.'},404);
  try{
   const url=new URL(request.url),q=url.searchParams;
-  if(request.method==='GET'&&url.pathname==='/internal/plano/get')return internalReply({ok:true,...await readPlan(env,await fleetSite(env,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')}),{history:q.has('history')?q.get('history'):10,seq:q.get('seq')})});
+  if(request.method==='GET'&&url.pathname==='/internal/plano/get')return internalReply({ok:true,...await readPlan(env,await fleetSite(env,{site_id:q.get('site_id'),admira_store_id:q.get('admira_store_id')}),{history:q.has('history')?q.get('history'):10,seq:q.get('seq'),fleet:true})});
   if(request.method!=='POST'||url.pathname!=='/internal/plano/upsert')bad(404,'not_found','Ruta no encontrada.');
   const {actor,machine,site_id,admira_store_id,...b}=await planBody(request),who=author({actor,machine});
   return internalReply(await upsertPlan(env,await fleetSite(env,{site_id,admira_store_id}),b,who,'mcp-flota'));
@@ -121,6 +130,8 @@ export async function handlePlanoInternal(request,env){
 //  · Sin clave: lo mínimo (Xpacio, si hay plano, versión y nº de pantallas), solo si el Xpacio ya es público en los mapas
 //    (catálogo, o yokup-* que su titular publicó). Un yokup-* sin publicar o inexistente pide clave (401, sin revelar nada).
 //  · Con X-Yokup-Itil-Key: el plano completo SIN datos privados y su cruce con el ITIL. ETag = sha256 (If-None-Match → 304).
+//    Un yokup-* solo si está publicado en los mapas o permitido para la flota (xpacio_plano_fleet_sites); si no, 404:
+//    la clave de una solución no abre el plano de cualquier comercio del portal.
 const OWN=/^yokup-([\w-]{1,80})$/;
 export async function handlePlanoPublic(request,env,now=Date.now()){
  const headers=(cache,extra={})=>({...galaxyHeaders(request,cache),'Access-Control-Expose-Headers':'ETag',...extra});
@@ -138,6 +149,7 @@ export async function handlePlanoPublic(request,env,now=Date.now()){
   let site=own?await siteById(env,own):await xpacioSite(env,id);if(own&&site?.admira_store_id)site=null;
   const published=!!site&&(!own||!!await statement(env,'SELECT 1 AS ok FROM admira_retailer_locations WHERE site_id=?',site.id).first());
   if(own&&!key&&!published)return out({error:'key_required',documentation:PLANO_DOCS,note:'Un establecimiento propio de Yokup que no está publicado en los mapas solo se lee con la clave de lectura de la Galaxia (X-Yokup-Itil-Key).'},401);
+  if(own&&site&&!published&&!await fleetAllowed(env,site.id))site=null;
   const brands=key?.brands?JSON.parse(key.brands):null;
   if(!site||site.xpacio_removed_at||(brands&&!brands.includes(site.brand_key)))return out({error:'xpacio_not_found',documentation:PLANO_DOCS},404,key?'no-store':'public, max-age=60');
   const row=await statement(env,'SELECT * FROM xpacio_planos WHERE site_id=?',site.id).first();

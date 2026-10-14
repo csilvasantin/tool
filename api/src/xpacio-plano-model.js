@@ -140,16 +140,33 @@ export function crossCheck(plan,cis){
  return {cis:active.length,linked,warnings};
 }
 
-// Galaxia: el plano completo SIN datos privados. Mismas reglas que el ITIL: nunca dirección, coordenadas, serie, factura,
-// proveedor, fabricante, modelo, importes, garantía, correos ni ids internos (yokup.site_id incluido). Se quitan a cualquier profundidad.
-export const PLANO_PRIVATE_KEYS=Object.freeze(new Set(['direccion','dirección','address','addr','serie','serial','numeroserie','numero_serie','factura','invoice','invoice_ref',
- 'proveedor','supplier','fabricante','manufacturer','modelo','model','precio','importe','coste','cost','price','email','correo','telefono','teléfono','phone',
- 'lat','lng','lon','latitude','longitude','latitud','longitud','coords','coordenadas','gps','site_id','device_id','retailer_id','compra','garantia','garantía','warranty','imei','iccid','mac','ip']));
-export function publicPlan(v){
- if(Array.isArray(v))return v.map(publicPlan);
- if(!isObj(v))return v;
- const out={};for(const [k,x] of Object.entries(v))if(!PLANO_PRIVATE_KEYS.has(k.toLowerCase()))out[k]=publicPlan(x);return out;
-}
+// Galaxia: el plano SIN datos privados, por LISTA BLANCA (como publicCi del ITIL): solo viajan los campos conocidos de
+// admira.xpacio-plano/1 y con su tipo (texto, número, [x, y]…). Todo lo demás se queda en Yokup: dirección, contactos,
+// coordenadas, series, MAC/IP, NIF, ids internos (yokup.site_id), la máquina de flota de un dispositivo (fleet) o
+// cualquier campo que un autor añada mañana. Un campo nuevo del esquema que deba viajar se añade aquí, con su prueba.
+const text=v=>typeof v==='string'?v:undefined;
+const number=v=>num(v)?v:undefined;
+const numbers=v=>Array.isArray(v)&&v.length<=4&&v.every(num)?[...v]:undefined;
+const flag=v=>typeof v==='boolean'?v:undefined;
+const textOrNull=v=>v===null||typeof v==='string'?v:undefined;
+const pick=spec=>v=>{if(!isObj(v))return undefined;const out={};for(const [k,f] of Object.entries(spec))if(Object.hasOwn(v,k)){const x=f(v[k]);if(x!==undefined)out[k]=x;}return out;};
+const list=f=>v=>Array.isArray(v)?v.map(f).filter(x=>x!==undefined):undefined;
+export const PLANO_PUBLIC_FIELDS=Object.freeze({
+ schema:text,id:text,version:text,nombre:text,
+ fuente:pick({titulo:text,medidas:text,pantallas:text,itil:text}),
+ planta:pick({ancho:number,fondo:number,alto:number}),
+ criterios:pick({alturaMinima:number,alturaMinimaEscaparate:number,holguraTecho:number,separacionMinima:number,profundidadMueble:number}),
+ paredes:list(pick({id:text,nombre:text,a:numbers,b:numbers,alto:number})),
+ huecos:list(pick({id:text,tipo:text,nombre:text,pared:text,desde:number,ancho:number,base:number,alto:number})),
+ mobiliario:list(pick({id:text,tipo:text,nombre:text,x:number,y:number,w:number,d:number,alto:number})),
+ contenidos:pick({instalacion:text,grupo:text,url:text}),
+ pantallas:list(pick({id:text,itil:textOrNull,screenId:text,nombre:text,corto:text,tipo:text,grupo:text,grupoNombre:text,subgrupo:text,player:text,
+  orientacion:text,pulgadas:number,resolucion:numbers,aspecto:numbers,dimensiones:pick({ancho:number,alto:number}),escaparate:flag,estado:text,pared:text,s:number,z:number,fuente:text})),
+ dispositivos:list(pick({id:text,nombre:text,categoria:text,rol:text,pared:text,s:number,z:number,itil:textOrNull})),
+ yokup:pick({managed_by:text,cis:number})
+});
+const publicRoot=pick(PLANO_PUBLIC_FIELDS);
+export const publicPlan=plan=>publicRoot(plan)||{};
 
 // Esquemas MCP (gate de flota): JSON Schema plano. plan es un objeto libre: lo valida yokup-api (validatePlan).
 const str=(minLength,maxLength,extra={})=>({type:'string',minLength,maxLength,...extra});

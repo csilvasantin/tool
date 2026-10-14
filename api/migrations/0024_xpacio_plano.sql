@@ -52,3 +52,14 @@ CREATE TRIGGER IF NOT EXISTS xpacio_plano_versions_no_update BEFORE UPDATE ON xp
 BEGIN SELECT RAISE(ABORT,'xpacio_plano_versions es append-only'); END;
 CREATE TRIGGER IF NOT EXISTS xpacio_plano_versions_no_delete BEFORE DELETE ON xpacio_plano_versions
 BEGIN SELECT RAISE(ABORT,'xpacio_plano_versions es append-only'); END;
+
+-- Establecimientos que el MCP de flota (y la Galaxia con clave, si no están publicados en los mapas) pueden alcanzar
+-- por site_id. Los Xpacios del catálogo van por admira_store_id, como en el ITIL; un comercio del portal NO es de la
+-- flota salvo que se añada aquí de forma explícita. Nada se borra: se revoca (revoked_at). Sin FK a propósito: la fila
+-- no estorba si el establecimiento aún no existe en esta base. Alta y revocación: docs/plano-yokup.md.
+CREATE TABLE IF NOT EXISTS xpacio_plano_fleet_sites (
+ site_id TEXT PRIMARY KEY, note TEXT NOT NULL, granted_by TEXT NOT NULL, created_at INTEGER NOT NULL, revoked_at INTEGER
+);
+-- El laboratorio AdmiraNeXT · Gran de Gràcia 51 (establecimiento propio de Yokup, sin admira_store_id).
+INSERT OR IGNORE INTO xpacio_plano_fleet_sites(site_id,note,granted_by,created_at)
+ VALUES('4723419e-5bf2-4f7c-b5d2-b87171503754','Laboratorio AdmiraNeXT · Gran de Gràcia 51','migracion-0024 · DCL-fbee86b0016fa4cef7a7726c',CAST(strftime('%s','now') AS INTEGER)*1000);
