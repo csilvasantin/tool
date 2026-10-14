@@ -233,3 +233,49 @@ test('MCP: inventario, ficha, actualización idempotente y alertas con los permi
  await sweepLifecycleAlerts(env,{force:true});assert.equal((await mcp(env,readOnly,'retailer_alerts_list',{})).result.structuredContent.alerts[0].kind,'warranty_30');
  assert.equal((await mcp(env,other,'retailer_alerts_list',{limit:5})).result.structuredContent.alerts.length,0);
 });
+
+test('proyecto (#5980): un superusuario en «Ver como» ve solo Starbucks; un comercio normal recibe 403',async()=>{
+ const {env,db}=setup();env.XPACIO_FETCH=serve(catalog());const a=await shop(env),su=await superuserCookie(db);
+ assert.equal((await admin(env,'/xpacios/sync',{},su)).body.created,6);
+ const alsea=brandId(db,'alsea'),sw=await retail(env,'/switch',{retailer_id:alsea},su);assert.equal(sw.status,200);
+ const todo=(await retail(env,'/dashboard',undefined,sw.cookie)).body;
+ assert.equal(todo.proyecto,null);
+ assert.deepEqual(todo.sites.map(s=>s.xpacio_id).sort(),['alsea-mx-sbux-01-tijuana','alsea-sbux-021']);
+ // Una incidencia en cada Starbucks: el filtro solo deja la de España.
+ const pg=todo.sites.find(s=>s.xpacio_id==='alsea-sbux-021'),tj=todo.sites.find(s=>s.xpacio_id!=='alsea-sbux-021');
+ for(const site of [pg,tj]){
+  const device=todo.devices.find(d=>d.site_id===site.id);assert.ok(device,'equipo en '+site.xpacio_id);
+  const r=await retail(env,'/incidents',{device_id:device.id,title:'No arranca la pantalla',description:'La pantalla del mostrador no enciende.',priority:'urgent',request_key:crypto.randomUUID()},sw.cookie);
+  assert.equal(r.status,201,JSON.stringify(r.body));
+ }
+ const sb=(await retail(env,'/dashboard?proyecto=starbucks',undefined,sw.cookie)).body;
+ assert.equal(sb.proyecto,'starbucks');
+ assert.deepEqual(sb.sites.map(s=>s.xpacio_id),['alsea-sbux-021'],'la regla común: id alsea-sbux-*');
+ assert.ok(sb.devices.length>0&&sb.devices.every(d=>d.site_id===pg.id));
+ assert.ok(todo.devices.length>sb.devices.length);
+ assert.ok(sb.incidents.length===1&&sb.incidents[0].site_id===pg.id);
+ assert.equal(sb.stats.open+sb.stats.assigned,1,'los contadores también salen filtrados');
+ const lista=(await retail(env,'/incidents?proyecto=starbucks',undefined,sw.cookie)).body;
+ assert.equal(lista.proyecto,'starbucks');assert.deepEqual(lista.incidents.map(i=>i.site_id),[pg.id]);
+ assert.equal((await retail(env,'/incidents',undefined,sw.cookie)).body.incidents.length,2);
+ assert.equal((await retail(env,'/dashboard?proyecto=off',undefined,sw.cookie)).body.sites.length,2,'off quita el filtro');
+ assert.equal((await retail(env,'/dashboard?proyecto=lumbre',undefined,sw.cookie)).status,400,'proyecto desconocido');
+ const normal=await retail(env,'/dashboard?proyecto=starbucks',undefined,a.cookie);
+ assert.equal(normal.status,403);assert.equal(normal.body.error,'superuser-required');
+ assert.equal((await retail(env,'/incidents?proyecto=starbucks',undefined,a.cookie)).status,403);
+ assert.equal((await retail(env,'/dashboard',undefined,a.cookie)).status,200,'sin proyecto, el comercio sigue igual');
+});
+
+test('proyecto (#5980): con 120 Starbucks ninguna consulta pasa de los 100 parámetros de D1',async()=>{
+ const {env,db}=setup(),su=await superuserCookie(db);
+ const list=Array.from({length:120},(_,n)=>sbux({id:'alsea-sbux-'+String(n+100),name:'Starbucks '+(n+100)}));
+ list.push({id:'alsea-mx-sbux-01-tijuana',name:'Starbucks Tijuana',kind:'Cafetería · Starbucks · Alsea México',addr:'Tijuana',coords:[-117.01,32.52],city:'Tijuana',circuit:'alsea_mexico',external:{brand:'Starbucks',operator:'Alsea'},twin:'https://x.test/',surfaces:surfaces([['Menu board digital','pantalla']])});
+ await syncXpacios(env,{fetcher:serve(list),force:true,batch:500});
+ const sw=await retail(env,'/switch',{retailer_id:brandId(db,'alsea')},su);assert.equal(sw.status,200);
+ const prepare=env.DB.prepare;let max=0;
+ env.DB.prepare=sql=>{const st=prepare(sql);return {...st,bind:(...a)=>{max=Math.max(max,a.length);return st.bind(...a);}};};
+ const sb=await retail(env,'/dashboard?proyecto=starbucks',undefined,sw.cookie);
+ assert.equal(sb.status,200,JSON.stringify(sb.body));assert.equal(sb.body.sites.length,120);
+ assert.equal((await retail(env,'/incidents?proyecto=starbucks',undefined,sw.cookie)).status,200);
+ assert.ok(max>=3&&max<=100,'parámetros en una consulta: '+max);
+});
