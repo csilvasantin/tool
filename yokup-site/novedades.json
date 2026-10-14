@@ -1,9 +1,8 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
-    "⌘ Experto: /bugito abre el banco de pruebas de Bugito en admira.biz, el Admirito diablillo que provoca incidencias en un player virtual de laboratorio.",
-    "El panel del avatar carga el cargador común que conoce a los personajes de Admirito (Bugito hoy).",
-    "Supervisor en admira.app muestra el estado en vivo de las pantallas, el recorrido de la Insta360 y las incidencias abiertas y cerradas. Las capturas van pixeladas."
+    "El asistente de incidencias y tickets muestra Admirito, la nube oficial de Admira, en lugar del robot antiguo.",
+    "Las páginas reutilizan un único cargador compartido: los comandos del avatar actúan sobre la misma nube y se respeta el apagado explícito."
   ],
   "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",
