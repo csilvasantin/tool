@@ -218,7 +218,16 @@ test("/marca y /brand: consola LOCAL con los textos del canon; nunca llegan al t
     " · propuesta automática, no es la marca oficial",
   ]) assert.ok(frame.includes(texto), texto);
   // La caja del CLI remoto: /marca se resuelve aquí; el resto (incluido /help del CLI) se envía.
-  assert.match(frame, /function submitCliEditor\(\)\{[^}]*if\(LOCAL_CLI\.isLocalOnly\(text\)\)\{FLEET\.cliInput\.value="";LOCAL_CLI\.run\(text\.trim\(\)\);return;\}terminalAction\("write",text\);\}/);
+  assert.match(frame, /function localDeCaja\(text\)\{return LOCAL_CLI\.isLocalOnly\(text\)\|\|LOCAL_CLI\.isPageVerb\(text\);\}/);
+  assert.match(frame, /function submitCliEditor\(\)\{var text=FLEET\.cliInput\.value;if\(!text\.trim\(\)\)return;if\(localDeCaja\(text\)\)\{FLEET\.cliInput\.value="";LOCAL_CLI\.run\(text\.trim\(\)\);return;\}if\(FLEET\.busy\)return;terminalAction\("write",text\);\}/);
+  // En la caja del agente, Enter a secas solo envía los verbos locales de una línea; al agente se le sigue escribiendo con ⌘↵.
+  assert.match(frame, /if\(event\.metaKey\|\|event\.ctrlKey\|\|\(!event\.shiftKey&&una&&localDeCaja\(FLEET\.cliInput\.value\)\)\)\{event\.preventDefault\(\);event\.stopPropagation\(\);submitCliEditor\(\);\}/);
+  // Encargo #5980: /proyecto (y cualquier verbo registrado por la página) se resuelve aquí aunque se escriba en la caja
+  // del agente; /cli sigue yendo al agente y lo que no es verbo de la página, también.
+  const isPageVerb = new Function("PAGE_VERBS", "text", frame.match(/isPageVerb: function \(text\) \{ ([^}]+) \}/)[1]);
+  const verbs = { proyecto: {}, project: {}, cli: {}, avatar: {} };
+  for (const t of ["/proyecto starbucks", " /proyecto", "/PROYECTO off", "/project starbucks", "/avatar good"]) assert.equal(isPageVerb(verbs, t), true, t);
+  for (const t of ["/cli", "/cli ayudante", "/proyectos", "proyecto starbucks", "/help", "/status", "/constructor", "/toString", "/hasOwnProperty x"]) assert.equal(isPageVerb(verbs, t), false, t);
   const isLocalOnly = new Function("text", "return " + frame.match(/isLocalOnly: function \(text\) \{ return ([^}]+); \}/)[1] + ";");
   for (const t of ["/marca starbucks", " /brand off", "/marca"]) assert.equal(isLocalOnly(t), true, t);
   for (const t of ["/avatarDigital", "/digitalAvatar off", "/cli ayudante", "/cli helper on", "/avatarON", "/avatarOFF", "/avatar reset", "/avatar", "/avatar good", "/avatar better", "/avatar best"]) assert.equal(isLocalOnly(t), true, t);
