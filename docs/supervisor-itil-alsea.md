@@ -63,3 +63,13 @@ A screen or POS inventory asset can be explicitly linked to a registered physica
 Commands require a privileged authenticated session, an explicit asset binding, a dedicated server-side fleet credential and a heartbeat younger than 90 seconds. A SQL reservation prevents duplicate submission and overlapping pending actions. Queued, executed, failed, ignored and unknown remain distinct. Only the exact device/action/command receipt confirms execution. Connection loss never triggers an automatic resend. The last order can be checked after reopening the detail view.
 
 Physical acceptance requires an actual visible change on the Samsung Fold and the matching receipt, followed by restoring the initial state. Local browser fixtures only verify the interface and are not hardware evidence.
+
+## Publicado y comprobado · 15 de octubre, 20:51 Madrid
+
+La [PR del mando físico](https://github.com/csilvasantin/tool/pull/81) quedó integrada en `262dc7f` · asociación de hardware de demo y recibos. La comprobación pública detectó una opción de red incompatible con Workers; se reprodujo en workerd y se corrigió con la [PR de consulta compatible](https://github.com/csilvasantin/tool/pull/83), integrada en `9293d02` · consulta de dispositivos sin seguir redirecciones. API publicada `v.15.10.2026.r3.20:49`. La web observada `v.15.10.2026.r6.20:46` incluye el mando y el cambio de portada concurrente de Neo; se conserva esa publicación.
+
+Verificación pública autenticada: registro y asociaciones responden 200; una sesión anónima recibe 401; una orden al TPV sin asociación devuelve 409 y no se envía. El detalle público muestra el mando y sus botones deshabilitados, permite consultar candidatos y no genera errores en escritorio ni móvil. Se mantienen los 21 CIs de Alsea y la observación reciente del MBP16 de laboratorio. Pruebas finales: RTC 1364 correctas y 1 omitida; web 1666 correctas.
+
+**Pendiente físico:** Carlos confirma Fold desbloqueado y conectado al Mac Mini, pero el bus USB y ADB siguen sin enumerar Samsung. El registro contiene `eink-sy11-ab` y `xpaceos-web`; ninguno se ha identificado ni vinculado como Fold. No se ha instalado nada en el teléfono ni enviado una orden física. Se requiere que llegue la conexión de datos USB, identificar la app/configuración existentes y completar mostrar/ocultar información con prueba visible y recibo exacto. El mando está publicado; el control físico del Fold y la telemetría del resto de CIs todavía no están acreditados.
+
+Evidencia pública saneada en `docs/evidence/supervisor-control-2026-10-15/`. La misión FLT-102477 · control físico TPV y telemetría permanece sin cerrar por esa prueba pendiente.

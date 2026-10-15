@@ -1,0 +1,30 @@
+{
+  "verified_at": "2026-10-15T18:51:38.370253+00:00",
+  "rtc": {
+    "passed": 1364,
+    "skipped": 1,
+    "failed": 0
+  },
+  "site": {
+    "passed": 1666,
+    "failed": 0
+  },
+  "local_ui": {
+    "fixture_only": true,
+    "binding": true,
+    "receipt": true,
+    "unknown_no_resend": true,
+    "stale_disabled": true,
+    "mobile": true
+  },
+  "worker_runtime_probe": {
+    "redirect_error": "Invalid redirect value; only follow or manual supported",
+    "redirect_manual_http": 200
+  },
+  "physical_fold": {
+    "usb_detected": false,
+    "bound": false,
+    "command_sent": false,
+    "execution_verified": false
+  }
+}

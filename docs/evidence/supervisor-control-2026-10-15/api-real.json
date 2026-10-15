@@ -1,0 +1,34 @@
+{
+  "verified_at": "2026-10-15T18:49:39.555Z",
+  "version": {
+    "version": "v.15.10.2026.r3.20:49",
+    "deployedAt": "2026-10-15T18:49:02Z",
+    "deployer": "OraculoMacMini",
+    "machine": "MacMini",
+    "signature": "OraculoMacMini · MacMini",
+    "git": "9293d0248806c33505d59ac6609c825bf48f91a9",
+    "gitShort": "9293d02",
+    "gitFull": "9293d0248806c33505d59ac6609c825bf48f91a9",
+    "dirty": false
+  },
+  "devices": [
+    {
+      "screen": "eink-sy11-ab",
+      "name": "eink-sy11-ab",
+      "runtime": "",
+      "last_seen": 1792090151244,
+      "source": "physical_registry"
+    },
+    {
+      "screen": "xpaceos-web",
+      "name": "xpaceos-web",
+      "runtime": "",
+      "last_seen": 1792090159919,
+      "source": "physical_registry"
+    }
+  ],
+  "connections": [],
+  "unbound_command_rejected": true,
+  "anonymous_rejected": true,
+  "no_physical_command_sent": true
+}

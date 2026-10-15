@@ -1,0 +1,7 @@
+{
+  "production_own_source_matches_origin_main": true,
+  "source_modules": 55,
+  "baseline": "06d754434450b063a3a9badffaf8d38763ec0aae",
+  "wrangler": "4.119.0",
+  "dependency_difference": "Puppeteer debug resolves browser helper instead of Node helper during local dry run; full diff inspected; no application changes."
+}

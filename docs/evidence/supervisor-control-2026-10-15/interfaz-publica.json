@@ -1,0 +1,16 @@
+{
+  "verified_at": "2026-10-15T18:50:36.934Z",
+  "url": "https://www.admira.app/supervisor?xpacio=alsea-sbux-021",
+  "inventory": 21,
+  "control_panel_visible": true,
+  "commands_disabled_without_binding": true,
+  "registered_options": [
+    "eink-sy11-ab · eink-sy11-ab",
+    "xpaceos-web · xpaceos-web"
+  ],
+  "fold_not_verified": true,
+  "mobile": true,
+  "errors": [],
+  "no_binding_created": true,
+  "no_physical_command_sent": true
+}
