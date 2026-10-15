@@ -14,6 +14,7 @@ import { assignedWorkBlockers, legacyAcademyAvailability, pauseLegacyAcademy, pa
 import { principalTargetKey, resolveAgentPrincipalProject } from './agent-principal-project.js';
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors, authOrigin } from "./auth-flow.js";
+import { handleSupervisorItil } from "./supervisor-itil.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
 import { AGENT_IDENTITY_SPEC, agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentityKey, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { matchAgentDetailPresence, parseAgentDetailQuery, safeAgentDetailText } from "./agent-detail-contract.js";
@@ -12063,6 +12064,7 @@ var worker_app = {
       if (!session) return json({ error:"unauthorized" }, 401);
       try {
         const access = await currentSupervisorAccess(session);
+        if (url.pathname === "/supervisor/itil") return handleSupervisorItil(req, env, { session, access, json });
         const admiraMcpCall = createAdmiraMcpClient({
           fetchImpl:(input, init) => env.ADMIRA_TV_MCP && typeof env.ADMIRA_TV_MCP.fetch === "function"
             ? env.ADMIRA_TV_MCP.fetch(input, init)

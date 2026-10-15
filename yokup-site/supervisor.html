@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="/acceso.js?v=20260811-r4-e4f469ea8e63"></script>
-<title>Agente supervisor · Yokup</title>
+<title>Supervisor · Operaciones e ITIL</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#f6f8f3">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -12,14 +12,15 @@
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r21">
 <link rel="stylesheet" href="/yk-supervisor.css?v=r4">
+<link rel="stylesheet" href="/yk-supervisor-itil.css?v=1">
 </head>
 <body class="yk-claro" data-yk-title="SUPERVISOR" data-yk-zone="app" data-yk-project-default="admira-tv" data-yk-project-default-label="admira.tv" data-yk-project-switch="superuser">
 <main class="sv-shell">
   <header class="sv-hero">
     <div>
-      <p class="sv-kicker"><span aria-hidden="true"></span> Insta360 · Mac Mini</p>
+      <p class="sv-kicker"><span aria-hidden="true"></span> Operaciones · Inventario · Evidencias</p>
       <h1>Supervisor de soluciones</h1>
-      <p class="sv-lead">Estado en vivo de cada pantalla, el recorrido de la cámara y las incidencias abiertas y cerradas. Las personas van pixeladas.</p>
+      <p class="sv-lead">De cada equipo a su solución. Inventario ITIL, mantenimiento e incidencias, con la evidencia y el origen de cada estado a la vista.</p>
     </div>
     <div class="sv-project" id="projectBadge" aria-live="polite">
       <span>Proyecto activo</span>
@@ -27,7 +28,35 @@
     </div>
   </header>
 
+  <section class="ops-board" aria-labelledby="opsHeading">
+    <div class="ops-top">
+      <div><p class="ops-eyebrow">CENTRO OPERATIVO / ITIL</p><h2 id="opsHeading">Tu tienda, equipo a equipo.</h2><p id="opsLocation">Conectando con el inventario maestro de Yokup…</p></div>
+      <a class="ops-outline" href="/retailer#itil">Gestionar inventario ↗</a>
+    </div>
+    <form id="opsScope" class="ops-scope">
+      <label>Establecimiento / Xpacio<input id="opsStore" value="alsea-sbux-021" maxlength="160" required spellcheck="false"></label>
+      <button class="ops-primary" type="submit">Consultar tienda</button>
+      <p id="opsStatus" role="status" aria-live="polite">Esperando sesión autorizada.</p>
+    </form>
+    <div class="ops-kpis" aria-label="Inventario de la tienda">
+      <article><span>Equipos registrados</span><strong id="opsTotal">—</strong><small>inventario ITIL</small></article>
+      <article><span>Pantallas</span><strong id="opsScreens">—</strong><small>identidad y ficha</small></article>
+      <article><span>TPV</span><strong id="opsPos">—</strong><small>activos registrados</small></article>
+      <article class="ops-attention"><span>Requieren atención</span><strong id="opsAttention">—</strong><small>incidencias, mantenimiento o garantía</small></article>
+    </div>
+    <div class="ops-toolbar">
+      <label class="ops-search"><span class="sv-sr-only">Buscar equipo</span><input id="opsSearch" type="search" placeholder="Buscar por nombre, código o ubicación…"></label>
+      <label><span class="sv-sr-only">Tipo de equipo</span><select id="opsCategory"><option value="">Todos los equipos</option><option value="pantalla">Pantallas</option><option value="tpv">TPV</option><option value="red">Red</option><option value="audio">Audio</option><option value="iot">IoT y sensores</option><option value="player">Players</option><option value="mobiliario">Mobiliario</option><option value="otro">Otros</option></select></label>
+      <button id="opsOnlyAttention" type="button" aria-pressed="false">Solo atención</button>
+      <button id="opsExport" type="button" disabled>Exportar CSV ↓</button>
+    </div>
+    <p id="opsResults" class="ops-results" role="status"></p>
+    <div id="opsGrid" class="ops-grid"><p class="ops-empty">El inventario se mostrará después de verificar el acceso.</p></div>
+    <p class="ops-note">El estado de ficha describe el registro ITIL. La conexión y el funcionamiento físico requieren telemetría o una observación reciente. Los datos simulados aparecen identificados.</p>
+  </section>
+
   <section class="sol-board" id="soluciones" aria-label="Supervisor de soluciones">
+    <div class="ops-top"><div><p class="ops-eyebrow">LABORATORIO · GRAN DE GRÀCIA / Insta360</p><h2>Comprobación física</h2><p>Vigilancia del Mac Mini. Este objetivo pertenece al laboratorio, no al inventario de Alsea.</p></div><span id="solFreshness" class="ops-badge">Sin observación</span></div>
     <p class="sol-recorrido" id="solRecorrido" aria-live="polite">Recorrido en espera</p>
     <div class="sol-grid" id="solGrid" aria-live="polite"></div>
     <div class="sol-inc">
@@ -160,6 +189,8 @@
 </main>
 
 <script type="module" src="/yk-soluciones.js?v=r1"></script>
+<script type="module" src="/yk-supervisor-itil.js?v=1"></script>
+<script src="/yk-foto-marca.js?v=1"></script>
 <script type="module" src="/yk-supervisor.js?v=r8"></script>
 <script type="module" src="/avatar-widget.js?v=20261014-admirito-1"></script>
 <script src="/yk-frame.js?v=20261014-supervisor-fleet-1"></script>
