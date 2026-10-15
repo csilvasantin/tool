@@ -418,6 +418,8 @@ html.yk-framed{ scroll-padding-top: calc(var(--yk-bar-h) + 12px); }
   box-shadow:none;
 }
 .yk-ico-gl{ font-size: 16px; line-height: 1 }
+/* Pastilla de idioma de la portada: la misma caja que ⌘ (32 de alto; ancho del glifo ⌘ con su relleno) */
+.yk-ico-lang{ box-sizing: border-box; width: 35px; padding: 0; justify-content: center; font: 700 10px/1 var(--yk-sans); letter-spacing: .04em }
 /* ▤ Avanzado abre el grupo de la derecha aunque no haya menú de flota */
 .yk-ico-adv{ margin-left: auto }
 /* estado ABIERTO: icono «encendido» (relleno) — NO se mueve */
