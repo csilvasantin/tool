@@ -32,6 +32,10 @@
   const TIMEOUT = 8000;
 
   const fold = value => String(value == null ? '' : value).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+  // «alsea» es Starbucks (Carlos, 15-oct-2026: Alsea opera Starbucks en España y México; por si alguien se
+  // equivoca). Vale en ?marca=, en la marca recordada de la pestaña y en /marca.
+  const ALIAS_MARCA = {alsea: 'starbucks'};
+  const canonica = value => { const v = fold(value); return ALIAS_MARCA[v] || v; };
   const isOff = value => OFF.includes(fold(value).replace(/[^a-z]/g, ''));
 
   // ─── Qué marca toca en esta carga ───
@@ -42,9 +46,10 @@
     try { q = new URLSearchParams(search || '').get('marca'); } catch (_) {}
     let stored = null;
     try { stored = storage && storage.getItem(SESSION_KEY); } catch (_) {}
+    if (stored) stored = canonica(stored);
     if (q != null) {
       if (isOff(q) || !fold(q)) return {id: null, forget: true};
-      const id = fold(q);
+      const id = canonica(q);
       if (ID_RE.test(id)) return {id, remember: true};
     }
     if (stored && ID_RE.test(stored) && !isOff(stored)) return {id: stored};
@@ -418,7 +423,7 @@
    * admiranext.com no responde, no aplica nada. → Promise<{ok, id, nombre} | {ok:false, reason}>
    */
   function activar(id, opts = {}) {
-    id = fold(id);
+    id = canonica(id);
     if (isOff(id)) return Promise.resolve(Object.assign({ok: true, off: true}, desactivar()));
     if (!ID_RE.test(id)) return Promise.resolve({ok: false, reason: 'invalid', id});
     const modo = opts.modo || decideMode(location.search, session);
