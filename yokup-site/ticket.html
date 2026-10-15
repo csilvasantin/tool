@@ -91,6 +91,19 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «ticket JSON» para volcar la entidad cruda del worker.</pre>
 </div>
 
+<!-- Cierre accesible también en navegadores integrados sin window.prompt. -->
+<dialog class="tk-inf" id="tkClose" aria-labelledby="tkCloseH">
+  <form method="dialog">
+    <h2 id="tkCloseH">Cerrar incidencia · Close incident</h2>
+    <label for="tkCloseNote">Nota de resolución (opcional) · Resolution note (optional)</label>
+    <textarea id="tkCloseNote" maxlength="500" rows="4" style="display:block;width:100%;box-sizing:border-box;margin:14px 0;padding:12px;font:inherit;border:1px solid #b7c8b5;border-radius:10px" autofocus></textarea>
+    <div style="display:flex;gap:12px;justify-content:flex-end">
+      <button class="btn" value="cancel">Cancelar · Cancel</button>
+      <button class="btn res" value="confirm">Cerrar incidencia · Close incident</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- 📄 Enviar informe: hoja de envío. Nada se manda solo; el correo lo abre tu cliente. -->
 <dialog class="tk-inf" id="tkInforme" aria-labelledby="tkInfH">
   <form method="dialog" class="tk-inf-x"><button aria-label="Cerrar">×</button></form>
@@ -438,7 +451,16 @@ window.reasignar=async()=>{
     render();
   }catch(err){ msg.textContent="✗ "+(err&&err.message||err); }
 };
-window.setStatus=async(s)=>{ let note=""; if(s==="resolved"){ const v=prompt("Cerrar incidencia · Close incident\n\nNota de resolución (opcional) · Resolution note (optional):",""); if(v===null) return; note=v.trim().slice(0,500); } const r=await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico",...(note?{note}:{})})}); const d=await r.json().catch(()=>({})); if(!d.ok){ alert(d.error||"No se pudo cambiar el estado"); return; } render(); };
+function notaCierre(){
+  const dialog=$("tkClose"), note=$("tkCloseNote");
+  if(dialog.open) return Promise.resolve(null);
+  note.value=""; dialog.returnValue="";
+  return new Promise(resolve=>{
+    dialog.addEventListener("close",()=>resolve(dialog.returnValue==="confirm"?note.value:null),{once:true});
+    dialog.showModal();
+  });
+}
+window.setStatus=async(s)=>{ let note=""; if(s==="resolved"){ const v=await notaCierre(); if(v===null) return; note=v.trim().slice(0,500); } const r=await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico",...(note?{note}:{})})}); const d=await r.json().catch(()=>({})); if(!d.ok){ alert(d.error||"No se pudo cambiar el estado"); return; } render(); };
 window.addNote=async()=>{
   const img=noteAdj?noteAdj.bloque():"";
   const v=$("note").value.trim();
