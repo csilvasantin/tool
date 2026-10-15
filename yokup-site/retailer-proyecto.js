@@ -12,7 +12,8 @@ let store=null;try{store=window.sessionStorage;}catch{}
 const leer=()=>{try{return String(store?.getItem(KEY)||'');}catch{return '';}};
 const guardar=id=>{try{id?store?.setItem(KEY,id):store?.removeItem(KEY);}catch{}};
 const limpio=v=>String(v||'').trim().toLowerCase().slice(0,64);
-let recargar=null,ultimo={proyecto:null,error:''},caja=null;
+// cuenta: el portal ya ha cargado los datos de una cuenta (aplicar con datos); al salir vuelve a false.
+let recargar=null,ultimo={proyecto:null,error:''},caja=null,cuenta=false;
 (function desdeUrl(){try{const q=new URLSearchParams(location.search);if(!q.has('proyecto'))return;const id=limpio(q.get('proyecto'));guardar(APAGAR.includes(id)?'':id);}catch{}})();
 const nombre=id=>NOMBRES[id]||id;
 // Añade ?proyecto= solo si hay uno elegido: sin elección, la petición es la de siempre.
@@ -28,7 +29,7 @@ function pintar(){
 }
 // El portal llama aquí con la respuesta de /dashboard (o con null al salir). Si el servidor no confirma el
 // proyecto, se olvida. El aviso de un 403/400 sobrevive a la recarga sin filtro que viene justo después.
-function aplicar(data){const id=data&&typeof data.proyecto==='string'?data.proyecto:null;if(!id&&leer())guardar('');ultimo={proyecto:id,error:data&&!id?ultimo.error:''};pintar();return id;}
+function aplicar(data){cuenta=!!data;const id=data&&typeof data.proyecto==='string'?data.proyecto:null;if(!id&&leer())guardar('');ultimo={proyecto:id,error:data&&!id?ultimo.error:''};pintar();return id;}
 // …y aquí si una lectura falla (/dashboard o el inventario ITIL). Solo cuentan los rechazos del filtro (403
 // superuser-required, 400 «Proyecto desconocido»): se quita el filtro, se avisa y quien llamó recarga sin él.
 // Si otra lectura ya lo quitó (piden a la vez), solo se pide la recarga.
@@ -37,7 +38,7 @@ function fallo(e){
  if(!propio)return false;
  const id=leer();if(!id)return true;
  guardar('');
- ultimo={proyecto:null,error:e.status===403?'Solo un superusuario puede filtrar por proyecto. Se muestran todos tus datos.':'No existe el proyecto «'+id+'». Disponibles: '+Object.keys(NOMBRES).join(', ')+'. Se muestran todos los datos.'};
+ ultimo={proyecto:null,error:e.status===403?'Solo un superusuario puede filtrar por proyecto, y desde una cuenta de marca abierta con «Abrir como retailer». Se muestran todos tus datos.':'No existe el proyecto «'+id+'». Disponibles: '+Object.keys(NOMBRES).join(', ')+'. Se muestran todos los datos.'};
  pintar();return true;
 }
 function conectar(fn){recargar=fn;}
@@ -51,6 +52,14 @@ async function cambiar(arg){
 function estado(){
  const en=String(document.documentElement.lang||'').toLowerCase().startsWith('en');
  if(ultimo.error)return ultimo.error;
+ // Sin cuenta abierta (sin sesión o sin «Abrir como retailer»), el portal no ha pedido datos todavía: se dice que la
+ // elección queda guardada para cuando se abra una, no «sin filtro».
+ if(!cuenta){
+  const id=leer(),lista=Object.keys(NOMBRES).join(', ');
+  if(id&&!Object.hasOwn(NOMBRES,id)){guardar('');return en?'Unknown project «'+id+'». Available: '+lista+'.':'No existe el proyecto «'+id+'». Disponibles: '+lista+'.';}
+  if(id)return en?'Project '+nombre(id)+' selected. It applies as soon as you open a brand account: «Abrir como retailer» › the brand (superuser only). /proyecto off removes it.':'Proyecto '+nombre(id)+' elegido. Se aplicará en cuanto abras una cuenta de marca: «Abrir como retailer» › la marca (solo superusuario). /proyecto off lo quita.';
+  return en?'No account open in the portal yet. Open a brand account with «Abrir como retailer» and type /proyecto starbucks. Available: '+lista+'.':'Todavía no hay ninguna cuenta abierta en el portal. Abre una cuenta de marca con «Abrir como retailer» y escribe /proyecto starbucks. Disponibles: '+lista+'.';
+ }
  if(ultimo.proyecto)return en?'Project '+nombre(ultimo.proyecto)+': only its sites, devices and incidents (filtered by the server). /proyecto off removes it.':'Proyecto '+nombre(ultimo.proyecto)+': solo sus locales, equipos e incidencias (lo filtra el servidor). /proyecto off lo quita.';
  return (en?'No project filter: you see every site of this account. ':'Sin filtro de proyecto: ves todos los locales de esta cuenta. ')+(en?'Available: ':'Disponibles: ')+Object.keys(NOMBRES).join(', ')+'.';
 }
