@@ -1,3 +1,4 @@
+import { handleIncidentMap } from './incident-map.js';
 import { runIncidentSensors } from './incident-sensors.js';
 import { ensureEstablishmentProject } from './incident-project.js';
 import { FLEET_INCIDENTS_PREFIX, handleFleetIncidents } from './fleet-incidents.js';
@@ -10103,6 +10104,7 @@ var worker_app = {
     // las incidencias que abrió. Sólo recursos `demo:` (src/incident-status.js).
     // ?prefix=demo:<tienda>: → las activas de la tienda (índice idx_active_screen)
     // ?ids=INC-a,INC-b      → las que el gemelo ya conoce, aunque estén cerradas.
+    if (url.pathname === "/incident/map" && req.method === "GET") return handleIncidentMap(env, json);
     if (url.pathname === "/incident/status" && req.method === "GET") {
       const q = normalizeIncidentStatusQuery(url.searchParams);
       if (!q.ok) return json({ ok: false, error: q.error }, 400);
