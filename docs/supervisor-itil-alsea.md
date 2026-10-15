@@ -17,3 +17,14 @@ Publicar el API con `yokup-rtc/deploy.sh` desde main limpio, tras contrastar el 
 The Supervisor reads Yokup's canonical ITIL inventory. Search, category and attention filters, asset details, dependencies, warranty and maintenance flags, incident counts and CSV export use the live inventory response. Registry status is explicitly separate from physical availability. Simulated network data is labeled. Camera evidence belongs to the Gran de Gràcia lab, with a 90-second freshness threshold and a connection-loss state. No remote control or automatic remediation is inferred from an inventory record.
 
 The inventory endpoint enforces server-side session and supervisor authorization, with the existing official agent account allowed sanitized read access only. Private lifecycle fields remain in the canonical detail view. The app-only deployment option updates Pages while preserving yokup.com's independently pinned release.
+
+
+## Verificación publicada · 15 octubre de 2026
+
+PR #80 · centro operativo ITIL de Alsea integrada en `75a8880` · inventario y estados verificables. Web `v.15.10.2026.r5.20:15`, API `v.15.10.2026.r1.20:14`. El guardián independiente de yokup.com conserva el commit y versión previos.
+
+Navegador headless de producción: 21 registros, siete pantallas y un TPV; filtros, búsqueda, detalle, CSV y móvil de 390 px sin errores de página. La ficha completa del TPV usa `PDG103-TPV-01`. API real: lectura oficial de agentes 200, anónimo 401, identificador inválido 400, tienda inexistente 404, POST 405. Usuarios ordinarios se verifican con pruebas unitarias de permiso cerrado antes de consultar el maestro. Pruebas: 1664 web pasan; 1057 API pasan y una omitida.
+
+El laboratorio queda con observación caducada. El monitor y publicador no estaban ejecutándose. El preflight de reanudación verificó que no había marca STOP, pero detectó la inclinación de la cámara fuera de la calibración de esta mañana: no arrancó procesos ni movió el objetivo. Carlos debe elegir si restaurar el MBP16 o definir el nuevo objetivo. No se ejecutó Bugito ni se abrió/cerró ninguna incidencia física.
+
+La demo demuestra gestión del inventario y acceso a fichas; el mando físico del TPV y la correlación automática de todos los CIs con telemetría siguen sin estar verificados. Evidencia saneada en `docs/evidence/supervisor-itil-2026-10-15/`.
