@@ -141,7 +141,9 @@ const ICON={log:"🤖",assign:"🧭",ai:"🧠",note:"👷",status:"🔄",recover
 const RE_IMG=/https?:\/\/[^\s<>"]+?(?:\/media\/[^\s<>"]*|\.(?:png|jpe?g|gif|webp|avif))/gi;
 function cuerpoEvento(text){
   const t=String(text==null?"":text);
-  const urls=[...new Set(t.match(RE_IMG)||[])];
+  // Los informes escriben «Antes: https://…jpeg. Apagada: …»: el punto de
+  // la frase no pertenece al adjunto. Conservar consultas y escapes de la URL.
+  const urls=[...new Set((t.match(RE_IMG)||[]).map(u=>u.replace(/[.,;:!?)\]}]+$/g,"")))];
   if(!urls.length) return '<div class="et">'+esc(t)+'</div>';
   // fuera la cabecera del bloque, las viñetas «- url» y las urls sueltas
   const limpio=t.replace(/\n*🖼[^\n]*\n?/g,"\n").replace(/^[ \t]*[-•]?[ \t]*$/gm,"")

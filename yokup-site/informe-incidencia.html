@@ -292,7 +292,7 @@ function textoEvento(e){ return String(e.text==null?"":e.text).replace(/^Estado 
 // Adjuntos: las imágenes viajan como URLs dentro del texto (como en /ticket)
 const RE_IMG=/https?:\/\/[^\s<>"]+?(?:\/media\/[^\s<>"]*|\.(?:png|jpe?g|gif|webp|avif))/gi;
 function cuerpo(e){
-  const t=textoEvento(e), urls=[...new Set(t.match(RE_IMG)||[])];
+  const t=textoEvento(e), urls=[...new Set((t.match(RE_IMG)||[]).map(u=>u.replace(/[.,;:!?)\]}]+$/g,"")))];
   if(!urls.length) return '<div class="et">'+esc(t)+'</div>';
   const limpio=t.replace(/\n*🖼[^\n]*\n?/g,"\n").split(RE_IMG).join(" ").replace(/^[ \t]*[-•]?[ \t]*$/gm,"").replace(/\n{3,}/g,"\n\n").trim();
   return (limpio?'<div class="et">'+esc(limpio)+'</div>':"")+'<div class="ev-imgs">'+urls.map(u=>/^https:\/\//.test(u)?'<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="adjunto" loading="eager"></a>':"").join("")+'</div>';
