@@ -1,3 +1,4 @@
+import { handleIncidentObservation } from './incident-observation.js';
 import { handleIncidentMap } from './incident-map.js';
 import { runIncidentSensors } from './incident-sensors.js';
 import { ensureEstablishmentProject } from './incident-project.js';
@@ -145,7 +146,7 @@ var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@adm
 var WL_FETCH_TIMEOUT_MS = 2500;
 var WL_CACHE_MS = 3e5;
 var WL_FALLBACK_CACHE_MS = 15e3;
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/equipo", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/ticket/observation", "/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/equipo", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, ttl: 0, directory: null };
 function emergencyAccessDirectory() {
   // La lista de emergencia sólo mantiene abierta la verja básica. A propósito no
@@ -12683,6 +12684,10 @@ var worker_app = {
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
+    }
+    if (url.pathname === "/ticket/observation" && req.method === "POST") {
+      await ensureSchema(env);
+      return handleIncidentObservation(req, env, {json, session:await requireAuth(env, req), addEvent});
     }
     if (url.pathname === "/ticket/note" && req.method === "POST") {
       try {
