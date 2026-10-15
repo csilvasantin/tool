@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const html = readFileSync(new URL('./ticket.html', import.meta.url), 'utf8');
 const source = html.slice(html.indexOf('const RE_IMG='), html.indexOf('// FLT-101298', html.indexOf('const RE_IMG=')));
 const context = vm.createContext({ esc: s => String(s).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;') });
+vm.runInContext(readFileSync(new URL('./yk-foto-marca.js', import.meta.url), 'utf8'), context);
 vm.runInContext(source, context);
 const render = text => context.cuerpoEvento(text);
 
@@ -37,6 +38,7 @@ test('el informe de la incidencia muestra las mismas imágenes sin puntuación f
   const report = readFileSync(new URL('./informe-incidencia.html', import.meta.url), 'utf8');
   const code = report.slice(report.indexOf('const RE_IMG='), report.indexOf('function iniciales', report.indexOf('const RE_IMG=')));
   const ctx = vm.createContext({ esc: context.esc, textoEvento: e => String(e.text || '') });
+  ctx.YkFotoMarca = context.YkFotoMarca;
   vm.runInContext(code, ctx);
   const url = 'https://api.yokup.com/media/fleet/da43625b540714fa.jpeg';
   assert.ok(ctx.cuerpo({text:`Apagada: ${url}.`}).includes(`src="${url}"`));

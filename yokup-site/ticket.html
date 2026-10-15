@@ -110,6 +110,7 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 </dialog>
 
 <!-- yk-misiones aporta canonMachine (nombres canónicos de máquina) al selector de asignación -->
+<script src="/yk-foto-marca.js?v=r1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-misiones.js?v=20260930-flt101292"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
@@ -139,7 +140,7 @@ const ICON={log:"🤖",assign:"🧭",ai:"🧠",note:"👷",status:"🔄",recover
 // que compone yk-adjuntos). Sin esto el timeline las pintaba en crudo: adjuntabas
 // una foto y luego veías «- https://…/media/m/ab.png» en vez de la foto.
 const RE_IMG=/https?:\/\/[^\s<>"]+?(?:\/media\/[^\s<>"]*|\.(?:png|jpe?g|gif|webp|avif))/gi;
-function cuerpoEvento(text){
+function cuerpoEvento(text, ts){
   const t=String(text==null?"":text);
   // Los informes escriben «Antes: https://…jpeg. Apagada: …»: el punto de
   // la frase no pertenece al adjunto. Conservar consultas y escapes de la URL.
@@ -149,7 +150,7 @@ function cuerpoEvento(text){
   const limpio=t.replace(/\n*🖼[^\n]*\n?/g,"\n").replace(/^[ \t]*[-•]?[ \t]*$/gm,"")
                 .split(RE_IMG).join(" ").replace(/^[ \t]*-[ \t]*$/gm,"").replace(/\n{3,}/g,"\n\n").trim();
   return (limpio?'<div class="et">'+esc(limpio)+'</div>':"")+
-    '<div class="ev-imgs">'+urls.map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="adjunto" loading="lazy"></a>').join("")+'</div>';
+    '<div class="ev-imgs">'+urls.map(u=>YkFotoMarca.foto(u, ts)).join("")+'</div>';
 }
 
 // FLT-101298 · Ficha clara estilo Portal del comercio. La estructura se pinta de
@@ -238,7 +239,7 @@ async function render(){
     : `<button class="btn" onclick="setStatus('open')">Reabrir</button>`;
   // Historial como línea de tiempo del portal: hechos en verde, el último con
   // anillo lima y, mientras no se cierre, un paso pendiente en gris.
-  const hitos=ev.map((e,i)=>`<li class="ev ${esc(e.kind)} done${i===ev.length-1&&!cerrada?" current":""}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text)}</li>`).join("");
+  const hitos=ev.map((e,i)=>`<li class="ev ${esc(e.kind)} done${i===ev.length-1&&!cerrada?" current":""}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text, e.ts)}</li>`).join("");
   const pendiente=cerrada?"":`<li class="ev pending"><div class="eh"><b>Pendiente</b></div><div class="et">${esFlota?"Cerrar la misión con su informe y prueba.":"Resolver la incidencia y confirmar que el equipo funciona."}</div></li>`;
   // Incidencias unificadas (FLT-101298, #18): la que lleva el Portal del comercio
   // lo dice junto a estado y gravedad y enlaza su ficha (el enlace se construye con
@@ -252,7 +253,7 @@ async function render(){
     <div class="tk-sheet">
       <div class="tk-main">
         <section class="tk-card tk-datos" aria-labelledby="tkDatosH"><h2 id="tkDatosH">Datos ${esFlota?"de la misión":"de la incidencia"}</h2><dl class="tk-data" id="tkData"></dl></section>
-        <section class="tk-card tk-hist" aria-labelledby="tkHistH"><h2 id="tkHistH">Historial</h2>
+        <section class="tk-card tk-hist" aria-labelledby="tkHistH"><h2 id="tkHistH">Historial</h2>${ev.some(e=>String(e.text||"").match(RE_IMG)) ? YkFotoMarca.control() : ""}
           ${ev.length?`<ol class="tl">${hitos}${pendiente}</ol>`:`<div class="load">Sin actividad.</div>`}
         </section>
         <div class="composer tk-card" id="composer">
