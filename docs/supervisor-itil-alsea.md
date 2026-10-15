@@ -37,3 +37,29 @@ Carlos eligió restaurar el MBP16. FLT-102476 · restauración del objetivo fís
 Dos recortes nuevos, revisados visualmente, separados 3,29 s muestran el MBP16 encendido con contenido Trinity; luminancias 0,1911 / 0,1917, hashes distintos y PTZ 151200 / -36000 / 100 estable. El ciclo publicado sigue avanzando con un único objetivo `mbp16-pantalla`, estado encendida y cero incidencias abiertas. La verificación posterior del navegador cambia de «Observación caducada» a «Observación reciente», con cero errores de página. Los 21 registros ITIL de Alsea y su ficha TPV siguen disponibles.
 
 Este apartado sustituye el pendiente de encuadre del apartado anterior. No se ejecutó Bugito, no se probó un nuevo apagado y no se abrieron/cerraron tickets físicos. El control físico del TPV y la telemetría de todos los CIs siguen sin demostrarse. Las imágenes completas de la sala no se guardan en el repositorio; la evidencia saneada conserva tiempos, hashes, PTZ, ciclo y resultado del navegador.
+
+## Mando del reproductor físico · preparación de la demo
+
+El detalle de una pantalla o TPV permite vincular explícitamente un equipo físico registrado. La asociación lleva ámbito `demo`: no cambia la ubicación ni declara que el Samsung Fold sea el equipo instalado en Alsea. No se aceptan players virtuales ni CIs retirados. El detalle muestra origen, hora de la última señal, contenido y reposo cuando el reproductor los publica. Una señal del player no demuestra por sí sola que el panel esté encendido. El router marcado SIMULADO conserva esa indicación; el resto de equipos no adquiere telemetría por pertenecer al inventario.
+
+Los mandos disponibles son reproducir/pausar, anterior/siguiente, silenciar/activar sonido, reposo/salir de reposo y mostrar/ocultar información. El servidor obtiene el destino de la asociación del CI, exige señal de menos de 90 segundos y usa exclusivamente el MCP oficial. La clave de flota se configura como secreto `SUPERVISOR_PLAYER_KEY`; nunca se envía al navegador. La sesión y la capacidad de supervisión se comprueban en cada llamada, incluida la entrada oficial de agentes.
+
+Cada petición lleva un UUID. La reserva SQL impide reenviar esa petición y bloquea otra mientras haya una orden pendiente para el equipo. «En cola» no significa «ejecutada»: solo se muestra ejecución cuando coinciden equipo, comando, acción y recibo. Una pérdida de conexión deja estado sin confirmar, sin reenvío automático. «Comprobar última orden» recupera el estado después de cerrar el detalle o recargar la página.
+
+Contrato HTTP (sesión de supervisor obligatoria):
+
+- `GET /supervisor/devices`: dispositivos físicos registrados, sin credenciales.
+- `GET /supervisor/connections?xpacio=...`: asociaciones, telemetría saneada y última orden del operador.
+- `POST /supervisor/connections`: `{xpacio,code,screen,label,scope:"demo"}`; `screen:null` desvincula sin enviar órdenes.
+- `POST /supervisor/command`: `{xpacio,code,command,request_id}`. No acepta destino ni recibo impuestos por el navegador.
+- `GET /supervisor/command?id=<request_id>`: consulta el recibo guardado, sin reenviar la acción.
+
+Para demostrar el Fold: conectarlo al Mac Mini con USB de datos y depuración autorizada; comprobar modelo, aplicación y configuración existentes antes de modificarlos; abrir su reproductor, verificar señal real, vincularlo a `PDG103-TPV-01` como demo y ejecutar mostrar/ocultar información. Conservar prueba del cambio visible en el Fold y del recibo coincidente. Las pruebas de interfaz con datos locales no acreditan ese control físico.
+
+### English: physical player control
+
+A screen or POS inventory asset can be explicitly linked to a registered physical player for a demo. Virtual players and retired assets are rejected. Player heartbeat, its timestamp, content and standby are separate from registry status and optical proof. Simulated router values remain labeled.
+
+Commands require a privileged authenticated session, an explicit asset binding, a dedicated server-side fleet credential and a heartbeat younger than 90 seconds. A SQL reservation prevents duplicate submission and overlapping pending actions. Queued, executed, failed, ignored and unknown remain distinct. Only the exact device/action/command receipt confirms execution. Connection loss never triggers an automatic resend. The last order can be checked after reopening the detail view.
+
+Physical acceptance requires an actual visible change on the Samsung Fold and the matching receipt, followed by restoring the initial state. Local browser fixtures only verify the interface and are not hardware evidence.
