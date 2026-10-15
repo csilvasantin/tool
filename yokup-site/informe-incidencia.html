@@ -324,7 +324,7 @@ function descargar(){
   const doc=document.documentElement.cloneNode(true);
   doc.classList.remove("yk-locked","yk-framed","yk-public");
   // Sin el marco común (barra, raíles, popovers): la copia es sólo el informe.
-  doc.querySelectorAll("script,.yk-foto-control,.rp-toolbar,#yk-gate,#yk-frame,.yk-navpop,.yk-submenu,.yk-nav-live,link[href*=\"yk-frame.css\"]").forEach(n=>n.remove());
+  doc.querySelectorAll("script,.yk-foto-control,.yk-foto-detalle,.rp-toolbar,#yk-gate,#yk-frame,.yk-navpop,.yk-submenu,.yk-nav-live,link[href*=\"yk-frame.css\"]").forEach(n=>n.remove());
   const body=doc.querySelector("body"); body.classList.add("ready","rp-static");
   const html="<!DOCTYPE html>\n"+doc.outerHTML;
   const a=document.createElement("a");
