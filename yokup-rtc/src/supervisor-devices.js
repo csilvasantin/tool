@@ -31,7 +31,7 @@ export async function deviceRpc(env,name,args,{write=false,fetchImpl=fetch}={}) 
   if(write && !env.SUPERVISOR_PLAYER_KEY)throw error("control_unconfigured",503);
   const headers={"Content-Type":"application/json",Accept:"application/json"};
   if(write)headers.Authorization="Bearer "+env.SUPERVISOR_PLAYER_KEY;
-  const r=await fetchImpl(MCP,{method:"POST",headers,redirect:"error",signal:AbortSignal.timeout(12000),body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name,arguments:args}})});
+  const r=await fetchImpl(MCP,{method:"POST",headers,redirect:"manual",signal:AbortSignal.timeout(12000),body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name,arguments:args}})});
   const raw=await r.text();if(raw.length>262144)throw error("upstream_unavailable",502);
   let d;try{d=JSON.parse(raw);}catch{throw error("upstream_unavailable",502);}
   if(!r.ok||d.error)throw error("upstream_unavailable",502);
@@ -50,7 +50,7 @@ async function inventory(env,xpacio) {
   return d.cis.filter(c=>c.lifecycle?.status!=="retired");
 }
 async function registered(fetchImpl=fetch) {
-  const r=await fetchImpl(SIGNAGE,{cache:"no-store",redirect:"error",signal:AbortSignal.timeout(10000)});
+  const r=await fetchImpl(SIGNAGE,{cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(10000)});
   if(!r.ok)throw error("telemetry_unavailable",502);
   const d=await r.json();if(!Array.isArray(d.screens))throw error("telemetry_unavailable",502);
   return d.screens.filter(s=>SCREEN.test(s.screen||"")&&s.player_type!=="virtual"&&!/^(?:xtore-)?virtual-/.test(s.screen));

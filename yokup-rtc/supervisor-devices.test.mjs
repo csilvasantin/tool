@@ -10,7 +10,7 @@ function fixture(t){
  const f={now,registry:[{screen,player:'android'}],cis:[{itil_code:code,category:'tpv',lifecycle:{status:'operational'}}],signal:{screen,signal_recent:true,last_seen:now-1000,capabilities:{remote_commands:true}},ack:'executed',sent:0,session:{email:'operator@example.com'},access:{allowed:true,canChangeProject:true}};
  f.env={DB,SUPERVISOR_PLAYER_KEY:'test-private-key',INCIDENT_DESK:{fetch:async()=>Response.json({ok:true,xpacio:{admira_store_id:xpacio},cis:f.cis})}};
  f.rpc=async(_env,name,args)=>{if(name==='player_status')return f.signal;if(name==='player_command'){f.sent++;if(f.lost)throw Error('test-private-key');return {screen,command:args.command,action,cid:1,status:'queued'};}return {...args,screen:f.mismatch?'another-device':screen,status:f.ack,appliedAt:now};};
- f.call=async(path,body)=>{const r=await handleSupervisorDevices(new Request('https://api.admira.app'+path,{method:body?'POST':'GET',...(body?{body:JSON.stringify(body)}:{})}),f.env,{session:f.session,access:f.access,json:(d,status=200)=>Response.json(d,{status}),now:f.now,fetchImpl:async()=>Response.json({screens:f.registry}),rpc:f.rpc});return {status:r.status,body:await r.json()};};
+ f.call=async(path,body)=>{const r=await handleSupervisorDevices(new Request('https://api.admira.app'+path,{method:body?'POST':'GET',...(body?{body:JSON.stringify(body)}:{})}),f.env,{session:f.session,access:f.access,json:(d,status=200)=>Response.json(d,{status}),now:f.now,fetchImpl:async(_url,init)=>{assert.equal(init.redirect,"manual");return Response.json({screens:f.registry});},rpc:f.rpc});return {status:r.status,body:await r.json()};};
  f.bind=()=>f.call('/supervisor/connections',{xpacio,code,screen,label:'Samsung Fold',scope:'demo'});
  f.send=(changes={})=>f.call('/supervisor/command',{xpacio,code,command:'info-show',request_id:id,...changes});
  return f;
@@ -52,5 +52,5 @@ test('EN: ignored and failed receipts are not execution; another actor cannot re
 test('ES: cliente MCP no permite órdenes sin clave ni adjunta clave a lecturas',async()=>{
  await assert.rejects(deviceRpc({},'player_command',{}),/tool_forbidden/);
  await assert.rejects(deviceRpc({},'player_command',{}, {write:true}),/control_unconfigured/);
- let auth;await deviceRpc({SUPERVISOR_PLAYER_KEY:'private'},'player_status',{screen},{fetchImpl:async(_url,init)=>{auth=init.headers.Authorization;return Response.json({result:{content:[{type:'text',text:'{}'}]}});}});assert.equal(auth,undefined);
+ let auth;await deviceRpc({SUPERVISOR_PLAYER_KEY:'private'},'player_status',{screen},{fetchImpl:async(_url,init)=>{assert.equal(init.redirect,"manual");auth=init.headers.Authorization;return Response.json({result:{content:[{type:'text',text:'{}'}]}});}});assert.equal(auth,undefined);
 });
