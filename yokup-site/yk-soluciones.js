@@ -1,3 +1,4 @@
+import { observationFreshness } from "./yk-supervisor-itil-model.js?v=1";
 const API = "https://api.yokup.com/supervisor/soluciones?id=macmini-insta360";
 const ORDEN = ["pantallas-izquierda", "pantallas-centro", "pantallas-derecha", "recreativa", "sala", "puerta"];
 const NOMBRES = {
@@ -6,7 +7,8 @@ const NOMBRES = {
   "pantallas-derecha": "Pantallas derecha",
   recreativa: "Recreativa",
   sala: "Sala",
-  puerta: "Puerta"
+  puerta: "Puerta",
+  "mbp16-pantalla": "MBP16 · pantalla integrada"
 };
 const FOTO = /^https:\/\/api\.yokup\.com\/media\/fleet\/[a-f0-9]{8,64}\.(?:jpe?g|png|webp)$/i;
 const TICKET = /^https:\/\/www\.admira\.app\/ticket\?id=INC-[A-Z0-9]{4,16}$/;
@@ -57,6 +59,10 @@ function lista(host, items, vacio) {
 }
 
 function pintar(data) {
+  const freshness = observationFreshness(Number(data.updated_at));
+  const badge = document.getElementById("solFreshness");
+  const recent = freshness.fresh && (data.posiciones || []).some(p => observationFreshness(p.cuando).fresh);
+  if (badge) { badge.textContent = recent ? "Observación reciente" : "Observación caducada"; badge.classList.toggle("stale", !recent); }
   const porId = new Map((data.posiciones || []).map((p) => [p.id, p]));
   const ids = ORDEN.filter((id) => porId.has(id));
   for (const p of data.posiciones || []) if (!ids.includes(p.id)) ids.push(p.id);
@@ -71,21 +77,24 @@ function pintar(data) {
       : `Ciclo ${data.ciclo || 0}`;
     for (const id of ids) {
       const p = porId.get(id) || { id, estado: "sin-dato" };
-      const card = el("article", `sol-card ${p.estado === "apagada" ? "apagada" : ""} ${id === en ? "mira" : ""}`.trim());
+      const fresh = freshness.fresh && observationFreshness(p.cuando).fresh;
+      const card = el("article", `sol-card ${p.estado === "apagada" && fresh ? "apagada" : ""} ${id === en && fresh ? "mira" : ""} ${fresh ? "" : "stale"}`.trim());
       card.append(el("p", "sol-nombre", nombre(id)));
       if (FOTO.test(p.foto || "")) {
         const img = el("img");
         img.src = p.foto;
-        img.alt = `Captura pixelada de ${nombre(id)}`;
-        card.append(img);
+        img.alt = `Última imagen publicada de ${nombre(id)}`;
+        const link = el("a", "yk-foto"); link.href=p.foto; link.setAttribute("aria-label", `Ampliar imagen de ${nombre(id)}`); link.setAttribute("aria-haspopup", "dialog"); link.append(img); card.append(link);
       } else {
         card.append(el("p", "sol-sin-foto", "Sin captura"));
       }
       const meta = el("p", "sol-meta");
-      meta.append(el("b", p.estado || "sin-dato", estadoTexto(p.estado)));
-      if (id === en) meta.append(el("span", "", " · cámara aquí"));
+      meta.append(el("b", p.estado || "sin-dato", fresh ? estadoTexto(p.estado) : `Último estado: ${estadoTexto(p.estado).toLowerCase()} · pendiente de lectura`));
+      if (id === en && fresh) meta.append(el("span", "", " · cámara aquí"));
       if (typeof p.luz === "number") meta.append(el("span", "", ` · luz ${p.luz.toFixed(2)}`));
       card.append(meta);
+      const observedAt=Date.parse(p.cuando);
+      if(Number.isFinite(observedAt)) { const time=el("time","sol-capture-time","Última lectura: " + new Date(observedAt).toLocaleString("es-ES",{timeZone:"Europe/Madrid"}) + " · Madrid");time.dateTime=new Date(observedAt).toISOString();card.append(time); }
       if (p.incidencia && TICKET.test(p.incidencia.url || "")) {
         const a = el("a", "sol-ticket", p.incidencia.id);
         a.href = p.incidencia.url;
@@ -98,7 +107,7 @@ function pintar(data) {
   lista(abiertas, data.abiertas || [], "Ninguna abierta");
   lista(cerradas, data.cerradas || [], "Ninguna cerrada");
   const updated = Number(data.updated_at) || 0;
-  cuando.textContent = updated ? `Actualizado ${new Date(updated).toLocaleTimeString("es-ES")}` : "Sin publicación todavía";
+  cuando.textContent = updated ? `Última publicación: ${new Date(updated).toLocaleString("es-ES", {timeZone:"Europe/Madrid"})} · Madrid. La imagen puede ser anterior a la lectura.` : "Sin publicación todavía";
 }
 
 async function leer() {
@@ -122,6 +131,8 @@ async function ciclo() {
     await leer();
   } catch (error) {
     cuando.textContent = "Sin enlace con el estado en vivo";
+    const badge=document.getElementById("solFreshness");if(badge){badge.textContent="Sin conexión";badge.classList.add("stale");}
+    for(const card of grid.querySelectorAll(".sol-card")){card.classList.add("stale");card.classList.remove("mira","apagada");const status=card.querySelector(".sol-meta b");if(status)status.textContent="Sin conexión · estado actual sin verificar";}
   }
   programar(5000);
 }

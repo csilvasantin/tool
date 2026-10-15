@@ -14,6 +14,8 @@ import { signedVersionFromPayload, signedVersionsFromDeployments } from "./deplo
 const lockPath = join(tmpdir(), "yokup-pages-deploy.lock");
 const versionPath = new URL("./version.json", import.meta.url);
 const sourceRoot = fileURLToPath(new URL("./", import.meta.url));
+// admira.app consume Pages; el guardián de yokup.com conserva su release propia.
+const appOnly = process.argv.includes("--admira-app-only");
 let deployIdentity;
 try {
   deployIdentity = validateDeployIdentity(process.env.YOKUP_DEPLOY_AGENT, process.env.YOKUP_DEPLOY_MACHINE);
@@ -67,7 +69,7 @@ function run(command, args, extraEnv = {}) {
 
 async function verifyPublicVersion(expected) {
   for (let attempt = 0; attempt < 24; attempt += 1) {
-    const current = await fetch("https://www.yokup.com/__yokup-gate?verify=" + Date.now(), { cache:"no-store" })
+    const current = await fetch((appOnly ? "https://www.admira.app/version.json?verify=" : "https://www.yokup.com/__yokup-gate?verify=") + Date.now(), { cache:"no-store" })
       .then((response) => response.ok ? response.json() : null).catch(() => null);
     if (current && current.version === expected.version && current.gitFull === expected.gitFull &&
         current.signature === expected.signature && current.dirty === false) return;
@@ -242,12 +244,12 @@ try {
   // antigua a Pages no pueda sustituir la web visible. Ambos destinos forman una
   // sola release: si el segundo falla, la versión anterior continúa operativa y
   // el comando termina en rojo en vez de dejar producción a medias.
-  await run("bash", ["../yokup-site-gate/deploy.sh"], {
+  if (!appOnly) await run("bash", ["../yokup-site-gate/deploy.sh"], {
     YOKUP_RELEASE_JSON:JSON.stringify(payload),
     YOKUP_ASSET_SOURCE:stagingPath
   });
   await verifyPublicVersion(payload);
-  console.log(`Yokup publicado y verificado: ${payload.version}`);
+  console.log(`${appOnly ? "admira.app" : "Yokup"} publicado y verificado: ${payload.version}`);
 } catch (error) {
   console.error(error && error.message || error);
   process.exitCode = 1;
