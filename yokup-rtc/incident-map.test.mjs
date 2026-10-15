@@ -1,14 +1,19 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';
-import {handleIncidentMap} from './src/incident-map.js';
+import {handleIncidentMap,incidentPreview} from './src/incident-map.js';
 const json=(d,s=200)=>Response.json(d,{status:s});
 test('canonical map excludes closed/cancelled tickets and missions; severe dominates; recovery remains active',async()=>{
- const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE tickets(id TEXT,loc TEXT,status TEXT,priority TEXT,role TEXT,source TEXT)');
+ const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE tickets(id TEXT,loc TEXT,status TEXT,priority TEXT,role TEXT,source TEXT,updated_at INTEGER)');
  const ins=db.prepare('INSERT INTO tickets(id,loc,status,priority) VALUES(?,?,?,?)');
  for(const r of [['INC-A','store-a','open','normal'],['INC-B','store-a','in_progress','alta'],['INC-C','store-b','open','baja'],['INC-D','store-c','resolved','urgente'],['INC-E','store-c','cancelled','alta'],['FLT-X','store-d','open','urgente'],['INC-F','','open','alta'],['INC-G','store-e','open','urgente']])ins.run(...r);
- db.exec("INSERT INTO tickets VALUES('INC-MIS','store-z','open','alta','mission','legacy')");
+ db.exec("INSERT INTO tickets(id,loc,status,priority,role,source) VALUES('INC-MIS','store-z','open','alta','mission','legacy')");
  const env={DB:{prepare:s=>({all:async()=>({results:db.prepare(s).all()})})}};
  const response=await handleIncidentMap(env,json);const d=await response.json();assert.equal(response.status,200);
- assert.deepEqual(d.locations,[{id:'store-a',active:2,severe:1,level:2},{id:'store-b',active:1,severe:0,level:1},{id:'store-e',active:1,severe:1,level:2}]);
- assert.ok(!JSON.stringify(d).includes('INC-'));assert.match(response.headers.get('cache-control'),/max-age=5/);db.close();
+ assert.deepEqual(d.locations.map(({incident,...r})=>r),[{id:'store-a',active:2,severe:1,level:2},{id:'store-b',active:1,severe:0,level:1},{id:'store-e',active:1,severe:1,level:2}]);
+ assert.ok(d.locations.every(r=>r.incident===null));assert.match(response.headers.get('cache-control'),/max-age=5/);db.close();
 });
 test('database failure never returns an empty green map',async()=>{const r=await handleIncidentMap({DB:{prepare(){throw Error('offline')}}},json);assert.equal(r.status,503);assert.equal((await r.json()).ok,false)});
+
+test('preview selects highest priority then newest, never publishes private free text',async()=>{
+ const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE tickets(id TEXT,loc TEXT,status TEXT,priority TEXT,role TEXT,source TEXT,updated_at INTEGER,subject TEXT);INSERT INTO tickets VALUES('INC-AAAA','lab','open','normal','screen','supervisor-player',999,'Private person contact');INSERT INTO tickets VALUES('INC-BBBB','lab','open','alta','screen','supervisor-player',10,'private title');INSERT INTO tickets VALUES('INC-CCCC','lab','open','alta','screen','supervisor-player',20,'private notes')");
+ const env={DB:{prepare:s=>({all:async()=>({results:db.prepare(s).all()})})}};const d=await(await handleIncidentMap(env,json)).json();assert.equal(d.locations[0].incident.id,'INC-CCCC');assert.equal(d.locations[0].active,3);assert.match(d.locations[0].incident.summary.es,/grave/);assert.match(d.locations[0].incident.summary.en,/Severe/);assert.ok(!JSON.stringify(d).includes('private'));assert.ok(!JSON.stringify(d).includes('contact'));assert.equal(incidentPreview({incident_id:'https://evil.example'}),null);db.close();
+});
