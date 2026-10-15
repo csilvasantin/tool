@@ -1973,6 +1973,42 @@
     L.push(t("Ayuda completa: yokup.com/help · MCP de flota: yokup.com/mcp", "Full help: yokup.com/help · Fleet MCP: yokup.com/mcp"));
     return L.join("\n");
   }
+  // Portada (Carlos, 15-oct-2026): la primera página sin modo Experto; en el sitio de ⌘, la pastilla de
+  // idioma con su misma caja: «ENG» pasa a inglés y «ESP» vuelve al castellano. El resto conserva ⌘.
+  // Fuera de un iframe y sin ?embed= ni ?ax_demo= (el recorrido de demo conserva su consola).
+  function esPortadaYk() {
+    try {
+      if (window.top !== window.self) return false;
+      if (/(^|[?&])(embed|ax_demo)=/.test(location.search)) return false;
+      return location.pathname === "/" || location.pathname === "/index.html";
+    } catch (e) { return false; }
+  }
+  function pastillaIdioma() {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "yk-ico yk-ico-lang"; b.id = "ykLangPill";
+    // Mismo compacto que ☰ y ▤ (suite/header.js reduce los controles de cabecera que reconoce).
+    b.setAttribute("data-admira-compact-control", "");
+    function pintar() {
+      var en = localEn(), l = en ? "Switch to Spanish" : "Cambiar a inglés";
+      b.textContent = en ? "ESP" : "ENG"; b.setAttribute("aria-label", l); b.title = l;
+    }
+    b.addEventListener("click", function () {
+      var destino = localEn() ? "es" : "en";
+      // Mismo camino que /idioma (suite/experto.js); si no está, el de la portada (YkIdioma).
+      if (typeof window.AdmiraSetLanguage === "function") { try { window.AdmiraSetLanguage(destino); } catch (e) {} }
+      if (String(document.documentElement.lang || "").toLowerCase().indexOf(destino) !== 0) {
+        document.documentElement.lang = destino;
+        try { document.dispatchEvent(new CustomEvent("admiranext:lang", { detail: { lang: destino } })); } catch (e) {}
+        try { if (window.YkIdioma && typeof window.YkIdioma.aplicar === "function") window.YkIdioma.aplicar(destino); } catch (e) {}
+      }
+      // ?lang= en la URL: al recargar se conserva el idioma elegido.
+      try { var u = new URL(location.href); u.searchParams.set("lang", destino); history.replaceState(history.state, "", u.href); } catch (e) {}
+      pintar();
+    });
+    try { new MutationObserver(pintar).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] }); } catch (e) {}
+    pintar();
+    return b;
+  }
   function demoIdiomaPortada() {
     var ceja = document.querySelector(".hero .eyebrow") || document.querySelector(".eyebrow");
     var antes = ceja ? String(ceja.textContent || "") : "";
@@ -2249,7 +2285,8 @@
     var icoR = icon("yk-ico yk-ico-adv", "right", "▤", "Avanzado");
     var icoB = icon("yk-ico yk-ico-exp", "bottom", "⌘", "Modo experto");
     bar.appendChild(icoR);
-    bar.appendChild(icoB);
+    if (esPortadaYk()) bar.appendChild(pastillaIdioma());
+    else bar.appendChild(icoB);
 
     // ------------------------- PANELES (raíles) ----------------------------
     // Rótulos por página: <body data-yk-rail-left="…" data-yk-rail-right="…">.
