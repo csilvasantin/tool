@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "id": "macmini-insta360",
+  "ciclo": 8289,
+  "en": "mbp16-pantalla",
+  "cuando": "2026-10-15T18:25:16Z",
+  "posiciones": [
+    {
+      "id": "mbp16-pantalla",
+      "luz": 0.19,
+      "estado": "encendida",
+      "foto": "https://api.yokup.com/media/fleet/47438ad3babc12b0.jpeg",
+      "cuando": "2026-10-15T18:24:04Z",
+      "incidencia": null
+    }
+  ],
+  "abiertas": [],
+  "cerradas": [
+    {
+      "id": "INC-LXF9FB",
+      "posicion": "pantallas-derecha",
+      "url": "https://www.admira.app/ticket?id=INC-LXF9FB",
+      "cuando": ""
+    },
+    {
+      "id": "INC-M6VCM6",
+      "posicion": "pantallas-derecha",
+      "url": "https://www.admira.app/ticket?id=INC-M6VCM6",
+      "cuando": ""
+    },
+    {
+      "id": "INC-4B8GQB",
+      "posicion": "mbp16-pantalla",
+      "url": "https://www.admira.app/ticket?id=INC-4B8GQB",
+      "cuando": ""
+    },
+    {
+      "id": "INC-62Z268",
+      "posicion": "mbp16-pantalla",
+      "url": "https://www.admira.app/ticket?id=INC-62Z268",
+      "cuando": ""
+    }
+  ],
+  "updated_at": 1792088717076
+}

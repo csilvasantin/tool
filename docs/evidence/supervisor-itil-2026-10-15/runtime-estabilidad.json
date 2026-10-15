@@ -1,0 +1,15 @@
+{
+  "previous_cycle": 8278,
+  "later_cycle": 8289,
+  "age_seconds": 4.61,
+  "ptz": {
+    "pan": 151200,
+    "tilt": -36000,
+    "zoom": 100
+  },
+  "process_counts": {
+    "vigilar_bucle.py": 1,
+    "publicar_estado.py": 1
+  },
+  "open_incidents": 0
+}

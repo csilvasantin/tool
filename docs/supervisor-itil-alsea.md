@@ -28,3 +28,12 @@ Navegador headless de producción: 21 registros, siete pantallas y un TPV; filtr
 El laboratorio queda con observación caducada. El monitor y publicador no estaban ejecutándose. El preflight de reanudación verificó que no había marca STOP, pero detectó la inclinación de la cámara fuera de la calibración de esta mañana: no arrancó procesos ni movió el objetivo. Carlos debe elegir si restaurar el MBP16 o definir el nuevo objetivo. No se ejecutó Bugito ni se abrió/cerró ninguna incidencia física.
 
 La demo demuestra gestión del inventario y acceso a fichas; el mando físico del TPV y la correlación automática de todos los CIs con telemetría siguen sin estar verificados. Evidencia saneada en `docs/evidence/supervisor-itil-2026-10-15/`.
+
+
+## Restauración física autorizada · 15 octubre de 2026
+
+Carlos eligió restaurar el MBP16. FLT-102476 · restauración del objetivo físico MBP16. La primera orden PTZ no se aplicaba mientras no había vídeo válido; una captura directa abrió la señal y permitió confirmar el preset de esta mañana. El go2rtc previo había agotado su fuente de vídeo; se reinició el mismo servicio con su configuración 4K intacta. Se reanudaron exactamente un monitor y un publicador existentes, sin otro controlador ni cambios de fuente/configuración.
+
+Dos recortes nuevos, revisados visualmente, separados 3,29 s muestran el MBP16 encendido con contenido Trinity; luminancias 0,1911 / 0,1917, hashes distintos y PTZ 151200 / -36000 / 100 estable. El ciclo publicado sigue avanzando con un único objetivo `mbp16-pantalla`, estado encendida y cero incidencias abiertas. La verificación posterior del navegador cambia de «Observación caducada» a «Observación reciente», con cero errores de página. Los 21 registros ITIL de Alsea y su ficha TPV siguen disponibles.
+
+Este apartado sustituye el pendiente de encuadre del apartado anterior. No se ejecutó Bugito, no se probó un nuevo apagado y no se abrieron/cerraron tickets físicos. El control físico del TPV y la telemetría de todos los CIs siguen sin demostrarse. Las imágenes completas de la sala no se guardan en el repositorio; la evidencia saneada conserva tiempos, hashes, PTZ, ciclo y resultado del navegador.

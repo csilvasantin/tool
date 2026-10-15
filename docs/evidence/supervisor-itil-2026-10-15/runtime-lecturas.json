@@ -1,0 +1,26 @@
+{
+  "target": "mbp16-pantalla",
+  "ci": "GDG51-PAN-07",
+  "reads": [
+    {
+      "captured_at": 1792088656.270575,
+      "luminance": 0.1911,
+      "ptz": {
+        "pan": 151200,
+        "tilt": -36000,
+        "zoom": 100
+      },
+      "sha256": "074d6af00db072a090be943a26f65d5519e416fc73d1b3270ebbd01704209c22"
+    },
+    {
+      "captured_at": 1792088659.5576,
+      "luminance": 0.1917,
+      "ptz": {
+        "pan": 151200,
+        "tilt": -36000,
+        "zoom": 100
+      },
+      "sha256": "e893f13707770e88e0d1097ed6fb0beb21094fc2a05044da0411a4bfa1d8e669"
+    }
+  ]
+}
