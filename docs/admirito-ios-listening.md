@@ -23,7 +23,7 @@ Validación: pruebas de cuenta/dispositivo, fragmentos incompletos, checkpoints 
 
 - 16-oct-2026: app archivada y firmada con Admira Digital Networks S.L.; pruebas de conversión PCM, fragmentos duraderos y recuperación aprobadas en simulador.
 - Prueba nativa contra producción aprobada: vinculación por código, restauración del llavero, transcripción de audio sintético, resumen y pregunta posterior en la misma conversación. Cuenta de prueba aislada; nota, conversación y dispositivo temporal eliminados/revocados.
-- Instalación física pendiente: el iPhone conectado está bloqueado y CoreDevice impide preparar su imagen de desarrollo. No se ha iniciado ninguna grabación en el teléfono.
+- Instalación física completada tras desbloquear el iPhone de Carlos: CoreDevice confirma com.admira.admirito instalado. No se ha iniciado ninguna grabación en el teléfono.
 - La escucha real con pantalla bloqueada, las interrupciones y la calidad de captura de televisión siguen pendientes de comprobación física.
 
-Native production integration passed using synthetic speech; physical installation and locked-screen microphone capture remain unverified until the connected iPhone is unlocked. No microphone recording has been started on that phone.
+Native production integration passed using synthetic speech; physical installation succeeded after Carlos unlocked his iPhone; locked-screen microphone capture remains unverified. No microphone recording has been started on that phone.
