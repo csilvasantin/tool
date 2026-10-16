@@ -2384,8 +2384,8 @@
       if (!FLEET_MODE) document.head.appendChild(axCss);
       var ax = document.createElement("script");
       ax.id = "ax-experto-js"; ax.defer = true;
-      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2" :
-        "https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2";
+      ax.src = nativeAppDemo ? "https://www.admiranext.com/suite/experto.js?v=20261016-dooh-1" :
+        "https://www.admiranext.com/suite/experto.js?v=20261016-dooh-1";
       if (FLEET_MODE) ax.setAttribute("data-commands-only", "");
       if (nativeAppDemo) {
         ax.setAttribute("data-admira-demo-engine", "");
