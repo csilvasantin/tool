@@ -10,19 +10,24 @@ import UniformTypeIdentifiers
         WindowGroup { AssistantView().environmentObject(assistant).onChange(of: phase) { _, value in if value == .active { assistant.retry() } } }
     }
 }
+enum PetMood: String, CaseIterable { case awake, laugh, rainbow, resting }
 struct AdmiritoFace: UIViewRepresentable {
-    let listening: Bool
+    let mood: PetMood
     func makeUIView(context: Context) -> WKWebView {
         let view = WKWebView(); view.isOpaque = false; view.backgroundColor = .clear; view.scrollView.backgroundColor = .clear; view.scrollView.isScrollEnabled = false; view.isUserInteractionEnabled = false
-        if let url = Bundle.main.url(forResource: "Admirito", withExtension: "svg"), let svg = try? String(contentsOf: url) {
-            view.loadHTMLString("<meta name='viewport' content='width=device-width,initial-scale=1'><style>body{margin:0;background:transparent;display:grid;place-items:center;height:100vh}svg{width:90%;height:90%}.da-nube-cuerpo{transform-origin:50% 50%;animation:breathe 3s ease-in-out infinite}@keyframes breathe{50%{transform:translateY(-5px)}}@media(prefers-reduced-motion:reduce){*{animation:none!important}}</style>" + svg, baseURL: nil)
-        }; return view
+        if let svgURL = Bundle.main.url(forResource: "Admirito", withExtension: "svg"), let svg = try? String(contentsOf: svgURL), let templateURL = Bundle.main.url(forResource: "AdmiritoPet", withExtension: "html"), let template = try? String(contentsOf: templateURL) {
+            view.loadHTMLString(template.replacingOccurrences(of: "{{SVG}}", with: svg).replacingOccurrences(of: "{{MOOD}}", with: mood.rawValue), baseURL: nil)
+        }
+        return view
     }
-    func updateUIView(_ view: WKWebView, context: Context) { view.accessibilityLabel = listening ? "Admirito escuchando" : "Admirito" }
+    func updateUIView(_ view: WKWebView, context: Context) { view.evaluateJavaScript("document.body.dataset.mood='" + mood.rawValue + "'"); view.accessibilityLabel = "Admirito " + mood.rawValue }
 }
 struct AssistantView: View {
     @EnvironmentObject private var assistant: AssistantStore
     @Environment(\.openURL) private var openURL
+    @StateObject private var diary = RestDiary()
+    @Environment(\.scenePhase) private var scene
+    @State private var petMood: PetMood?
     @State private var kind = ListeningKind.meeting
     @State private var title = ""
     @State private var importing = false
@@ -36,10 +41,15 @@ struct AssistantView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    AdmiritoFace(listening: assistant.listening).frame(height: 160).frame(maxWidth: .infinity).accessibilityHidden(true)
+                    AdmiritoFace(mood: petMood ?? defaultMood).frame(height: 160).frame(maxWidth: .infinity).accessibilityHidden(true)
                     Text(assistant.listening ? "Estoy escuchando." : "Aquí está tu Admirito.").font(.largeTitle.bold())
                     Text(assistant.status).font(.callout).foregroundStyle(.secondary).accessibilityIdentifier("assistantStatus")
-                    if assistant.linked { listeningControls; conversation; notes }
+                    if assistant.linked {
+                        HStack { Button("Ríe") { play(.laugh) }; Button("Arcoíris") { play(.rainbow) }; Button("Descansa") { play(.resting) } }.font(.caption)
+                        listeningControls
+                        RestDiaryView(diary: diary)
+                        conversation; notes
+                    }
                     else { pairing }
                     Text("La escucha solo empieza cuando tú la activas. Puedes pausarla o terminarla en cualquier momento. Se detiene automáticamente tras cinco minutos seguidos de silencio. El resumen utiliza lo realmente captado por el micrófono; no ve las imágenes del televisor.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -54,6 +64,10 @@ struct AssistantView: View {
                     Button("Salir de esta app", role: .destructive) { assistant.signOut() }.disabled(assistant.listening || assistant.starting)
                 } label: { Image(systemName: "person.crop.circle") } } }
             }
+            .onAppear { bindDiary() }
+            .onChange(of: assistant.linked) { _, _ in bindDiary() }
+            .onChange(of: scene) { _, phase in if phase == .active { bindDiary() } }
+            .onChange(of: diary.enabled) { _, enabled in if enabled && assistant.listening { diary.startMotion() } }
             .sheet(isPresented: $takingPhoto) { ProjectionPhoto { assistant.attachProjection($0) } }
             .sheet(isPresented: $sharing) { if let image = sharingPhoto { PhotoSummaryShare(image: image, text: sharingText) } }
             .alert("Cámara", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) { Button("Aceptar") { photoError = nil } } message: { Text(photoError ?? "") }
@@ -61,6 +75,16 @@ struct AssistantView: View {
                 if case .success(let url) = result { assistant.importMedia(url, kind: kind) }
             }
         }
+    }
+    private var defaultMood: PetMood {
+        if assistant.listening { return .awake }
+        if diary.enabled, let last = diary.visible.first, last.morningAppOpen == nil, RestRules.isNight(Date()) { return .resting }
+        return .awake
+    }
+    private func bindDiary() { diary.bind(assistant.accountID); assistant.restDiary = diary; diary.observeMorning() }
+    private func play(_ mood: PetMood) {
+        petMood = mood
+        Task { try? await Task.sleep(for: .seconds(5)); if petMood == mood { petMood = nil } }
     }
     private var pairing: some View {
         VStack(alignment: .leading, spacing: 16) {

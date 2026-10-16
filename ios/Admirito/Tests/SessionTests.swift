@@ -95,3 +95,16 @@ extension SessionTests {
         XCTAssertEqual(restored.photoFilename, "projection.jpg"); XCTAssertEqual(restored.projectionText, "Texto sin verificar"); XCTAssertEqual(restored.summary, "Extracto")
     }
 }
+
+extension SessionTests {
+    func testRestRulesNeverTreatDaytimeMovieAsBedtimeAndRequireAnOvernightGap() throws {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let parser = ISO8601DateFormatter()
+        let bed = try XCTUnwrap(parser.date(from: "2026-10-16T23:30:00Z"))
+        XCTAssertTrue(RestRules.isNight(bed, calendar: calendar))
+        XCTAssertFalse(RestRules.isNight(try XCTUnwrap(parser.date(from: "2026-10-16T15:00:00Z")), calendar: calendar))
+        XCTAssertFalse(RestRules.isMorning(bed.addingTimeInterval(1800), after: bed, calendar: calendar))
+        XCTAssertTrue(RestRules.isMorning(try XCTUnwrap(parser.date(from: "2026-10-17T07:00:00Z")), after: bed, calendar: calendar))
+        XCTAssertFalse(RestRules.isMorning(try XCTUnwrap(parser.date(from: "2026-10-18T07:00:00Z")), after: bed, calendar: calendar))
+    }
+}

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		415DB1D128C7FCCDE5265A53 /* AdmiritoPet.html in Resources */ = {isa = PBXBuildFile; fileRef = 668CE8917369B0E347B21B2E /* AdmiritoPet.html */; };
 		4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA270DD45862031A659ED735 /* LiveServiceTests.swift */; };
 		4E557514CE8256E1E9C12200 /* Admirito.svg in Resources */ = {isa = PBXBuildFile; fileRef = 58631D8173616FB1FEA37A7E /* Admirito.svg */; };
 		503C4D760BACA49E514DAB69 /* SpeechOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */; };
@@ -18,6 +19,7 @@
 		8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB6E1C3F6AC3061D4AE43BE /* Models.swift */; };
 		9675AFDBCC6FE0931C77FE43 /* ProjectionPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */; };
 		D1522EC0931E33794B3381AE /* meeting-proof.wav in Resources */ = {isa = PBXBuildFile; fileRef = ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */; };
+		DB141BE6473277C93671ACA3 /* RestDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124C506F87AF3079CA3C7FF0 /* RestDiary.swift */; };
 		EEF6ADC570FA7FC03E493C48 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AFA73716E94E8B18FBC2603D /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -34,9 +36,11 @@
 /* Begin PBXFileReference section */
 		05C0E02C4FC2F18A0179CD14 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmiritoApp.swift; sourceTree = "<group>"; };
+		124C506F87AF3079CA3C7FF0 /* RestDiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestDiary.swift; sourceTree = "<group>"; };
 		15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStore.swift; sourceTree = "<group>"; };
 		3AB1ACAE8408646AFB90C839 /* AdmiritoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AdmiritoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		58631D8173616FB1FEA37A7E /* Admirito.svg */ = {isa = PBXFileReference; path = Admirito.svg; sourceTree = "<group>"; };
+		668CE8917369B0E347B21B2E /* AdmiritoPet.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = AdmiritoPet.html; sourceTree = "<group>"; };
 		8B1D9C4CD1932808285E99DC /* Admirito.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Admirito.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9DB6E1C3F6AC3061D4AE43BE /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
@@ -53,6 +57,7 @@
 			isa = PBXGroup;
 			children = (
 				58631D8173616FB1FEA37A7E /* Admirito.svg */,
+				668CE8917369B0E347B21B2E /* AdmiritoPet.html */,
 				AFA73716E94E8B18FBC2603D /* Assets.xcassets */,
 			);
 			path = Resources;
@@ -85,6 +90,7 @@
 				A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */,
 				9DB6E1C3F6AC3061D4AE43BE /* Models.swift */,
 				BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */,
+				124C506F87AF3079CA3C7FF0 /* RestDiary.swift */,
 				C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */,
 			);
 			path = Sources;
@@ -201,6 +207,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4E557514CE8256E1E9C12200 /* Admirito.svg in Resources */,
+				415DB1D128C7FCCDE5265A53 /* AdmiritoPet.html in Resources */,
 				EEF6ADC570FA7FC03E493C48 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -218,6 +225,7 @@
 				7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */,
 				8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */,
 				9675AFDBCC6FE0931C77FE43 /* ProjectionPhoto.swift in Sources */,
+				DB141BE6473277C93671ACA3 /* RestDiary.swift in Sources */,
 				503C4D760BACA49E514DAB69 /* SpeechOutput.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -277,7 +285,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -414,7 +422,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
