@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 
 @MainActor final class AssistantStore: ObservableObject {
     @Published var linked = false
+    @Published var projectionPhoto: UIImage?
+    @Published var projectionText = ""
+    @Published var readingPhoto = false
     @Published var challenge: PairingChallenge?
     @Published var notes: [ListeningNote] = []
     @Published var activeID: String?
@@ -15,6 +18,7 @@ import UniformTypeIdentifiers
     @Published var answer = ""
     @Published var replying = false
     private let speech = SpeechOutput()
+    private var photoRequest = UUID()
     private var chatConversation: String?
     private var pendingQuestion: (text: String, conversation: String, requestID: String)?
     private let api = APIClient()
@@ -31,6 +35,20 @@ import UniformTypeIdentifiers
         notes = (try? files.load()) ?? []; linked = api.connected
         audio.onInterruption = { [weak self] message in guard self?.listening == true else { return }; self?.pause(); self?.status = message }
     }
+    func attachProjection(_ image: UIImage) {
+        projectionPhoto = image; projectionText = ""; readingPhoto = true
+        let request = UUID(); photoRequest = request
+        Task {
+            do { let text = try await ProjectionEvidence.recognize(image); guard photoRequest == request else { return }; projectionText = text }
+            catch { guard photoRequest == request else { return }; status = "Foto adjunta. No se ha podido leer el texto de la proyección." }
+            readingPhoto = false
+        }
+    }
+    func clearProjection() { photoRequest = UUID(); projectionPhoto = nil; projectionText = ""; readingPhoto = false }
+    func photo(for note: ListeningNote) -> UIImage? {
+        guard let filename = note.photoFilename, filename == "projection.jpg", let url = try? files.directory(note.id).appendingPathComponent(filename) else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }
     func pair() {
         pairingTask?.cancel(); challenge = nil
         pairingTask = Task {
@@ -45,7 +63,7 @@ import UniformTypeIdentifiers
             } catch is CancellationError {} catch { challenge = nil; status = error.localizedDescription }
         }
     }
-    func signOut() { guard !listening else { return }; pairingTask?.cancel(); worker?.cancel(); api.disconnect(); linked = false; activeID = nil; challenge = nil; chatConversation = nil; pendingQuestion = nil; question = ""; answer = ""; speech.stop(); status = "Has salido de esta app. Tus notas locales permanecen protegidas y vinculadas a su cuenta." }
+    func signOut() { guard !listening else { return }; pairingTask?.cancel(); worker?.cancel(); clearProjection(); api.disconnect(); linked = false; activeID = nil; challenge = nil; chatConversation = nil; pendingQuestion = nil; question = ""; answer = ""; speech.stop(); status = "Has salido de esta app. Tus notas locales permanecen protegidas y vinculadas a su cuenta." }
     private func index(_ id: String) -> Int? { notes.firstIndex { $0.id == id } }
     @discardableResult private func persist(_ id: String) -> Bool { guard let i = index(id) else { return false }; do { try files.save(notes[i]); return true } catch { status = "No se han podido guardar los cambios: \(error.localizedDescription)"; return false } }
     func start(kind: ListeningKind, title: String) {
@@ -54,7 +72,13 @@ import UniformTypeIdentifiers
             speech.stop()
             let note = ListeningNote(id: UUID().uuidString.lowercased(), accountID: accountID, kind: kind, title: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "\(kind.label) · \(Date().formatted(date: .abbreviated, time: .shortened))" : String(title.prefix(120)), startedAt: Date(), state: .paused)
             do {
+                var note = note
+                if kind == .movie, let photo = projectionPhoto, let data = photo.jpegData(compressionQuality: 0.8) {
+                    try data.write(to: files.directory(note.id).appendingPathComponent("projection.jpg"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                    note.photoFilename = "projection.jpg"; note.projectionText = projectionText
+                }
                 try files.save(note); notes.insert(note, at: 0); activeID = note.id
+                projectionPhoto = nil; projectionText = ""
                 bindChunks(to: note.id)
                 try await audio.start(directory: files.directory(note.id), sequence: 0, offset: 0)
                 if let i = index(note.id) { notes[i].state = .listening; persist(note.id) }

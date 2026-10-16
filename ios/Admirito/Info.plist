@@ -18,6 +18,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Admirito fotografía la proyección solo cuando lo solicitas y adjunta la imagen a tu escucha.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.</string>
 	<key>UIBackgroundModes</key>

@@ -39,3 +39,11 @@ Tests nativos: continuidad de frames al convertir 60 s de audio sintético, frag
 **Validación física pendiente:** micrófono real, pantalla bloqueada durante una reunión/película, calidad a distancia, batería e interrupciones en el iPhone de Carlos. Compilar o simular no prueba esos comportamientos. / Physical iPhone testing remains required for microphone quality, locked-screen recording, battery and interruptions.
 
 Referencias / References: [Apple background recording](https://developer.apple.com/documentation/avfaudio/avaudiosession/category-swift.struct/record), [Apple ReplayKit](https://developer.apple.com/documentation/replaykit).
+
+### Foto de proyección / Projection photo
+
+Antes de iniciar una escucha en modo Película, pulsa «Fotografiar la proyección». La cámara solo se abre con permiso y por acción expresa. La imagen queda protegida en el almacenamiento local, asociada a esa escucha, y aparece con su resumen. «Compartir foto y resumen» permite exportar ambos juntos.
+
+La lectura de texto se hace con Apple Vision en el iPhone. Es una pista sin verificar: no hay reconocimiento de rostros ni identificación de películas por escenas, ni búsqueda en un catálogo externo. Si no hay título legible, la película sigue sin identificar. El usuario puede escribir el título que reconoce; el OCR no lo confirma automáticamente. La foto no se sincroniza con la conversación web.
+
+Before recording, capture a projection photo. On-device OCR supplies unverified visible text, never a guessed movie identity. The protected local attachment persists with the listening summary and can be shared together. Photos are not uploaded or synced to web conversations; no scene-based film recognition or external catalogue lookup is implemented.

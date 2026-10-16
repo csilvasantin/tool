@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
@@ -25,6 +26,11 @@ struct AssistantView: View {
     @State private var kind = ListeningKind.meeting
     @State private var title = ""
     @State private var importing = false
+    @State private var takingPhoto = false
+    @State private var photoError: String?
+    @State private var sharingPhoto: UIImage?
+    @State private var sharingText = ""
+    @State private var sharing = false
     private let green = Color(red: 0.40, green: 0.59, blue: 0.25)
     var body: some View {
         NavigationStack {
@@ -48,6 +54,9 @@ struct AssistantView: View {
                     Button("Salir de esta app", role: .destructive) { assistant.signOut() }.disabled(assistant.listening || assistant.starting)
                 } label: { Image(systemName: "person.crop.circle") } } }
             }
+            .sheet(isPresented: $takingPhoto) { ProjectionPhoto { assistant.attachProjection($0) } }
+            .sheet(isPresented: $sharing) { if let image = sharingPhoto { PhotoSummaryShare(image: image, text: sharingText) } }
+            .alert("Cámara", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) { Button("Aceptar") { photoError = nil } } message: { Text(photoError ?? "") }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.audio, .movie]) { result in
                 if case .success(let url) = result { assistant.importMedia(url, kind: kind) }
             }
@@ -77,7 +86,24 @@ struct AssistantView: View {
                 Picker("Voy a escuchar", selection: $kind) { ForEach(ListeningKind.allCases, id: \.self) { Text($0.label).tag($0) } }.pickerStyle(.segmented)
                 TextField(kind == .meeting ? "Nombre de la reunión (opcional)" : "Nombre de la película (opcional)", text: $title).textFieldStyle(.roundedBorder)
                 Text(kind == .meeting ? "Deja el iPhone cerca de las personas que hablan." : "Deja el iPhone cerca del televisor u ordenador, con volumen audible.").font(.callout)
-                Button { assistant.start(kind: kind, title: title) } label: { Label("Iniciar escucha", systemImage: "mic.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent).disabled(assistant.starting)
+                if kind == .movie {
+                    Button { Task {
+                        guard UIImagePickerController.isSourceTypeAvailable(.camera) else { photoError = "No hay cámara disponible."; return }
+                        if await AVCaptureDevice.requestAccess(for: .video) { takingPhoto = true } else { photoError = "Permite la cámara en Ajustes para fotografiar la proyección." }
+                    } } label: { Label(assistant.projectionPhoto == nil ? "Fotografiar la proyección" : "Repetir fotografía", systemImage: "camera") }
+                    if let photo = assistant.projectionPhoto {
+                        Image(uiImage: photo).resizable().scaledToFit().frame(maxHeight: 220).clipShape(RoundedRectangle(cornerRadius: 12))
+                        if assistant.readingPhoto { ProgressView("Leyendo texto visible…") }
+                        else if !assistant.projectionText.isEmpty {
+                            Text("Texto visible (lectura automática, no identificación confirmada):").font(.caption.bold())
+                            Text(assistant.projectionText).font(.caption).textSelection(.enabled)
+                            Text("Si reconoces el título entre esas palabras, escríbelo arriba. No identifico películas por su aspecto ni completo títulos dudosos.").font(.caption)
+                        } else { Text("Película no identificada: no hay un título legible. La foto quedará adjunta al resumen.").font(.caption) }
+                        Button("Quitar foto", role: .destructive) { assistant.clearProjection() }
+                    }
+                    Text("La foto se guarda en este iPhone junto al resumen. No se envía al servicio de conversación. Puedes compartir ambos al terminar.").font(.caption).foregroundStyle(.secondary)
+                }
+                Button { assistant.start(kind: kind, title: title) } label: { Label("Iniciar escucha", systemImage: "mic.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent).disabled(assistant.starting || assistant.readingPhoto)
                 Button("Importar audio o vídeo") { importing = true }.disabled(assistant.starting)
             }
             if assistant.isWorking { ProgressView("Guardando transcripción o resumen…").font(.caption) }
@@ -102,6 +128,12 @@ struct AssistantView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Label(note.title, systemImage: note.kind == .meeting ? "person.2" : "film").font(.headline)
                     Text(note.startedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                    if let photo = assistant.photo(for: note) {
+                        Image(uiImage: photo).resizable().scaledToFit().frame(maxHeight: 240).clipShape(RoundedRectangle(cornerRadius: 12))
+                        Text("Foto de esta escucha · título sin verificar").font(.caption)
+                        if let text = note.projectionText, !text.isEmpty { Text("Texto detectado en la foto:\n" + text).font(.caption).textSelection(.enabled) }
+                        if let summary = note.summary { Button("Compartir foto y resumen") { sharingPhoto = photo; sharingText = summary + "\n\nTexto visible sin verificar: " + (note.projectionText ?? "No identificado"); sharing = true } }
+                    }
                     if let summary = note.summary { Text(summary).textSelection(.enabled); Button("Leer resumen") { assistant.read(summary) }.disabled(assistant.listening); ShareLink(item: summary) { Label("Compartir resumen", systemImage: "square.and.arrow.up") } }
                     else {
                         Text("\(note.chunks.filter { $0.uploaded }.count)/\(note.chunks.count) fragmentos guardados en tu cuenta").font(.caption)

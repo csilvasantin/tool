@@ -74,3 +74,24 @@ extension SessionTests {
         XCTAssertFalse(monitor.stopped)
     }
 }
+
+import UIKit
+extension SessionTests {
+    @MainActor func testProjectionOCRReadsVisibleTitleWithoutInventingIdentification() async throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1000, height: 500)).image { context in
+            UIColor.white.setFill(); context.fill(CGRect(x: 0, y: 0, width: 1000, height: 500))
+            ("CINEMA TEST 2049" as NSString).draw(at: CGPoint(x: 70, y: 190), withAttributes: [.font: UIFont.systemFont(ofSize: 65), .foregroundColor: UIColor.black])
+        }
+        let text = try await ProjectionEvidence.recognize(image)
+        XCTAssertTrue(text.contains("CINEMA TEST 2049")); XCTAssertFalse(text.contains("Blade Runner"))
+    }
+    func testProjectionAttachmentSurvivesNoteReload() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let files = try NoteFiles(root: root)
+        var note = ListeningNote(id: UUID().uuidString, accountID: "a", kind: .movie, title: "TV", startedAt: Date(), state: .complete)
+        note.photoFilename = "projection.jpg"; note.projectionText = "Texto sin verificar"; note.summary = "Extracto"
+        try files.save(note)
+        let restored = try XCTUnwrap(files.load().first)
+        XCTAssertEqual(restored.photoFilename, "projection.jpg"); XCTAssertEqual(restored.projectionText, "Texto sin verificar"); XCTAssertEqual(restored.summary, "Extracto")
+    }
+}

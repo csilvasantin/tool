@@ -25,6 +25,8 @@ struct ListeningNote: Codable, Identifiable {
     var chunks: [AudioChunk] = []
     var expectedChunks: Int?
     var summary: String?
+    var photoFilename: String?
+    var projectionText: String?
     var allChunksReady: Bool {
         guard let expectedChunks, expectedChunks > 0, chunks.count == expectedChunks else { return false }
         return chunks.sorted { $0.seq < $1.seq }.enumerated().allSatisfy { $0.offset == $0.element.seq && $0.element.uploaded }
