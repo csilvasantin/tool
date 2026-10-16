@@ -10,9 +10,9 @@ export async function pairedConversationSession(req,env){
   const value=(req.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';
   const [id,secret]=value.split('.');if(!/^[a-f0-9-]{36}$/.test(id||'')||!/^[a-f0-9]{64}$/.test(secret||''))return null;
   await schema(env);
-  const row=await env.DB.prepare('SELECT owner,secret_hash,expires_at,approved_at FROM agent_conversation_devices WHERE id=?').bind(id).first();
+  const row=await env.DB.prepare('SELECT owner,label,secret_hash,expires_at,approved_at FROM agent_conversation_devices WHERE id=?').bind(id).first();
   if(!row?.owner||!row.approved_at||row.expires_at<=Date.now()||row.secret_hash!==await hash(secret))return null;
-  return {email:row.owner,conversation_device:id};
+  return {email:row.owner,conversation_device:id,conversation_device_label:row.label};
 }
 export async function handleAgentDevices(req,env,{requireAuth}){
   if(!origins.has(req.headers.get('origin')||new URL(req.url).origin))return json({error:'origin_not_allowed'},403);
@@ -36,7 +36,7 @@ export async function handleAgentDevices(req,env,{requireAuth}){
     await env.DB.prepare('DELETE FROM agent_conversation_devices WHERE expires_at<=?').bind(now).run();
     const id=crypto.randomUUID(),secret=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join(''),alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const code=Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>alphabet[b%alphabet.length]).join('');
-    await env.DB.prepare('INSERT INTO agent_conversation_devices(id,secret_hash,code,label,client_hash,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').bind(id,await hash(secret),code,'Meta Display',client,now,now+300000).run();
+    await env.DB.prepare('INSERT INTO agent_conversation_devices(id,secret_hash,code,label,client_hash,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').bind(id,await hash(secret),code,body.client==='ios'?'Admirito iOS':'Meta Display',client,now,now+300000).run();
     return json({device_id:id,secret,code,expires_in:300},201);
   }
   if(path==='/agents/devices/approve'){
@@ -49,11 +49,11 @@ export async function handleAgentDevices(req,env,{requireAuth}){
   if(path==='/agents/devices/poll'){
     const id=String(body.device_id||''),secret=String(body.secret||'');
     if(!/^[a-f0-9-]{36}$/.test(id)||!/^[a-f0-9]{64}$/.test(secret))return json({error:'invalid_device'},400);
-    const row=await env.DB.prepare('SELECT owner,secret_hash,expires_at,approved_at FROM agent_conversation_devices WHERE id=?').bind(id).first();
+    const row=await env.DB.prepare('SELECT owner,label,secret_hash,expires_at,approved_at FROM agent_conversation_devices WHERE id=?').bind(id).first();
     if(!row||row.expires_at<=now||row.secret_hash!==await hash(secret))return json({error:'invalid_or_expired_device'},400);
     if(!row.owner)return json({status:'pending'});
     const maxAge=Math.max(0,Math.floor((row.expires_at-now)/1000));
-    return json({status:'paired' },200,{'set-cookie':`${cookieName}=${id}.${secret}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`});
+    return json({status:'paired',account_id:await hash(row.owner) },200,{'set-cookie':`${cookieName}=${id}.${secret}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`});
   }
   if(path==='/agents/devices/revoke'){
     if(!session?.email)return json({error:'unauthorized'},401);

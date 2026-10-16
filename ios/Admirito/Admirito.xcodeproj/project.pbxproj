@@ -1,0 +1,487 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA270DD45862031A659ED735 /* LiveServiceTests.swift */; };
+		4E557514CE8256E1E9C12200 /* Admirito.svg in Resources */ = {isa = PBXBuildFile; fileRef = 58631D8173616FB1FEA37A7E /* Admirito.svg */; };
+		503C4D760BACA49E514DAB69 /* SpeechOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */; };
+		62E300871BC43BCFFA5211E5 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */; };
+		654208594CD775CCD9357729 /* AdmiritoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */; };
+		7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */; };
+		80C1B49AD0A88C2A66AFE8BD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C0E02C4FC2F18A0179CD14 /* APIClient.swift */; };
+		86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */; };
+		8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB6E1C3F6AC3061D4AE43BE /* Models.swift */; };
+		D1522EC0931E33794B3381AE /* meeting-proof.wav in Resources */ = {isa = PBXBuildFile; fileRef = ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */; };
+		EEF6ADC570FA7FC03E493C48 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AFA73716E94E8B18FBC2603D /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5352260829EC96F36D14EDAC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 945A7DC702614C3B74161599 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FC433F306AE707E992271144;
+			remoteInfo = Admirito;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		05C0E02C4FC2F18A0179CD14 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmiritoApp.swift; sourceTree = "<group>"; };
+		15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStore.swift; sourceTree = "<group>"; };
+		3AB1ACAE8408646AFB90C839 /* AdmiritoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AdmiritoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		58631D8173616FB1FEA37A7E /* Admirito.svg */ = {isa = PBXFileReference; path = Admirito.svg; sourceTree = "<group>"; };
+		8B1D9C4CD1932808285E99DC /* Admirito.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Admirito.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9DB6E1C3F6AC3061D4AE43BE /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
+		ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "meeting-proof.wav"; sourceTree = "<group>"; };
+		AFA73716E94E8B18FBC2603D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutput.swift; sourceTree = "<group>"; };
+		CA270DD45862031A659ED735 /* LiveServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServiceTests.swift; sourceTree = "<group>"; };
+		D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0259E64C4C00A9BA8B1E4299 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				58631D8173616FB1FEA37A7E /* Admirito.svg */,
+				AFA73716E94E8B18FBC2603D /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5BD941003DA944D58CD812C0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8B1D9C4CD1932808285E99DC /* Admirito.app */,
+				3AB1ACAE8408646AFB90C839 /* AdmiritoTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		7ECC6F0A5A8DA1EE5A9B3BBA /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */,
+			);
+			name = Fixtures;
+			path = Tests/Fixtures;
+			sourceTree = "<group>";
+		};
+		C133569A17950CB429A00D7A /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */,
+				05C0E02C4FC2F18A0179CD14 /* APIClient.swift */,
+				15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */,
+				A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */,
+				9DB6E1C3F6AC3061D4AE43BE /* Models.swift */,
+				C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		C16C5CA7C17974002918AFCD = {
+			isa = PBXGroup;
+			children = (
+				7ECC6F0A5A8DA1EE5A9B3BBA /* Fixtures */,
+				0259E64C4C00A9BA8B1E4299 /* Resources */,
+				C133569A17950CB429A00D7A /* Sources */,
+				C198356210160D6285387350 /* Tests */,
+				5BD941003DA944D58CD812C0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C198356210160D6285387350 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				CA270DD45862031A659ED735 /* LiveServiceTests.swift */,
+				D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C802016831AA371F21EDBAC2 /* AdmiritoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 015B51FE8D9229F2C81F8E46 /* Build configuration list for PBXNativeTarget "AdmiritoTests" */;
+			buildPhases = (
+				EA81884B50E02D54237F5B41 /* Sources */,
+				171CDC02E51604BB18C3F339 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				07DFFAB3DC08ED45D52E9C69 /* PBXTargetDependency */,
+			);
+			name = AdmiritoTests;
+			packageProductDependencies = (
+			);
+			productName = AdmiritoTests;
+			productReference = 3AB1ACAE8408646AFB90C839 /* AdmiritoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		FC433F306AE707E992271144 /* Admirito */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D2F30272CAC830B5DFFB077 /* Build configuration list for PBXNativeTarget "Admirito" */;
+			buildPhases = (
+				4032430C6CC2F3FA221B7B99 /* Sources */,
+				BE6CA89F44E68312EEDB656A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Admirito;
+			packageProductDependencies = (
+			);
+			productName = Admirito;
+			productReference = 8B1D9C4CD1932808285E99DC /* Admirito.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		945A7DC702614C3B74161599 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C802016831AA371F21EDBAC2 = {
+						ProvisioningStyle = Automatic;
+					};
+					FC433F306AE707E992271144 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = CCA2F98E142B2A256A846781 /* Build configuration list for PBXProject "Admirito" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = C16C5CA7C17974002918AFCD;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5BD941003DA944D58CD812C0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				FC433F306AE707E992271144 /* Admirito */,
+				C802016831AA371F21EDBAC2 /* AdmiritoTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		171CDC02E51604BB18C3F339 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1522EC0931E33794B3381AE /* meeting-proof.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE6CA89F44E68312EEDB656A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4E557514CE8256E1E9C12200 /* Admirito.svg in Resources */,
+				EEF6ADC570FA7FC03E493C48 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4032430C6CC2F3FA221B7B99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				80C1B49AD0A88C2A66AFE8BD /* APIClient.swift in Sources */,
+				654208594CD775CCD9357729 /* AdmiritoApp.swift in Sources */,
+				86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */,
+				7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */,
+				8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */,
+				503C4D760BACA49E514DAB69 /* SpeechOutput.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EA81884B50E02D54237F5B41 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */,
+				62E300871BC43BCFFA5211E5 /* SessionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		07DFFAB3DC08ED45D52E9C69 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FC433F306AE707E992271144 /* Admirito */;
+			targetProxy = 5352260829EC96F36D14EDAC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		002CA7AA77CDD1BA5955EEB5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		011A6E70CBB2A545147121D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.admira.AdmiritoTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Admirito.app/Admirito";
+			};
+			name = Debug;
+		};
+		09538178F005B0E1D86CB8F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Admirito;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.";
+				INFOPLIST_KEY_UIBackgroundModes = (
+					audio,
+				);
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.admira.admirito;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		197E3F4BB652B9812BFA2C6C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Admirito;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.";
+				INFOPLIST_KEY_UIBackgroundModes = (
+					audio,
+				);
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.admira.admirito;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		61C6A4D18E1A9218DA54C8E9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7614E15005494B81962A0B1E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.admira.AdmiritoTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Admirito.app/Admirito";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		015B51FE8D9229F2C81F8E46 /* Build configuration list for PBXNativeTarget "AdmiritoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				011A6E70CBB2A545147121D4 /* Debug */,
+				7614E15005494B81962A0B1E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5D2F30272CAC830B5DFFB077 /* Build configuration list for PBXNativeTarget "Admirito" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				197E3F4BB652B9812BFA2C6C /* Debug */,
+				09538178F005B0E1D86CB8F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CCA2F98E142B2A256A846781 /* Build configuration list for PBXProject "Admirito" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				002CA7AA77CDD1BA5955EEB5 /* Debug */,
+				61C6A4D18E1A9218DA54C8E9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 945A7DC702614C3B74161599 /* Project object */;
+}

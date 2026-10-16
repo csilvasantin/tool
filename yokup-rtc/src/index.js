@@ -1,3 +1,4 @@
+import { handleAgentListening } from './agent-listening.js';
 import { handleAgentDevices, pairedConversationSession } from './agent-device-pairing.js';
 import { handleAgentConversations, handleAgentTranscribe } from './agent-conversations.js';
 import { handleIncidentObservation } from './incident-observation.js';
@@ -10089,6 +10090,7 @@ var worker_app = {
     if (authResponse) return authResponse;
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     if (url.pathname === '/agents/devices' || url.pathname.startsWith('/agents/devices/')) return handleAgentDevices(req, env, { requireAuth:async (environment,request) => { const session=await requireConversationAuth(environment,request); return session&&!session.conversation_device?session:null; } });
+    if (url.pathname === '/agents/listening' || url.pathname.startsWith('/agents/listening/')) return handleAgentListening(req, env, { requireAuth:requireConversationAuth, aiRun });
     if (url.pathname === '/agents/transcribe') return handleAgentTranscribe(req, env, { requireAuth:requireConversationAuth });
     if (url.pathname === '/agents/conversations' || url.pathname.startsWith('/agents/conversations/')) return handleAgentConversations(req, env, { requireAuth:requireConversationAuth, aiRun });
     // Incidencias del MCP de flota (FLT-101298): solo por el binding del gate (src/fleet-incidents.js).

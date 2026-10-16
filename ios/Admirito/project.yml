@@ -1,0 +1,55 @@
+name: Admirito
+options:
+  bundleIdPrefix: com.admira
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1,2'
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: '0.1.0'
+    CURRENT_PROJECT_VERSION: '1'
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Admirito:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.admira.admirito
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Admirito
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.
+        INFOPLIST_KEY_UIBackgroundModes: [audio]
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+    info:
+      path: Info.plist
+      properties:
+        UIBackgroundModes: [audio]
+        NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.
+  AdmiritoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+        excludes: [Fixtures]
+      - path: Tests/Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: Admirito
+schemes:
+  Admirito:
+    build:
+      targets:
+        Admirito: all
+    test:
+      targets: [AdmiritoTests]
