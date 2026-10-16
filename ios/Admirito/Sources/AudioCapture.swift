@@ -1,6 +1,19 @@
 import AVFoundation
 import Foundation
 
+struct SilenceMonitor {
+    let limit: Double
+    let threshold: Double
+    private(set) var seconds: Double = 0
+    private(set) var stopped = false
+    init(limit: Double = 300, threshold: Double = 104) { self.limit = limit; self.threshold = threshold }
+    mutating func consume(rms: Double, duration: Double) -> Bool {
+        guard !stopped else { return false }
+        seconds = rms < threshold ? seconds + duration : 0
+        if seconds >= limit { stopped = true; return true }
+        return false
+    }
+}
 final class AudioChunkWriter: @unchecked Sendable {
     private let lock = NSLock()
     private let converter: AVAudioConverter
@@ -12,6 +25,8 @@ final class AudioChunkWriter: @unchecked Sendable {
     private var frames: AVAudioFramePosition = 0
     private var totalFrames: AVAudioFramePosition = 0
     private var peak = 0
+    private var silence = SilenceMonitor()
+    private var silenceEvent = false
     private(set) var nextSequence: Int
     init(input: AVAudioFormat, directory: URL, sequence: Int, offset: Double) throws {
         guard let target = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true), let converter = AVAudioConverter(from: input, to: target) else { throw AssistantError.recording("No se ha podido preparar el formato del micrófono.") }
@@ -34,10 +49,15 @@ final class AudioChunkWriter: @unchecked Sendable {
             FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
             file = try AVAudioFile(forWriting: url, settings: target.settings, commonFormat: .pcmFormatInt16, interleaved: true)
         }
-        if let samples = output.int16ChannelData?[0] { for frame in 0..<Int(output.frameLength) { peak = max(peak, abs(Int(samples[frame]))) } }
+        if let samples = output.int16ChannelData?[0] {
+            var energy = 0.0
+            for frame in 0..<Int(output.frameLength) { let sample = Double(samples[frame]); energy += sample * sample; peak = max(peak, abs(Int(samples[frame]))) }
+            if silence.consume(rms: sqrt(energy / Double(output.frameLength)), duration: Double(output.frameLength) / 16000) { silenceEvent = true }
+        }
         try file?.write(from: output); frames += AVAudioFramePosition(output.frameLength)
         return frames >= 25 * 16000 ? try finishLocked() : nil
     }
+    func takeSilenceStop() -> Bool { lock.lock(); defer { lock.unlock() }; let event = silenceEvent; silenceEvent = false; return event }
     func finish() throws -> (AudioChunk?, Int) {
         lock.lock(); defer { lock.unlock() }; let chunk = try finishLocked(); return (chunk, nextSequence)
     }
@@ -55,6 +75,7 @@ final class AudioChunkWriter: @unchecked Sendable {
     private var interruption: NSObjectProtocol?
     private var routeChange: NSObjectProtocol?
     var onChunk: ((AudioChunk) -> Void)?
+    var onSilence: (() -> Void)?
     var onInterruption: ((String) -> Void)?
     var routeName: String { AVAudioSession.sharedInstance().currentRoute.inputs.map(\.portName).joined(separator: ", ") }
     init() {
@@ -78,10 +99,11 @@ final class AudioChunkWriter: @unchecked Sendable {
             guard format.channelCount > 0, format.sampleRate > 0 else { throw AssistantError.recording("No hay un micrófono disponible.") }
             let writer = try AudioChunkWriter(input: format, directory: directory, sequence: sequence, offset: offset)
             let handler = self.onChunk
+            let silenceHandler = self.onSilence
             let completed: @Sendable (AudioChunk) -> Void = { chunk in Task { @MainActor in handler?(chunk) } }
             let failed: @Sendable () -> Void = { [weak self] in Task { @MainActor in self?.onInterruption?("No se ha podido seguir guardando el audio. La escucha se ha pausado.") } }
             input.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
-                do { if let chunk = try writer.consume(buffer) { completed(chunk) } } catch { failed() }
+                do { if let chunk = try writer.consume(buffer) { completed(chunk) }; if writer.takeSilenceStop() { Task { @MainActor in silenceHandler?() } } } catch { failed() }
             }
             engine.prepare(); try engine.start(); self.writer = writer; self.engine = engine
         } catch { try? session.setActive(false, options: .notifyOthersOnDeactivation); throw error }

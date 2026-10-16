@@ -57,3 +57,20 @@ extension SessionTests {
         }
     }
 }
+
+extension SessionTests {
+    func testSilenceStopUsesConsecutiveAudioAndResetsWhenSoundReturns() {
+        var monitor = SilenceMonitor()
+        XCTAssertFalse(monitor.consume(rms: 0, duration: 299))
+        XCTAssertFalse(monitor.consume(rms: 500, duration: 1))
+        XCTAssertEqual(monitor.seconds, 0)
+        XCTAssertFalse(monitor.consume(rms: 20, duration: 299))
+        XCTAssertTrue(monitor.consume(rms: 20, duration: 1))
+        XCTAssertFalse(monitor.consume(rms: 0, duration: 10))
+    }
+    func testQuietAudibleSoundDoesNotCountAsSilence() {
+        var monitor = SilenceMonitor()
+        XCTAssertFalse(monitor.consume(rms: 105, duration: 600))
+        XCTAssertFalse(monitor.stopped)
+    }
+}

@@ -35,7 +35,7 @@ struct AssistantView: View {
                     Text(assistant.status).font(.callout).foregroundStyle(.secondary).accessibilityIdentifier("assistantStatus")
                     if assistant.linked { listeningControls; conversation; notes }
                     else { pairing }
-                    Text("La escucha solo empieza cuando tú la activas. Puedes pausarla o terminarla en cualquier momento. El resumen utiliza lo realmente captado por el micrófono; no ve las imágenes del televisor.")
+                    Text("La escucha solo empieza cuando tú la activas. Puedes pausarla o terminarla en cualquier momento. Se detiene automáticamente tras cinco minutos seguidos de silencio. El resumen utiliza lo realmente captado por el micrófono; no ve las imágenes del televisor.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }.padding(24)
             }

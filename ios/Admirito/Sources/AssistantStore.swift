@@ -63,7 +63,14 @@ import UniformTypeIdentifiers
             starting = false
         }
     }
-    private func bindChunks(to id: String) { audio.onChunk = { [weak self] chunk in self?.append(chunk, to: id) } }
+    private func bindChunks(to id: String) {
+        audio.onChunk = { [weak self] chunk in self?.append(chunk, to: id) }
+        audio.onSilence = { [weak self] in
+            guard let self, self.listening, self.activeID == id else { return }
+            self.finish(id)
+            self.status = "Escucha terminada automáticamente tras cinco minutos de silencio. Preparando el resumen…"
+        }
+    }
     private func append(_ chunk: AudioChunk, to id: String) {
         guard let i = index(id), !notes[i].chunks.contains(where: { $0.seq == chunk.seq }) else { return }
         notes[i].chunks.append(chunk); notes[i].chunks.sort { $0.seq < $1.seq }; persist(id); retry()
