@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const source = readFileSync(new URL('./yk-frame.js', import.meta.url), 'utf8');
 const bootstrap = source.slice(source.indexOf('    var nativeAppDemo = false;'), source.indexOf('    icoL.setAttribute("aria-controls"'));
 assert.ok(bootstrap.includes('var axCfg'), 'exercise the actual frame loader');
-const current = 'https://www.admiranext.com/suite/experto.js?v=20261014-personajes-2';
+const current = 'https://www.admiranext.com/suite/experto.js?v=20261016-dooh-1';
 const legacy = current;
 
 function page(url, {fleet = false, existing = null} = {}) {

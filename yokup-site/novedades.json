@@ -1,6 +1,10 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
+    "⌘ Experto: /demo dooh starbucks y /demo dooh altadis abren en admira.biz el Tour DooH de Starbucks México y de Altadis España, con la marca del cliente.",
+    "/vision general <cliente> abre en admira.biz la visión general del circuito, con semáforo por Xpacio."
+  ],
+  "v.16.10.2026.r1.01:35": [
     "La consola local de Experto carga los comandos comunes también con sesión de flota.",
     "/supervisor abre la Insta360 de Admira Live con presets, movimiento y zoom visibles.",
     "Los terminales remotos conservan su interfaz y permanecen separados de la consola local."
