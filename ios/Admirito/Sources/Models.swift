@@ -27,6 +27,7 @@ struct ListeningNote: Codable, Identifiable {
     var summary: String?
     var photoFilename: String?
     var projectionText: String?
+    var filmIdentification: FilmIdentification?
     var allChunksReady: Bool {
         guard let expectedChunks, expectedChunks > 0, chunks.count == expectedChunks else { return false }
         return chunks.sorted { $0.seq < $1.seq }.enumerated().allSatisfy { $0.offset == $0.element.seq && $0.element.uploaded }
@@ -61,3 +62,5 @@ struct NoteFiles {
         }.sorted { $0.startedAt > $1.startedAt }
     }
 }
+
+struct FilmIdentification: Codable { let status: String; let title: String?; let evidence: [String]; let message: String }

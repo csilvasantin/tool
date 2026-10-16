@@ -97,11 +97,11 @@ struct AssistantView: View {
                         else if !assistant.projectionText.isEmpty {
                             Text("Texto visible (lectura automática, no identificación confirmada):").font(.caption.bold())
                             Text(assistant.projectionText).font(.caption).textSelection(.enabled)
-                            Text("Si reconoces el título entre esas palabras, escríbelo arriba. No identifico películas por su aspecto ni completo títulos dudosos.").font(.caption)
+                            Text("Si reconoces el título entre esas palabras, escríbelo arriba. Después de escuchar podrás intentar reconocer la película combinando la escena y el audio.").font(.caption)
                         } else { Text("Película no identificada: no hay un título legible. La foto quedará adjunta al resumen.").font(.caption) }
                         Button("Quitar foto", role: .destructive) { assistant.clearProjection() }
                     }
-                    Text("La foto se guarda en este iPhone junto al resumen. No se envía al servicio de conversación. Puedes compartir ambos al terminar.").font(.caption).foregroundStyle(.secondary)
+                    Text("La foto se guarda en este iPhone. Al pulsar «Reconocer por escena y audio», se enviará al servicio IA de Admira (Cloudflare) junto con la transcripción para intentar identificarla.").font(.caption).foregroundStyle(.secondary)
                 }
                 Button { assistant.start(kind: kind, title: title) } label: { Label("Iniciar escucha", systemImage: "mic.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent).disabled(assistant.starting || assistant.readingPhoto)
                 Button("Importar audio o vídeo") { importing = true }.disabled(assistant.starting)
@@ -130,7 +130,15 @@ struct AssistantView: View {
                     Text(note.startedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                     if let photo = assistant.photo(for: note) {
                         Image(uiImage: photo).resizable().scaledToFit().frame(maxHeight: 240).clipShape(RoundedRectangle(cornerRadius: 12))
-                        Text("Foto de esta escucha · título sin verificar").font(.caption)
+                        Text("Foto de esta escucha").font(.caption)
+                        if let result = note.filmIdentification {
+                            if let title = result.title { Text("Posible película: " + title).font(.headline) }
+                            Text(result.message).font(.callout)
+                            ForEach(result.evidence, id: \.self) { Text("Pista: " + $0).font(.caption) }
+                        } else if note.state == .complete {
+                            Text("Analizar envía esta foto y el audio transcrito al servicio IA de Admira (Cloudflare). No confirma automáticamente un título.").font(.caption)
+                            Button(assistant.identifyingFilm == note.id ? "Analizando escena y audio…" : "Reconocer por escena y audio") { assistant.identifyMovie(note.id) }.disabled(assistant.identifyingFilm != nil || assistant.listening)
+                        }
                         if let text = note.projectionText, !text.isEmpty { Text("Texto detectado en la foto:\n" + text).font(.caption).textSelection(.enabled) }
                         if let summary = note.summary { Button("Compartir foto y resumen") { sharingPhoto = photo; sharingText = summary + "\n\nTexto visible sin verificar: " + (note.projectionText ?? "No identificado"); sharing = true } }
                     }

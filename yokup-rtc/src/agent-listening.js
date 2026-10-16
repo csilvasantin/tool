@@ -1,6 +1,8 @@
+import {identifyFilm} from './agent-film-identification.js';
 import {handleAgentConversations} from './agent-conversations.js';
 export const LISTENING_SCHEMA=[
 `CREATE TABLE IF NOT EXISTS agent_listening_sessions(id TEXT PRIMARY KEY, owner TEXT NOT NULL, conversation_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, created_at INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'collecting', expected_chunks INTEGER, summary TEXT, summary_lock TEXT, summary_until INTEGER NOT NULL DEFAULT 0)`,
+`CREATE TABLE IF NOT EXISTS agent_film_identifications(session_id TEXT PRIMARY KEY,result TEXT,locked_until INTEGER NOT NULL DEFAULT 0)`,
 `CREATE INDEX IF NOT EXISTS agent_listening_owner ON agent_listening_sessions(owner,created_at)`,
 `CREATE TABLE IF NOT EXISTS agent_listening_chunks(session_id TEXT NOT NULL, seq INTEGER NOT NULL, start_seconds REAL NOT NULL, duration_seconds REAL NOT NULL, text TEXT NOT NULL, PRIMARY KEY(session_id,seq))`,
 `CREATE TABLE IF NOT EXISTS agent_listening_blocks(session_id TEXT NOT NULL, block_index INTEGER NOT NULL, content TEXT NOT NULL, PRIMARY KEY(session_id,block_index))`
@@ -21,7 +23,7 @@ export async function handleAgentListening(req,env,{requireAuth,aiRun}){
  const owner=String(session.email).trim().toLowerCase(),parts=new URL(req.url).pathname.split('/').filter(Boolean),id=parts[2],action=parts[3];
  if(parts.length>4||id&&!uuid.test(id))return json({error:'not_found'},404);
  for(const sql of LISTENING_SCHEMA)await env.DB.prepare(sql).run();
- let body={};if(req.method==='POST'){const raw=await req.text();if(raw.length>16000)return json({error:'too_large'},413);try{body=JSON.parse(raw);}catch{return json({error:'bad_json'},400);}if(!body||typeof body!=='object')return json({error:'bad_json'},400);}
+ let body={};if(req.method==='POST'&&action!=='identify'){const raw=await req.text();if(raw.length>16000)return json({error:'too_large'},413);try{body=JSON.parse(raw);}catch{return json({error:'bad_json'},400);}if(!body||typeof body!=='object')return json({error:'bad_json'},400);}
  if(!id){
   if(req.method==='GET')return json({sessions:(await env.DB.prepare('SELECT id,conversation_id,kind,title,created_at,state,summary FROM agent_listening_sessions WHERE owner=? ORDER BY created_at DESC LIMIT 100').bind(owner).all()).results||[]});
   if(req.method!=='POST'||!uuid.test(body.id||'')||!uuid.test(body.conversation_id||'')||!['meeting','movie'].includes(body.kind))return json({error:'invalid_session'},400);
@@ -30,8 +32,24 @@ export async function handleAgentListening(req,env,{requireAuth,aiRun}){
   const row=await env.DB.prepare('SELECT id,state,conversation_id FROM agent_listening_sessions WHERE id=? AND owner=?').bind(body.id,owner).first();return row?json({session:row},201):json({error:'not_found'},404);
  }
  const row=await env.DB.prepare('SELECT * FROM agent_listening_sessions WHERE id=? AND owner=?').bind(id,owner).first();if(!row)return json({error:'not_found'},404);
+ if(action==='identify'){
+  if(req.method!=='POST'||row.kind!=='movie'||row.state!=='complete')return json({error:'summary_required'},409);
+  if(!/^image\/jpeg(?:;|$)/i.test(req.headers.get('content-type')||''))return json({error:'jpeg_required'},415);
+  const reader=req.body?.getReader();if(!reader)return json({error:'image_required'},400);
+  const parts=[];let length=0;while(true){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>700000){await reader.cancel();return json({error:'image_too_large'},413);}parts.push(value);}
+  const image=new Uint8Array(length);let offset=0;for(const part of parts){image.set(part,offset);offset+=part.length;}
+  if(length<100||image[0]!==255||image[1]!==216||image[2]!==255)return json({error:'invalid_jpeg'},400);
+  const cached=await env.DB.prepare('SELECT result FROM agent_film_identifications WHERE session_id=?').bind(id).first();if(cached?.result)return json(JSON.parse(cached.result));
+  const now=Date.now();await env.DB.prepare('INSERT OR IGNORE INTO agent_film_identifications(session_id,locked_until) VALUES(?,0)').bind(id).run();
+  const claim=await env.DB.prepare('UPDATE agent_film_identifications SET locked_until=? WHERE session_id=? AND locked_until<=? AND result IS NULL').bind(now+120000,id,now).run();if(!claim.meta?.changes)return json({error:'identification_busy'},409);
+  try{
+   const chunks=(await env.DB.prepare('SELECT text FROM agent_listening_chunks WHERE session_id=? ORDER BY seq').bind(id).all()).results||[];
+   const result=await identifyFilm(env,image,chunks);
+   await env.DB.prepare('UPDATE agent_film_identifications SET result=?,locked_until=0 WHERE session_id=? AND locked_until=?').bind(JSON.stringify(result),id,now+120000).run();return json(result);
+  }catch{return json({error:'identification_unavailable'},503);}finally{await env.DB.prepare('UPDATE agent_film_identifications SET locked_until=0 WHERE session_id=? AND locked_until=?').bind(id,now+120000).run();}
+ }
  if(req.method==='GET'&&!action){const chunks=(await env.DB.prepare('SELECT seq,start_seconds,duration_seconds,text FROM agent_listening_chunks WHERE session_id=? ORDER BY seq').bind(id).all()).results||[];return json({session:{id,conversation_id:row.conversation_id,kind:row.kind,title:row.title,state:row.state,summary:row.summary},chunks});}
- if(req.method==='DELETE'&&!action){if(row.summary_until>Date.now())return json({error:'summary_busy'},409);await env.DB.batch([env.DB.prepare('DELETE FROM agent_listening_chunks WHERE session_id=?').bind(id),env.DB.prepare('DELETE FROM agent_listening_blocks WHERE session_id=?').bind(id),env.DB.prepare('DELETE FROM agent_listening_sessions WHERE id=? AND owner=?').bind(id,owner)]);return json({ok:true});}
+ if(req.method==='DELETE'&&!action){if(row.summary_until>Date.now())return json({error:'summary_busy'},409);await env.DB.batch([env.DB.prepare('DELETE FROM agent_film_identifications WHERE session_id=?').bind(id),env.DB.prepare('DELETE FROM agent_listening_chunks WHERE session_id=?').bind(id),env.DB.prepare('DELETE FROM agent_listening_blocks WHERE session_id=?').bind(id),env.DB.prepare('DELETE FROM agent_listening_sessions WHERE id=? AND owner=?').bind(id,owner)]);return json({ok:true});}
  if(req.method!=='POST')return json({error:'method_not_allowed'},405);
  if(action==='chunks'){
   const seq=body.seq,text=typeof body.text==='string'?body.text.trim():'',start=body.start_seconds,duration=body.duration_seconds;

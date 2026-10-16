@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
     @Published var projectionPhoto: UIImage?
     @Published var projectionText = ""
     @Published var readingPhoto = false
+    @Published var identifyingFilm: String?
     @Published var challenge: PairingChallenge?
     @Published var notes: [ListeningNote] = []
     @Published var activeID: String?
@@ -42,6 +43,23 @@ import UniformTypeIdentifiers
             do { let text = try await ProjectionEvidence.recognize(image); guard photoRequest == request else { return }; projectionText = text }
             catch { guard photoRequest == request else { return }; status = "Foto adjunta. No se ha podido leer el texto de la proyección." }
             readingPhoto = false
+        }
+    }
+    func identifyMovie(_ id: String) {
+        guard identifyingFilm == nil, !listening, let note = note(id), note.state == .complete, note.accountID == api.accountID, let image = photo(for: note) else { return }
+        identifyingFilm = id
+        Task {
+            defer { identifyingFilm = nil }
+            do {
+                let scale = min(1, 1000 / max(image.size.width, image.size.height))
+                let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+                let resized = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+                guard let jpeg = resized.jpegData(compressionQuality: 0.65), jpeg.count <= 700000 else { throw AssistantError.recording("La foto es demasiado grande para analizarla.") }
+                let result = try await api.identifyFilm(note, jpeg: jpeg)
+                guard note.accountID == api.accountID else { return }
+                update(id) { $0.filmIdentification = result }
+                status = result.message
+            } catch { status = "No se ha podido analizar la película. Puedes reintentarlo; no se ha supuesto ningún título." }
         }
     }
     func clearProjection() { photoRequest = UUID(); projectionPhoto = nil; projectionText = ""; readingPhoto = false }
