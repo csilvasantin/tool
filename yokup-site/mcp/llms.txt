@@ -406,3 +406,5 @@ Native Fold and Wear OS apps are distinct from the older WebView APK. The explic
 ## Alcance cinco pilares / Five-pillar scope
 
 La misma sintaxis Android está integrada en Admira.biz, Pixeria, XpaceOS, Yokup y ClearChannel. Selecciona un proyecto explícito o usa `?project=ID`; en Pixeria se requiere sesión. El puente instalado resuelve las asociaciones de playlist por proyecto. / The same syntax is integrated in all five pillars; an explicit project is required, Pixeria remains authenticated, and the installed bridge resolves project playlist associations.
+
+Agent conversations (ES/EN): /conversar resumes account-owned history across devices. Three conversational agents: Admirito, Bugito, Supervisor. Contract: /mcp/agent-conversations.json. Meta Display pairing prototype: /conversar-display. Native Meta camera/audio/background integration and real device testing remain pending. Operational commands remain in shared Expert engine.

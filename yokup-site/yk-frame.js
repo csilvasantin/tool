@@ -264,6 +264,7 @@
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
     ["SUPERVISOR",  "/supervisor"],
+    ["CONVERSAR",   "/conversar"],
     ["INFORMES",    "/informes"],
     // FLT-1020: un diálogo del sistema en cualquier equipo lo deja PARADO. Va en la
     // barra para que se vea desde cualquier página, no sólo si entras a buscarlo.
@@ -344,6 +345,7 @@
     ["Mi comercio",   "/retailer"],
     ["Instaladores",  "/instalador"],
     ["Llamadas",      "/llamadas"],
+    ["Conversar",     "/conversar"],
     ["Entrenamiento", "/entrenamiento"],
     ["Ayuda",         "/help"]
   ];

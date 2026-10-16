@@ -76,4 +76,8 @@
 /asistencia.html                https://www.admira.live/asistencia                     301
 /ayuda                          /help                                                  301
 /ayuda/                         /help/                                                 301
+/conversar-display /conversar-display.html 200
+/conversar-display/ /conversar-display.html 200
+/conversar        /conversar.html 200
+/conversar/       /conversar.html 200
 /*                /index.html   200

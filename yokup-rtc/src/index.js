@@ -1,3 +1,5 @@
+import { handleAgentDevices, pairedConversationSession } from './agent-device-pairing.js';
+import { handleAgentConversations, handleAgentTranscribe } from './agent-conversations.js';
 import { handleIncidentObservation } from './incident-observation.js';
 import { handleIncidentMap } from './incident-map.js';
 import { runIncidentSensors } from './incident-sensors.js';
@@ -273,6 +275,13 @@ async function requireAuth(env, req) {
   return readSession(env, sessionTokenFromRequest(req));
 }
 __name(requireAuth, "requireAuth");
+async function requireConversationAuth(env,req) {
+  const session=await requireAuth(env,req) || await pairedConversationSession(req,env);
+  if(!session)return null;
+  const allowed=String(session.email||'').toLowerCase()==='agentes@silicio.admiranext.com' || (await currentSupervisorAccess(session)).allowed===true;
+  return allowed?session:null;
+}
+
 var AI_MODELS = [
   "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -10079,6 +10088,9 @@ var worker_app = {
     });
     if (authResponse) return authResponse;
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+    if (url.pathname === '/agents/devices' || url.pathname.startsWith('/agents/devices/')) return handleAgentDevices(req, env, { requireAuth:async (environment,request) => { const session=await requireConversationAuth(environment,request); return session&&!session.conversation_device?session:null; } });
+    if (url.pathname === '/agents/transcribe') return handleAgentTranscribe(req, env, { requireAuth:requireConversationAuth });
+    if (url.pathname === '/agents/conversations' || url.pathname.startsWith('/agents/conversations/')) return handleAgentConversations(req, env, { requireAuth:requireConversationAuth, aiRun });
     // Incidencias del MCP de flota (FLT-101298): solo por el binding del gate (src/fleet-incidents.js).
     if (url.pathname === FLEET_INCIDENTS_PREFIX || url.pathname.startsWith(FLEET_INCIDENTS_PREFIX + "/")) return handleFleetIncidents(req, env, url, { json, ensureSchema, createIncident, addEvent, embed });
     // ── AUTOCURACIÓN DE LA RUTINA PROGRAMADA, INDEPENDIENTE DEL CRON (FLT-1016 c) ─

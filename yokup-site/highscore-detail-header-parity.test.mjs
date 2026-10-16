@@ -20,7 +20,7 @@ test("el único APP_NAV conserva yokup● + Dashboard…Highscore y activa Highs
   assert.deepEqual(labels,[
     ["DASHBOARD","/dashboard"],["OBJETIVOS","/objetivos"],["DECISIONES","/decisiones"],
     ["MISIONES","/misiones"],["TAREAS","/tareas"],["INCIDENCIAS","/incidencias"],
-    ["SUPERVISOR","/supervisor"],["INFORMES","/informes"],["NOTIFICACIONES","/notificaciones"],["HIGHSCORE","/highscore"]
+    ["SUPERVISOR","/supervisor"],["CONVERSAR","/conversar"],["INFORMES","/informes"],["NOTIFICACIONES","/notificaciones"],["HIGHSCORE","/highscore"]
   ]);
   assert.match(frame,/if \(it\.active\) a\.setAttribute\("aria-current", "page"\)/);
   // Logo: el wordmark yokup● del Portal del comercio (FLT-101338, canon de la
