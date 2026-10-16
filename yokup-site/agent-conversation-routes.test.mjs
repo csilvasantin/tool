@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
+test('conversation URLs use Pages clean routes without an html rewrite loop',async()=>{const redirects=await readFile(new URL('./_redirects',import.meta.url),'utf8');assert.doesNotMatch(redirects,/^\/conversar(?:-display)?\/?\s+\/conversar(?:-display)?\.html\s+200$/m);for(const name of ['conversar','conversar-display'])assert.match(await readFile(new URL('./'+name+'.html',import.meta.url),'utf8'),/<title>/);});
