@@ -482,17 +482,18 @@
   // ?ax_cmd=). En admira.biz y clearchannel.tv la suite NO los intercepta: manda el manejador local de la
   // pata. En studio, store, app (y admiranext.com) la orden navega en la misma pestaña al enlace del tour,
   // con la marca del cliente para que no se quede pegada otra (Altadis) de una visita anterior.
-  // DOOH_STARBUCKS: el cliente que admira.biz recibe para Starbucks México. biz resuelve «starbucks» y
-  // «alsea» al tour global de Alsea México; si un día «starbucks» dejara de llevar allí, vuelve a 'alsea'.
+  // DOOH_STARBUCKS: el cliente que admira.biz recibe para Starbucks México. Va por su id, «starbucks-mexico»
+  // (?ax_cmd=demo-dooh-starbucks-mexico): en biz «starbucks» y «alsea» son también alias de Starbucks España y
+  // solo llevan a México si GlobalTour ya cargó; «starbucks mexico» resuelve siempre a alsea_mexico (exacto).
   var DOOH_BIZ = 'https://www.admira.biz/';
-  var DOOH_STARBUCKS = 'starbucks';
+  var DOOH_STARBUCKS = 'starbucks-mexico';
   var DOOH_CLIENTES = [
     {id: 'starbucks', biz: DOOH_STARBUCKS, marca: 'starbucks', nombre: ['Starbucks México', 'Starbucks Mexico'],
       desc: ['Alsea · del país entero a la puerta de cada Starbucks', 'Alsea · from the whole country to each Starbucks door'],
       alias: ['starbucks', 'sbux', 'starbucks mexico', 'starbucks mx', 'sbux mx', 'alsea', 'alsea mexico', 'alsea mx', 'alsea starbucks']},
     {id: 'altadis', biz: 'altadis', marca: 'altadis', nombre: ['Altadis España', 'Altadis Spain'],
       desc: ['10 Xtancos con la marca Altadis', '10 Xtancos with the Altadis brand'],
-      alias: ['altadis', 'xtancos altadis', 'altadis xtancos', 'estancos altadis', 'altadis espana', 'altadis spain', 'xtancos']}
+      alias: ['altadis', 'xtancos altadis', 'altadis xtancos', 'estancos altadis', 'altadis espana', 'altadis spain']}
   ];
   // En biz manda la pata; también si ya registró su propio /demo dooh (registerAdapter → localDemos).
   function doohEnPata() { return /(^|\.)(admira\.biz|clearchannel\.tv)$/.test(host) || !!localDemos.dooh; }
@@ -502,7 +503,10 @@
     if (!k) return null;
     var exacto = DOOH_CLIENTES.filter(function (c) { return c.id === k || c.alias.indexOf(k) >= 0; })[0];
     if (exacto) return exacto;
-    var prefijo = k.length >= 3 ? DOOH_CLIENTES.filter(function (c) { return [c.id].concat(c.alias).some(function (a) { return a.indexOf(k) === 0; }); }) : [];
+    // Prefijo solo contra el id (starbucks, altadis), con 3 letras o más y nunca desde xtanc…/estanc…:
+    // en biz «xtanco» es JTI Xtanco España y «estancos» Xtanco Nacional; Altadis no se confunde con ellos (encargo #4969).
+    if (k.length < 3 || /^(xtanc|estanc)/.test(k)) return null;
+    var prefijo = DOOH_CLIENTES.filter(function (c) { return c.id.indexOf(k) === 0; });
     return prefijo.length === 1 ? prefijo[0] : null;
   }
   // tipo 'demo' → ?ax_cmd=demo-dooh-<cliente>; tipo 'vision' → ?ax_cmd=vision-general-<cliente>.
@@ -519,6 +523,8 @@
       DOOH_CLIENTES.map(function (c) { return '/demo dooh ' + c.id + ' · ' + doohNombre(c) + ' — ' + T(c.desc[0], c.desc[1]); }).join('\n') + '\n' +
       T('/vision general <cliente> abre el circuito con su semáforo por Xpacio (starbucks · altadis).', '/vision general <client> opens the circuit with a status light per Xpace (starbucks · altadis).');
   }
+  // En biz el bloque no sale en la lista de /demo: allí /demo dooh lo atiende la pata.
+  function doohAyuda() { return doohEnPata() ? '' : doohLista() + '\n'; }
   function doohAbrir(c, tipo, log) {
     var url = doohUrl(c, tipo);
     if (root.AdmiraDemoControl && root.AdmiraDemoControl.state().activo) root.AdmiraDemoControl.control('stop');
@@ -789,7 +795,7 @@
     return i < 0 ? null : {demo: DEMOS[i], i: i};
   }
   function demoLista() {
-    return '/demo android [Fold8|watch] [playlist|#tag] · Fold + Watch virtuales\n/demo ios [iphone|watch] [playlist|#tag] · iPhone + Apple Watch\n' + T('/demo pixeria novedades · mejoras de Trinity → gemelo 360\n','/demo pixeria updates · Trinity updates → 360 twin\n') + doohLista() + '\n' + T('/demo global · Sneakers Store: proyecto → Xpacio → Pixeria → gemelo → cámara\nDemos · las cinco soluciones:', '/demo global · Sneakers Store: project → Xpace → Pixeria → twin → camera\nDemos · the five solutions:') + '\n' +
+    return '/demo android [Fold8|watch] [playlist|#tag] · Fold + Watch virtuales\n/demo ios [iphone|watch] [playlist|#tag] · iPhone + Apple Watch\n' + T('/demo pixeria novedades · mejoras de Trinity → gemelo 360\n','/demo pixeria updates · Trinity updates → 360 twin\n') + doohAyuda() + T('/demo global · Sneakers Store: proyecto → Xpacio → Pixeria → gemelo → cámara\nDemos · las cinco soluciones:', '/demo global · Sneakers Store: project → Xpace → Pixeria → twin → camera\nDemos · the five solutions:') + '\n' +
       DEMOS.map(function (d, k) { return (k + 1) + ' /demo ' + d.id + ' · ' + d.nombre + ' — ' + T(d.desc[0], d.desc[1]); }).join('\n') +
       '\n' + T('/demo 1…5 o /demo siguiente. También desde el avatar digital: «/demo store».', '/demo 1…5 or /demo next. Also from the digital avatar: "/demo store".') +
       '\n' + T('/demo hoy recorre lo de hoy y resume bien, mal o pendiente. /demo today lo hace en inglés.',
@@ -804,7 +810,7 @@
   }
   function localLista() {
     var L = localM();
-    return '/demo android [Fold8|watch] [playlist|#tag] · Fold + Watch virtuales\n/demo ios [iphone|watch] [playlist|#tag] · iPhone + Apple Watch\n' + T('/demo pixeria novedades · mejoras de Trinity → gemelo 360\n','/demo pixeria updates · Trinity updates → 360 twin\n') + doohLista() + '\n' + T('Demos de ', 'Demos of ') + (L.nombre || plataforma) + ':\n' +
+    return '/demo android [Fold8|watch] [playlist|#tag] · Fold + Watch virtuales\n/demo ios [iphone|watch] [playlist|#tag] · iPhone + Apple Watch\n' + T('/demo pixeria novedades · mejoras de Trinity → gemelo 360\n','/demo pixeria updates · Trinity updates → 360 twin\n') + doohAyuda() + T('Demos de ', 'Demos of ') + (L.nombre || plataforma) + ':\n' +
       L.subdemos.map(function (d, k) { return '/demo ' + (k + 1) + ' · /demo ' + d.aliases[0] + ' — ' + d.nombre + (d.desc ? ': ' + d.desc : ''); }).join('\n') +
       '\n' + T('Recorridos y muestras preparados. /demo store, /demo biz… abren las otras plataformas.',
         'Prepared walkthroughs and samples. /demo store, /demo biz… open the other platforms.') +
