@@ -125,6 +125,7 @@ async function stampFrameReferences(version, rootUrl) {
       // `[^"']*` podía atravesar un comentario CSS sin comillas hasta el siguiente
       // atributo HTML y tragarse la etiqueta <body> completa.
       .replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)
+      .replace(/\/(agent-conversation\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)
       .replace(/\s*<link\b[^>]*\brel=["'][^"']*(?:icon|apple-touch-icon)[^"']*["'][^>]*>/gi, "");
     const anchor = /<meta\b[^>]*\bname=["']viewport["'][^>]*>/i.test(after)
       ? /(<meta\b[^>]*\bname=["']viewport["'][^>]*>)/i

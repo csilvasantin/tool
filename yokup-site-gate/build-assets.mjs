@@ -41,6 +41,7 @@ async function stamp(version) {
     ].join("\n");
     let after = before
       .replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + encoded)
+      .replace(/\/(agent-conversation\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + encoded)
       .replace(/\s*<link\b[^>]*\brel=["'][^"']*(?:icon|apple-touch-icon)[^"']*["'][^>]*>/gi, "");
     const anchor = /<meta\b[^>]*\bname=["']viewport["'][^>]*>/i.test(after)
       ? /(<meta\b[^>]*\bname=["']viewport["'][^>]*>)/i
