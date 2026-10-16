@@ -37,6 +37,9 @@ targets:
         UIBackgroundModes: [audio]
         NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.
   AdmiritoTests:
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     type: bundle.unit-test
     platform: iOS
     sources:
