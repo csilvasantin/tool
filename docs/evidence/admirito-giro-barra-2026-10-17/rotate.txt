@@ -1,0 +1,8 @@
+TECH_FAULT_CONFIRMED_rotate Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: contenido girado 90 grados. Pieza: Starbucks · Tu café está preparado · Your coffee is ready. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+TECH_CAMERA_READY_rotate
+** TEST SUCCEEDED **
+TECH_INCIDENT_OPENED Incidencia INC-WA6PQJ abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360.
+** TEST SUCCEEDED **
+INCIDENT_PLAYER_RESTORED Supervisor · datos comunicados por el player del Fold en dos muestras recientes. No comunica giro, popup, barra superior, recorte ni pausa. Pieza: Pasea. Saborea. Inspírate. · Paseo de Gracia 103 · IA. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+INCIDENT_SUPERVISOR_REQUESTED
+** TEST SUCCEEDED **

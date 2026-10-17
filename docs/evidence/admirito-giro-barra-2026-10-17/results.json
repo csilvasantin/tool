@@ -1,0 +1,18 @@
+[
+  {
+    "case": "Contenido girado",
+    "id": "INC-WA6PQJ",
+    "status": "resolved",
+    "url": "https://www.admira.app/ticket?id=INC-WA6PQJ",
+    "opticalRecoveries": 2,
+    "technicalPhase": true
+  },
+  {
+    "case": "Barra de título",
+    "id": "INC-WHWAFC",
+    "status": "resolved",
+    "url": "https://www.admira.app/ticket?id=INC-WHWAFC",
+    "opticalRecoveries": 2,
+    "technicalPhase": true
+  }
+]

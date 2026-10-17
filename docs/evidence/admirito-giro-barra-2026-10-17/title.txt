@@ -1,0 +1,8 @@
+TECH_FAULT_CONFIRMED_title Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: barra superior de 36 píxeles. Pieza: Tu próximo horizonte. · Diagonal 634 · IA. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+TECH_CAMERA_READY_title
+** TEST SUCCEEDED **
+TECH_INCIDENT_OPENED Incidencia INC-WHWAFC abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360.
+** TEST SUCCEEDED **
+INCIDENT_PLAYER_RESTORED Supervisor · datos comunicados por el player del Fold en dos muestras recientes. No comunica giro, popup, barra superior, recorte ni pausa. Pieza: Las ideas cobran vida. · AdmiraNeXT · Gran de Gràcia 51. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+INCIDENT_SUPERVISOR_REQUESTED
+** TEST SUCCEEDED **
