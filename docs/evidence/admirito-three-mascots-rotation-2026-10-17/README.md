@@ -8,7 +8,8 @@ Prueba real por USB: tres cambios en horizontal y tres en vertical, mismo marco 
 
 Permanent Supervisor / Admirito / Bugito buttons replace the character in the same stage. Real USB test covers all three in portrait and landscape, identical stage frames within each orientation, and the Rotate button in both directions. Natural sensor rotation still requires a physical tilt test. No IoT fault or playlist change was triggered by selecting a mascot.
 
-![Admirito horizontal](admirito-orientation-0.png)
 ![Admirito vertical](admirito-orientation-1.png)
-![Bugito horizontal](bugito-orientation-0.png)
-![Supervisor horizontal](supervisor-orientation-0.png)
+![Bugito vertical](bugito-orientation-1.png)
+![Supervisor vertical](supervisor-orientation-1.png)
+
+Las capturas horizontales de XCTest salieron recortadas con franjas negras y no se usan como prueba visual. El encaje horizontal se corroboró por la cámara y por los marcos accesibles de los botones. Landscape XCTest image exports were malformed; they are excluded from visual evidence.
