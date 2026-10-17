@@ -21,6 +21,7 @@
 		86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */; };
 		8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB6E1C3F6AC3061D4AE43BE /* Models.swift */; };
 		9675AFDBCC6FE0931C77FE43 /* ProjectionPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */; };
+		AD37CA803F7639E27F634C74 /* CommandDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */; };
 		D1522EC0931E33794B3381AE /* meeting-proof.wav in Resources */ = {isa = PBXBuildFile; fileRef = ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */; };
 		DB141BE6473277C93671ACA3 /* RestDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124C506F87AF3079CA3C7FF0 /* RestDiary.swift */; };
 		DB5613F9C0F55EF6D2BEF9C9 /* SuiteExpertBridge.js in Resources */ = {isa = PBXBuildFile; fileRef = 211207BFEC7F5C2C2985D6D6 /* SuiteExpertBridge.js */; };
@@ -58,6 +59,7 @@
 		C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliabilityTests.swift; sourceTree = "<group>"; };
 		CA270DD45862031A659ED735 /* LiveServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServiceTests.swift; sourceTree = "<group>"; };
 		D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
+		F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandDictation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -97,6 +99,7 @@
 				05C0E02C4FC2F18A0179CD14 /* APIClient.swift */,
 				15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */,
 				A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */,
+				F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */,
 				9DB6E1C3F6AC3061D4AE43BE /* Models.swift */,
 				BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */,
 				124C506F87AF3079CA3C7FF0 /* RestDiary.swift */,
@@ -236,6 +239,7 @@
 				654208594CD775CCD9357729 /* AdmiritoApp.swift in Sources */,
 				86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */,
 				7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */,
+				AD37CA803F7639E27F634C74 /* CommandDictation.swift in Sources */,
 				8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */,
 				9675AFDBCC6FE0931C77FE43 /* ProjectionPhoto.swift in Sources */,
 				DB141BE6473277C93671ACA3 /* RestDiary.swift in Sources */,
@@ -301,7 +305,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -438,7 +442,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

@@ -70,13 +70,28 @@ struct SuiteExpertSurface: UIViewRepresentable {
 }
 struct SuiteExpertView: View {
     @StateObject private var console = SuiteExpertConsole()
+    @StateObject private var dictation = CommandDictation()
+    @Environment(\.scenePhase) private var scene
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("AdmiraNeXT · modo Experto").font(.headline)
-            Text("Las mismas órdenes y permisos de admira.biz. Puedes escribir o dictar con el teclado; este modo no graba reuniones ni la tele.").font(.caption).foregroundStyle(.secondary)
+            Text("Las mismas órdenes y permisos de admira.biz. Dicta la orden, revísala y pulsa Ejecutar.").font(.caption).foregroundStyle(.secondary)
             TextField("/tour alsea mexico", text: $console.command, axis: .vertical).textFieldStyle(.roundedBorder).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("suiteCommand")
+            Button(dictation.listening ? "Terminar dictado" : dictation.starting ? "Preparando voz…" : "Dictar orden") {
+                if dictation.listening { dictation.stop() }
+                else {
+                    console.command = ""
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    Task { await dictation.start() }
+                }
+            }.buttonStyle(.bordered).disabled(dictation.starting || dictation.processing || console.busy).accessibilityIdentifier("suiteDictation")
+            Text("El dictado envía hasta 30 segundos de audio al transcriptor de Admira y borra el audio temporal al terminar.").font(.caption2).foregroundStyle(.secondary)
+            if !dictation.status.isEmpty {
+                Text(dictation.status).font(.caption).accessibilityIdentifier("suiteDictationStatus")
+                if dictation.listening { ProgressView(value: dictation.level).accessibilityLabel("Nivel del micrófono").accessibilityIdentifier("suiteMicrophoneLevel") }
+            }
             HStack {
-                Button(console.busy ? "Enviando…" : "Ejecutar") { console.send() }.buttonStyle(.borderedProminent).disabled(!console.ready || console.busy || console.command.isEmpty)
+                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); console.send() }.buttonStyle(.borderedProminent).disabled(!console.ready || console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing)
                 Button("Ayuda") { console.send("/help") }.disabled(!console.ready || console.busy)
             }
             ScrollView(.horizontal) { HStack {
@@ -84,12 +99,14 @@ struct SuiteExpertView: View {
                 Button("Altadis") { console.send("/tour altadis") }
                 Button("DOOH total") { console.send("/tour DooH total") }
                 Button("Parar tour") { console.send("/parar") }
-            }.buttonStyle(.bordered).disabled(!console.ready || console.busy) }
+            }.buttonStyle(.bordered).disabled(!console.ready || console.busy || dictation.listening || dictation.starting || dictation.processing) }
             Text(console.status).font(.caption).accessibilityIdentifier("suiteStatus")
             if !console.output.isEmpty { DisclosureGroup("Respuesta del modo Experto") { Text(console.output).font(.system(.caption, design: .monospaced)).textSelection(.enabled) } }
             SuiteExpertSurface(console: console).frame(height: 520).clipShape(RoundedRectangle(cornerRadius: 12))
             Text("Si una acción requiere identificación, entra con tu cuenta de admira.biz en esta vista. Vincular Admirito no concede permisos de control físico.").font(.caption).foregroundStyle(.secondary)
             Link("Abrir admira.biz en Safari", destination: URL(string: "https://www.admira.biz/")!)
-        }.onAppear { console.observe() }.onDisappear { console.stopObserving() }
+        }.onAppear { console.observe() }.onDisappear { dictation.cancel(); console.stopObserving() }
+            .onChange(of: dictation.transcript) { _, text in if !text.isEmpty { console.command = text } }
+            .onChange(of: scene) { _, phase in if phase == .background { dictation.cancel() } }
     }
 }

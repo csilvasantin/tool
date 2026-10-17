@@ -42,13 +42,16 @@ private enum CredentialStore {
     func identifyFilm(_ note: ListeningNote, jpeg: Data) async throws -> FilmIdentification
 }
 @MainActor final class APIClient: AssistantService {
-    private let base = URL(string: "https://api.admira.app")!
+    // Both names are declared custom domains of the same yokup-rtc service.
+    // The .app API currently resolves to unreachable anycast addresses on this
+    // network. Use the reachable official API alias, never a web-view cookie.
+    private let base = URL(string: "https://api.admira.biz")!
     private let session = URLSession(configuration: .ephemeral)
     private(set) var accountID: String?
     var connected: Bool { accountID != nil }
     init() {
         if let data = CredentialStore.load(), let credential = try? JSONDecoder().decode(DeviceCredential.self, from: data), credential.expires > Date() {
-            let cookie = HTTPCookie(properties: [.domain: "api.admira.app", .path: "/", .name: "__Host-admira_agents", .value: credential.value, .secure: "TRUE", .expires: credential.expires])
+            let cookie = HTTPCookie(properties: [.domain: base.host!, .path: "/", .name: "__Host-admira_agents", .value: credential.value, .secure: "TRUE", .expires: credential.expires])
             if let cookie { session.configuration.httpCookieStorage?.setCookie(cookie); accountID = credential.accountID }
         }
     }
@@ -70,7 +73,7 @@ private enum CredentialStore {
     func poll(_ challenge: PairingChallenge) async throws -> Bool {
         let result: PairingResult = try await request("agents/devices/poll", method: "POST", object: ["device_id": challenge.deviceId, "secret": challenge.secret])
         guard result.status == "paired", let account = result.accountId else { return false }
-        guard let cookie = session.configuration.httpCookieStorage?.cookies?.first(where: { $0.name == "__Host-admira_agents" && $0.domain == "api.admira.app" }), let expires = cookie.expiresDate else { throw AssistantError.notLinked }
+        guard let cookie = session.configuration.httpCookieStorage?.cookies?.first(where: { $0.name == "__Host-admira_agents" && $0.domain == base.host }), let expires = cookie.expiresDate else { throw AssistantError.notLinked }
         try CredentialStore.save(JSONEncoder().encode(DeviceCredential(value: cookie.value, expires: expires, accountID: account))); accountID = account; return true
     }
     func conversation() async throws -> String {
