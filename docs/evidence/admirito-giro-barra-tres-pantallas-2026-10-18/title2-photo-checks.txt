@@ -1,0 +1,2 @@
+TECH_INCIDENT_OPENED Incidencia INC-YINPLP abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360.
+** TEST SUCCEEDED **

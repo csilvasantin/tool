@@ -1,0 +1,3 @@
+TECH_FAULT_CONFIRMED_rotate Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: contenido girado 90 grados. Pieza: Pasea. Saborea. Inspírate. · Paseo de Gracia 103 · IA. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+TECH_CAMERA_READY_rotate
+** TEST SUCCEEDED **

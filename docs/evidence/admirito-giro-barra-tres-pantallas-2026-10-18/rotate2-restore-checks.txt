@@ -1,0 +1,3 @@
+INCIDENT_PLAYER_RESTORED Supervisor · datos comunicados por el player del Fold en dos muestras recientes. No comunica giro, popup, barra superior, recorte ni pausa. Pieza: Starbucks · Diagonal 634 · D634-01 · Abre tu próximo horizonte.. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+INCIDENT_SUPERVISOR_REQUESTED
+** TEST SUCCEEDED **

@@ -1,0 +1,2 @@
+TECH_INCIDENT_OPENED Incidencia INC-Y9AR87 abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360.
+** TEST SUCCEEDED **
