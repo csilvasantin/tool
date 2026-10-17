@@ -124,6 +124,9 @@ private enum CredentialStore {
     func invoke(_ text: String, target: String, conversation: String, requestID: String) async throws -> AgentInvocationReply {
         try await request("agents/conversations/\(conversation)/invocations", method:"POST", object:["text":text,"target":target,"request_id":requestID])
     }
+    func invokeDemo(_ demo: RemoteDemoRequest, conversation: String, requestID: String) async throws -> AgentInvocationReply {
+        try await request("agents/conversations/\(conversation)/invocations",method:"POST",object:["target":"oraculo","text":RemoteDemoRules.label(demo),"demo":["id":demo.id,"destination":demo.destination],"request_id":requestID])
+    }
     func invocation(conversation: String, requestID: String) async throws -> AgentInvocationReply {
         try await request("agents/conversations/\(conversation)/invocations/\(requestID)")
     }

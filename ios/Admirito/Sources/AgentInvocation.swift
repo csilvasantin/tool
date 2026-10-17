@@ -36,7 +36,7 @@ enum AgentInvocationRules {
     private var account: String?
     private var pending: Pending?
     private var channelConversation: String?
-    private struct Pending: Codable { let conversation: String; let request: String; let target: String; let text: String }
+    private struct Pending: Codable { let conversation: String; let request: String; let target: String; let text: String; let demo: RemoteDemoRequest? }
     private var key: String? { account.map { "admirito.invocation.\($0)" } }
     func bind(_ account: String?) {
         guard account != self.account else { return }
@@ -52,9 +52,9 @@ enum AgentInvocationRules {
         task?.cancel(); task = nil; busy = false; pending = nil; save()
         status = "Has dejado de esperar en el iPhone. Esto no cancela una petición ya entregada al agente."
     }
-    func send(_ text: String, target selected: String, speak: @escaping (String)->Void) {
+    func send(_ text: String, target selected: String, demo: RemoteDemoRequest? = nil, speak: @escaping (String)->Void) {
         guard !busy, pending == nil, account != nil else { speak("Todavía hay una petición pendiente. Primero comprobaré su respuesta."); resume(speak:speak); return }
-        target = selected; if let key { UserDefaults.standard.set(selected,forKey:key + ".target") }; answer = ""; busy = true; status = "Preparando la petición a \(AgentInvocationRules.names[selected] ?? selected)…"
+        if demo == nil { target = selected; if let key { UserDefaults.standard.set(selected,forKey:key + ".target") } }; answer = ""; busy = true; status = demo.map { "Preparando \(RemoteDemoRules.label($0))…" } ?? "Preparando la petición a \(AgentInvocationRules.names[selected] ?? selected)…"
         let owner = account
         task = Task {
             do {
@@ -64,11 +64,13 @@ enum AgentInvocationRules {
                 guard owner == account, !Task.isCancelled else { return }
                 channelConversation = conversation
                 if let key { UserDefaults.standard.set(conversation,forKey:key + ".conversation") }
-                let item = Pending(conversation:conversation, request:UUID().uuidString.lowercased(), target:selected, text:text)
+                let item = Pending(conversation:conversation, request:UUID().uuidString.lowercased(), target:selected, text:text, demo:demo)
                 pending = item; save()
-                let result = try await api.invoke(text, target:selected, conversation:conversation, requestID:item.request)
+                let result: AgentInvocationReply
+                if let demo { result = try await api.invokeDemo(demo,conversation:conversation,requestID:item.request) }
+                else { result = try await api.invoke(text, target:selected, conversation:conversation, requestID:item.request) }
                 guard owner == account, !Task.isCancelled else { return }
-                status = result.state == "waiting" ? "Petición entregada a \(AgentInvocationRules.names[selected] ?? selected). Esperando su respuesta real." : (result.message ?? "Comprobando la entrega de la petición…")
+                status = result.state == "waiting" ? (demo.map { "He solicitado la \(RemoteDemoRules.label($0)). Esperando confirmación del ordenador." } ?? "Petición entregada a \(AgentInvocationRules.names[selected] ?? selected). Esperando su respuesta real.") : (result.message ?? "Comprobando la entrega de la petición…")
                 speak(status)
                 await poll(item, owner:owner, speak:speak)
             } catch {

@@ -27,3 +27,17 @@ test('Spanish command language hint is explicit and never imposed on listening a
  for(const hint of [null,'es','invalid']){const headers={'content-type':'audio/wav'};if(hint)headers['x-admirito-language']=hint;const req=new Request('https://api.admira.biz/agents/transcribe',{method:'POST',headers,body:new Uint8Array([1,2])});await handleAgentTranscribe(req,env,{requireAuth:async()=>({email:'a'})});}
  assert.equal(inputs[0].language,undefined);assert.equal(inputs[1].language,'es');assert.equal(inputs[2].language,undefined);
 });
+
+test('remote demo uses canonical Alsea URL and routes only to the catalog destination/browser',async()=>{
+ const h=await harness(),b={...body(),text:'ignore client text',demo:{id:'alsea',destination:'macmini',url:'https://evil.example/'}};
+ const result=await h.call(b);assert.equal(result.state,'waiting');assert.equal(h.sent.length,1);
+ assert.equal(h.sent[0].target_persona,'Oraculo');assert.equal(h.sent[0].target_machine,'MacMini');
+ assert.match(h.sent[0].text,/Navegador: Firefox/);assert.match(h.sent[0].text,/https:\/\/www.admiranext.com\/pruebas\/alsea\/\?lang=es/);
+ assert.doesNotMatch(h.sent[0].text,/evil.example|ignore client text/);
+ await h.call(b);assert.equal(h.sent.length,1);
+});
+test('unknown demo and computer cannot become arbitrary fleet commands',async()=>{
+ const h=await harness();
+ for(const demo of [{id:'alsea',destination:'unknown'},{id:'__proto__',destination:'macmini'},{id:'alsea; rm',destination:'macmini'},[],null])assert.equal((await h.call({...body(),demo})).http,400);
+ assert.equal(h.sent.length,0);
+});

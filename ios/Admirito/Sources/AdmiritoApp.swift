@@ -221,6 +221,16 @@ struct AssistantView: View {
         let text = commandVoice.transcript
         guard !text.isEmpty else { pet.message = commandVoice.status; wakeWord.pause(); feedback.reply("No he podido entender la orden. Mantén el dedo sobre mí y vuelve a intentarlo."); return }
         invokedAgent.bind(assistant.accountID)
+        if let demo = RemoteDemoRules.request(text) {
+            wakeWord.pause(); pet.message = "Preparando \(RemoteDemoRules.label(demo))…"
+            feedback.reply("Voy a abrir la \(RemoteDemoRules.label(demo)).") {
+                invokedAgent.send(RemoteDemoRules.label(demo),target:"oraculo",demo:demo) { response in agentVoiceQueue.append(response) }
+            }
+            return
+        }
+        if RemoteDemoRules.isRemoteDemo(text) {
+            wakeWord.pause(); feedback.reply("No he reconocido esa demo o ese ordenador. Puedes decir: demo Alsea en MacMini."); return
+        }
         if AgentInvocationRules.returnsToAdmirito(text) {
             invokedAgent.leave(); wakeWord.pause(); feedback.reply("Aquí está Admirito otra vez."); return
         }

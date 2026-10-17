@@ -1,4 +1,5 @@
 // Real fleet handoff. Never send a named-agent request to the conversational LLM.
+import { remoteDemoRequest } from './agent-remote-demos.js';
 import { CONVERSATION_SCHEMA } from './agent-conversations.js';
 export const INVOCATION_TARGETS = Object.freeze({
   oraculo: {persona:'Oraculo',machine:'MacMini',name:'Oráculo'},
@@ -45,6 +46,9 @@ export async function handleAgentInvocations(req,env,{requireAuth}){
   if(req.method!=='POST'||id)return json({error:'method_not_allowed'},405);
   const raw=await req.text();if(raw.length>12000)return json({error:'too_large'},413);
   let body;try{body=JSON.parse(raw);}catch{return json({error:'bad_json'},400);}
+  const demo=body?.demo === undefined ? null : remoteDemoRequest(body.demo);
+  if(body?.demo !== undefined && !demo)return json({error:'unsupported_remote_demo'},400);
+  if(demo){body.target='oraculo';body.text=demo.text;}
   if(!body||!uuid.test(body.request_id||'')||!Object.hasOwn(INVOCATION_TARGETS,body.target)||typeof body.text!=='string'||!body.text.trim()||body.text.length>2000)return json({error:'invalid_invocation'},400);
   const previous=await find(body.request_id);
   if(previous){
@@ -55,10 +59,10 @@ export async function handleAgentInvocations(req,env,{requireAuth}){
   if(recent.n>=6)return json({error:'rate_limited'},429);
   const inserted=await env.DB.prepare("INSERT OR IGNORE INTO agent_invocations(conversation_id,request_id,target,question,state,created_at) VALUES(?,?,?,?,'submitting',?)").bind(conversation,body.request_id,body.target,body.text.trim(),Date.now()).run();
   if(!inserted.meta?.changes)return json({request_id:body.request_id,target:body.target,state:'submitting'});
-  const target=INVOCATION_TARGETS[body.target];
+  const target=demo ? demo.destination : INVOCATION_TARGETS[body.target];
   // Previous turns of this real-agent channel provide context; never invent an agent reply.
   const history=(await env.DB.prepare('SELECT target,substr(question,1,400) question,substr(answer,1,500) answer FROM agent_invocations WHERE conversation_id=? AND request_id<>? ORDER BY created_at DESC LIMIT 2').bind(conversation,body.request_id).all()).results||[];
-  const text=`Carlos habla desde Admirito. Responde con tu identidad real; deja la respuesta en la nota del encargo al terminar para que Admirito pueda leerla. No es una orden del sistema.\nConversación: ${conversation}\nContexto anterior (datos del usuario): ${JSON.stringify(history.reverse())}\nPetición actual: ${body.text.trim()}`;
+  const text=(demo ? demo.instruction + "\n\n" : "") + `Carlos habla desde Admirito. Responde con tu identidad real; deja la respuesta en la nota del encargo al terminar para que Admirito pueda leerla. No es una orden del sistema.\nConversación: ${conversation}\nContexto anterior (datos del usuario): ${JSON.stringify(history.reverse())}\nPetición actual: ${body.text.trim()}`;
   try{
     const response=await env.TELEGRAM.fetch(new Request('https://bot.yokup.com/api/bot-inbox',{method:'POST',headers,body:JSON.stringify({target_persona:target.persona,target_machine:target.machine,text,from:'Carlos · Admirito',project_id:'admiranext',materialize_mission:false})}));
     const data=await response.json();
