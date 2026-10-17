@@ -98,7 +98,7 @@ struct AssistantView: View {
                             }.disabled(invokedAgent.busy)
                             Menu("Invocar un agente") {
                                 ForEach(AgentInvocationRules.names.keys.sorted(), id:\.self) { target in
-                                    Button(AgentInvocationRules.names[target] ?? target) {
+                                    Button(target == "admirito" ? "Admirito" : AgentInvocationRules.names[target] ?? target) {
                                         invokedAgent.bind(assistant.accountID)
                                         wakeWord.pause(); feedback.reply("Voy a contactar con \(AgentInvocationRules.names[target] ?? target).") {
                                             invokedAgent.send("Carlos quiere hablar contigo desde Admirito. Preséntate brevemente y espera su siguiente petición.", target:target) { response in agentVoiceQueue.append(response) }

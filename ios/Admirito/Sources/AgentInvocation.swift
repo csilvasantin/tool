@@ -56,7 +56,9 @@ enum AgentInvocationRules {
         if let key, let data = UserDefaults.standard.data(forKey:key), let value = try? JSONDecoder().decode(Pending.self, from:data) { pending = value; status = "Hay una petición al agente pendiente de comprobar." }
     }
     func selectMascot(_ selected: String) {
-        guard account != nil, ["bugito","supervisor"].contains(selected) else { return }
+        guard account != nil else { return }
+        if selected == "admirito" { leave(); return }
+        guard ["bugito","supervisor"].contains(selected) else { return }
         target = selected
         if let key { UserDefaults.standard.set(selected,forKey:key + ".target") }
         status = "Canal de \(SelfName(selected)) seleccionado."

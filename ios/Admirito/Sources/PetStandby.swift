@@ -94,12 +94,14 @@ struct PetStandbyView: View {
                     HStack {
                         Button("Supervisor") { selectMascot("supervisor") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectSupervisor")
                         Spacer(minLength:4)
-                        Text(character).font(.headline).lineLimit(1).minimumScaleFactor(0.8).accessibilityIdentifier("petCharacter")
+                        Button("Admirito") { selectMascot("admirito") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectAdmirito")
                         Spacer(minLength:4)
                         Button("Bugito") { selectMascot("bugito") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectBugito")
                     }
                     HStack {
+                        Text(character).font(.headline).accessibilityIdentifier("petCharacter")
                         Spacer()
+                        Button { rotateStage() } label: { Image(systemName:"rotate.right") }.accessibilityLabel("Girar la mascota").accessibilityIdentifier("petRotate")
                         Button { macGaze.toggle() } label: { Image(systemName: "cursorarrow.motionlines") }.accessibilityLabel("Seguir ratón del Mac").accessibilityIdentifier("petMacGaze").accessibilityValue(macGaze.status)
                         Button { Task { await wakeWord.toggle() } } label: {
                             Label(wakeWord.enabled ? "Admirito: ON" : "Activar Admirito", systemImage: wakeWord.enabled ? "ear.fill" : "ear")
@@ -119,6 +121,7 @@ struct PetStandbyView: View {
                     }
                     ZStack {
                         AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: macGaze.point ?? pet.gaze, immersive: landscape, character: character)
+                            .id(landscape)
                             .accessibilityHidden(true)
                         HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
                     }
@@ -143,6 +146,13 @@ struct PetStandbyView: View {
         .tint(characterColor)
         .onAppear { macGaze.resume() }
         .onDisappear { macGaze.stop() }
+    }
+    private func rotateStage() {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive }) else { return }
+        let mask: UIInterfaceOrientationMask = scene.interfaceOrientation.isLandscape ? .portrait : .landscapeRight
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations:mask)) { error in
+            VoiceDiagnostics.record("pet_rotation_error", ["domain":(error as NSError).domain,"code":String((error as NSError).code)])
+        }
     }
     private var characterColor: Color { character == "Bugito" ? .red : character == "Supervisor" ? .blue : .green }
     private var status: some View {

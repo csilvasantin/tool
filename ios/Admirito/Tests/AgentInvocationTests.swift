@@ -29,6 +29,7 @@ final class AgentInvocationTests: XCTestCase {
         channel.selectMascot("bugito"); XCTAssertEqual(channel.target,"bugito")
         channel.selectMascot("supervisor"); XCTAssertEqual(channel.target,"supervisor")
         channel.selectMascot("unknown"); XCTAssertEqual(channel.target,"supervisor")
+        channel.selectMascot("admirito"); XCTAssertNil(channel.target)
         channel.leave()
         let restarted = AgentInvocation(); restarted.bind(account)
         XCTAssertNil(restarted.target)
