@@ -87,25 +87,13 @@ struct PetStandbyView: View {
                 Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
                 RadialGradient(colors: [Color.green.opacity(scheme == .dark ? 0.17 : 0.10), .clear], center: .center, startRadius: 0, endRadius: max(geometry.size.width, geometry.size.height) * 0.6).ignoresSafeArea()
                 let landscape = geometry.size.width > geometry.size.height
-                ZStack {
-                    AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: pet.gaze, immersive: landscape)
-                        .accessibilityHidden(true)
-                    HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
-                }
-                .frame(width: geometry.size.width, height: landscape ? geometry.size.height : min(geometry.size.height * 0.7, geometry.size.width))
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let location):
-                        pet.gaze = CGPoint(x: max(-1, min(1, location.x / max(1, geometry.size.width) * 2 - 1)), y: max(-1, min(1, location.y / max(1, geometry.size.height) * 2 - 1)))
-                    case .ended: pet.gaze = .zero
-                    }
-                }
-                VStack {
+                VStack(spacing: landscape ? 6 : 12) {
                     HStack {
                         Text("Admirito").font(.headline).foregroundStyle(.secondary)
                         Spacer()
                         Button { Task { await wakeWord.toggle() } } label: {
                             Label(wakeWord.enabled ? "Admirito: ON" : "Activar Admirito", systemImage: wakeWord.enabled ? "ear.fill" : "ear")
+                                .labelStyle(.iconOnly)
                         }.buttonStyle(.bordered).disabled(dictation.listening || dictation.starting || dictation.processing || feedback.speaking).accessibilityIdentifier("petWakeWord")
                             .accessibilityValue(wakeWord.listening ? "Escucha local activa" : wakeWord.enabled ? "En pausa" : "Apagado")
                         Button {
@@ -119,10 +107,27 @@ struct PetStandbyView: View {
                         Button(action: close) { Image(systemName: "xmark.circle.fill").font(.title2) }
                             .accessibilityLabel("Volver a los controles").accessibilityIdentifier("petClose")
                     }
-                    Spacer()
+                    ZStack {
+                        AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: pet.gaze, immersive: landscape)
+                            .accessibilityHidden(true)
+                        HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(-1)
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            pet.gaze = CGPoint(x: max(-1, min(1, location.x / max(1, geometry.size.width) * 2 - 1)), y: max(-1, min(1, location.y / max(1, geometry.size.height) * 2 - 1)))
+                        case .ended: pet.gaze = .zero
+                        }
+                    }
                     status.padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                     if !landscape { privacy }
-                }.padding(16)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+
             }
         }
     }

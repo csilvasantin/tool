@@ -145,3 +145,9 @@ ES: «Siguiente», «anterior» y «para la demo» se envían al agente del MacM
 Las frases desconocidas se consultan al agente elegido (Oráculo por defecto), incluyendo el texto oído. Una pregunta recibe respuesta; una acción no reconocida se interpreta y se aclara sin ejecución automática. No se inventan agentes, títulos ni acciones realizadas.
 
 EN: Next, previous and stop-demo commands use the real MacMini agent to control the already-open Firefox presentation. The agent must verify the page and slide counter, advance exactly once, preserve the tab when stopping, and report only the observed result. Unknown requests are sent to the selected agent (Oráculo by default) for an answer or clarification without automatically executing an unrecognized action. Delivery remains asynchronous and uncertain actions are never replayed. Last requested demo context is account-scoped.
+
+## Build 16 · continuar demo y pantalla adaptable
+
+ES: «Continúa la demo» o «reanuda la demo» pide al agente reanudar la presentación ya abierta, conservando lámina y pestaña. Debe quitar la pausa escénica, continuar el ensayo y comprobar que el tiempo avanza; no alterna controles a ciegas si ya estaba en marcha. La mascota usa el espacio restante entre cabecera y mensajes, con margen para sus animaciones y sin recortar el SVG en horizontal.
+
+EN: “Continúa la demo” / “reanuda la demo” asks the real agent to resume the existing presentation, preserving its slide and tab. Resume stage pause and the rehearsal timer only when paused, then verify that time advances. The pet fits the space between controls and feedback, with animation headroom and an uncropped landscape SVG.
