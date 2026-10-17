@@ -64,7 +64,12 @@ enum AgentInvocationRules {
                 await poll(item, owner:owner, speak:speak)
             } catch {
                 guard owner == account, !Task.isCancelled else { return }
-                busy = false; status = "No puedo confirmar la entrega al agente. No voy a reenviarla automáticamente."; speak(status)
+                busy = false
+                if case AssistantError.server(let code, _) = error, (400..<500).contains(code) {
+                    pending = nil; save()
+                    status = code == 403 ? "Tu cuenta no tiene permiso para invocar agentes. No he enviado la petición." : code == 401 ? "Vincula de nuevo tu cuenta para hablar con el agente." : "El servidor no ha aceptado la petición al agente. Puedes revisar la conexión y volver a intentarlo."
+                } else { status = "No puedo confirmar la entrega al agente. No voy a reenviarla automáticamente." }
+                speak(status)
             }
         }
     }

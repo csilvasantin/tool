@@ -20,3 +20,10 @@ test('real handoff is delivered once and returns the real reply, never an LLM pe
 test('authentication, Carlos rollout permission, ownership and exact targets fail closed',async()=>{const h=await harness(),b=body();assert.equal((await h.call(b,'',null)).http,401);assert.equal((await h.call(b,'','other@example.com')).http,403);assert.equal((await h.call(b,'','csilvasantin@gmail.com',crypto.randomUUID())).http,404);assert.equal((await h.call({...b,target:'__proto__'})).http,400);assert.equal((await h.call({...b,text:'x'.repeat(2001)})).http,400);assert.equal(h.sent.length,0);assert.equal((await h.call(null,crypto.randomUUID())).http,404);});
 test('uncertain delivery cannot replay the real agent action',async()=>{const h=await harness(true),b=body();assert.equal((await h.call(b)).state,'uncertain');assert.equal((await h.call(b)).state,'uncertain');assert.equal(h.sent.length,1);assert.equal((await h.call(null,b.request_id)).state,'uncertain');});
 test('waiting, unavailable and closed-without-answer never invent a reply',()=>{assert.equal(invocationResult({status:'pending',note:'unverified'}).answer,null);assert.equal(invocationResult(null).state,'unavailable');assert.match(invocationResult({status:'done'}).message,/no ha adjuntado/);assert.equal(invocationResult({status:'failed'}).state,'failed');});
+
+test('Spanish command language hint is explicit and never imposed on listening audio',async()=>{
+ const {handleAgentTranscribe}=await import('./src/agent-conversations.js');const inputs=[];
+ const env={AI:{run:async(_,input)=>{inputs.push(input);return {text:'Invoca a Oráculo'};}}};
+ for(const hint of [null,'es','invalid']){const headers={'content-type':'audio/wav'};if(hint)headers['x-admirito-language']=hint;const req=new Request('https://api.admira.biz/agents/transcribe',{method:'POST',headers,body:new Uint8Array([1,2])});await handleAgentTranscribe(req,env,{requireAuth:async()=>({email:'a'})});}
+ assert.equal(inputs[0].language,undefined);assert.equal(inputs[1].language,'es');assert.equal(inputs[2].language,undefined);
+});

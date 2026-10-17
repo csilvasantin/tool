@@ -73,6 +73,16 @@ struct AssistantView: View {
                             ForEach(AssistantMode.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
                         }.pickerStyle(.segmented).disabled(assistant.listening || assistant.starting || commandVoice.listening || commandVoice.starting || commandVoice.processing)
                         if selectedMode == AssistantMode.suite.rawValue { VStack(alignment:.leading, spacing:8) {
+                            Menu("Invocar un agente") {
+                                ForEach(AgentInvocationRules.names.keys.sorted(), id:\.self) { target in
+                                    Button(AgentInvocationRules.names[target] ?? target) {
+                                        invokedAgent.bind(assistant.accountID)
+                                        wakeWord.pause(); feedback.reply("Voy a contactar con \(AgentInvocationRules.names[target] ?? target).") {
+                                            invokedAgent.send("Carlos quiere hablar contigo desde Admirito. Preséntate brevemente y espera su siguiente petición.", target:target) { response in agentVoiceQueue.append(response) }
+                                        }
+                                    }
+                                }
+                            }.disabled(invokedAgent.busy).accessibilityIdentifier("invokeAgentMenu")
                             if invokedAgent.target != nil || !invokedAgent.status.isEmpty {
                                 Text(invokedAgent.status).font(.caption).accessibilityIdentifier("invokedAgentStatus")
                                 if !invokedAgent.answer.isEmpty { Text(invokedAgent.answer).textSelection(.enabled).accessibilityIdentifier("invokedAgentAnswer") }

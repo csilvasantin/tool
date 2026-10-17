@@ -103,7 +103,7 @@ import SwiftUI
                 guard duration >= 0.3, peakDB > -70, enoughSpeech else {
                     if generation == id { status = "No he recibido sonido suficiente. No se ha enviado ninguna orden." }; return
                 }
-                let text = try await service.transcribe(url).trimmingCharacters(in: .whitespacesAndNewlines)
+                let text = try await service.transcribeCommand(url).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard generation == id else { return }
                 transcript = text
                 status = text.isEmpty ? "No he reconocido palabras. No se ha enviado ninguna orden." : "Dictado listo. Revisa la orden y pulsa Ejecutar."

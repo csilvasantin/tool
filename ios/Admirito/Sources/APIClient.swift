@@ -36,10 +36,14 @@ private enum CredentialStore {
     func conversation() async throws -> String
     func register(_ note: ListeningNote) async throws
     func transcribe(_ file: URL) async throws -> String
+    func transcribeCommand(_ file: URL) async throws -> String
     func upload(_ chunk: AudioChunk, noteID: String) async throws
     func ask(_ text: String, conversation: String, requestID: String) async throws -> String
     func summarize(_ note: ListeningNote) async throws -> SummaryReply
     func identifyFilm(_ note: ListeningNote, jpeg: Data) async throws -> FilmIdentification
+}
+@MainActor extension AssistantService {
+    func transcribeCommand(_ file: URL) async throws -> String { try await transcribe(file) }
 }
 @MainActor final class APIClient: AssistantService {
     // Both names are declared custom domains of the same yokup-rtc service.
@@ -56,9 +60,10 @@ private enum CredentialStore {
         }
     }
     func disconnect() { accountID = nil; CredentialStore.clear(); session.configuration.httpCookieStorage?.removeCookies(since: .distantPast) }
-    private func request<T: Decodable>(_ path: String, method: String = "GET", object: [String: Any]? = nil, data: Data? = nil, mime: String = "application/json") async throws -> T {
+    private func request<T: Decodable>(_ path: String, method: String = "GET", object: [String: Any]? = nil, data: Data? = nil, mime: String = "application/json", headers: [String:String] = [:]) async throws -> T {
         var request = URLRequest(url: base.appendingPathComponent(path)); request.httpMethod = method; request.timeoutInterval = 110
         request.setValue("https://www.admira.app", forHTTPHeaderField: "Origin"); request.setValue(mime, forHTTPHeaderField: "Content-Type")
+        for (key,value) in headers { request.setValue(value,forHTTPHeaderField:key) }
         request.httpBody = try object.map { try JSONSerialization.data(withJSONObject: $0) } ?? data
         let (responseData, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
@@ -100,6 +105,13 @@ private enum CredentialStore {
         struct Result: Decodable { let text: String }
         do { let result: Result = try await request("agents/transcribe", method: "POST", data: Data(contentsOf: file), mime: file.pathExtension == "m4a" ? "audio/mp4" : "audio/wav"); return result.text }
         catch AssistantError.server(422, "no_speech") { return "" }
+    }
+    func transcribeCommand(_ file: URL) async throws -> String {
+        struct Result: Decodable { let text: String }
+        do {
+            let result: Result = try await request("agents/transcribe", method:"POST", data:Data(contentsOf:file), mime:"audio/wav", headers:["X-Admirito-Language":"es"])
+            return result.text
+        } catch AssistantError.server(422, "no_speech") { return "" }
     }
     func upload(_ chunk: AudioChunk, noteID: String) async throws {
         struct Result: Decodable { let ok: Bool }
