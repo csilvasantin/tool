@@ -79,6 +79,7 @@ struct AssistantView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     AdmiritoFace(mood: petMood ?? defaultMood).frame(height: 160).frame(maxWidth: .infinity).accessibilityHidden(true)
                     Text(assistant.listening ? "Estoy escuchando." : "Aquí está tu Admirito.").font(.largeTitle.bold())
+                    Text("v."+MobileRelease.version).font(.caption2).foregroundStyle(.secondary).accessibilityIdentifier("mobileVersion")
                     Text(assistant.status).font(.callout).foregroundStyle(.secondary).accessibilityIdentifier("assistantStatus")
                     if assistant.linked {
                         HStack { Button("Ríe") { play(.laugh) }; Button("Arcoíris") { play(.rainbow) }; Button("Descansa") { play(.resting) } }.font(.caption)
@@ -221,7 +222,7 @@ struct AssistantView: View {
                 guard let id=playerLab.incidentID else {return}
                 invokedAgent.bind(assistant.accountID)
                 invokedAgent.send("Verifica la recuperación de la incidencia \(id) del Fold de laboratorio con la Insta360 existente macmini-insta360. Documenta dos capturas ópticas distintas y recientes, comprueba dos lecturas saludables del player y solo entonces cierra mediante /agents/player-incidents/\(id)/recovery. No cierres por telemetría sola. Si no ves el Fold o falta evidencia, deja abierta y explica el motivo.",target:"supervisor"){response in agentVoiceQueue.append(response)}
-            }) }
+            },supervisorStatus:invokedAgent.status) }
             .sheet(isPresented: $takingPhoto) { ProjectionPhoto { assistant.attachProjection($0) } }
             .sheet(isPresented: $sharing) { if let image = sharingPhoto { PhotoSummaryShare(image: image, text: sharingText) } }
             .alert("Cámara", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) { Button("Aceptar") { photoError = nil } } message: { Text(photoError ?? "") }

@@ -115,6 +115,7 @@ struct PetStandbyView: View {
                         mascotButton("Bugito", id: "bugito")
                     }
                     HStack {
+                        Text("v."+MobileRelease.version).font(.caption2).foregroundStyle(.secondary).accessibilityIdentifier("mobileVersion")
                         Spacer()
                         Button(action:labControls) { Image(systemName:"display") }.accessibilityLabel("Player del Fold").accessibilityIdentifier("petPlayerLab")
                         Button { rotateStage() } label: { Image(systemName:"rotate.right") }.accessibilityLabel("Girar la mascota").accessibilityIdentifier("petRotate")

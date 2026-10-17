@@ -1,0 +1,2 @@
+INCIDENT_REAL_CREATED Incidencia INC-VK966H abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360.
+** TEST SUCCEEDED **

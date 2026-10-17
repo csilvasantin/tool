@@ -1,0 +1,10 @@
+{
+  "name": "Admirito Android",
+  "version": "20261017.1",
+  "versionCode": 3,
+  "channel": "internal-testing",
+  "package": "com.admira.admirito",
+  "minimumAndroid": 8,
+  "sha256": "4a973aae45fe84df4543430156c68a473cfed77f746616da6d16b0945a0c93b6",
+  "url": "https://www.admira.app/downloads/admirito-android-20261017.1.apk"
+}

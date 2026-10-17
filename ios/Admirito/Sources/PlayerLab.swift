@@ -94,7 +94,10 @@ struct PlayerLabSnapshot {
                     UserDefaults.standard.set(reply.id,forKey:"playerLab.incident."+owner)
                     try? FileManager.default.removeItem(at:pendingFile);pendingIncident=false
                     report="Incidencia \(reply.id) abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360."
-                }catch {report="No he podido confirmar el alta. La foto sigue guardada; puedes reintentar sin duplicar la petición."}
+                }catch {
+                    if case AssistantError.server(_,let code)=error,code=="fresh_iphone_photo_required" {report="La foto ya no es reciente. Descarta la foto pendiente y toma otra del fallo actual."}
+                    else {report="No he podido confirmar el alta. La foto sigue guardada; puedes reintentar sin duplicar la petición."}
+                }
                 speak(report)
             }
         }catch {report="No he podido preparar la foto. No he abierto ninguna incidencia.";speak(report)}
@@ -165,6 +168,7 @@ struct PlayerLabPanel: View {
     let execute:(PlayerLabAction)->Void
     let reportPhoto:(UIImage?)->Void
     let verify:()->Void
+    let supervisorStatus:String
     @State private var camera=false
     @State private var cameraError=false
     @Environment(\.dismiss) private var dismiss
@@ -178,6 +182,7 @@ struct PlayerLabPanel: View {
                 }.disabled(lab.busy).accessibilityIdentifier("lab_incidentPhoto")
                 if let url=lab.incidentURL {Link("Ver incidencia",destination:url);Button("Verificar con Insta360",action:verify).accessibilityIdentifier("lab_verifyIncident")}
             }.font(.caption)
+            if !supervisorStatus.isEmpty {Text(supervisorStatus).font(.caption2).accessibilityIdentifier("lab_supervisorStatus")}
             if lab.pendingIncident {Button("Descartar foto pendiente"){lab.discardPendingPhoto()}.font(.caption).disabled(lab.busy)}
             ScrollView { LazyVGrid(columns:Array(repeating:GridItem(.flexible()),count:3),spacing:10) {
                 ForEach(PlayerLabAction.allCases,id:\.rawValue) { action in
