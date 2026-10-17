@@ -11,6 +11,8 @@ enum AssistantMode: String, CaseIterable {
     @Published var busy = false
     @Published var status = "Cargando el modo Experto de admira.biz…"
     @Published var output = ""
+    @Published private(set) var tourRunning = false
+    @Published private(set) var tourProgress = ""
     let webView: WKWebView
     private var timer: Timer?
     override init() {
@@ -33,9 +35,11 @@ enum AssistantMode: String, CaseIterable {
     private var trustedPage: Bool { webView.url?.scheme == "https" && ["www.admira.biz", "admira.biz"].contains(webView.url?.host ?? "") }
     private func refresh() async {
         guard !busy else { return }
-        guard trustedPage else { ready = false; return }
-        let value = try? await webView.evaluateJavaScript("Boolean(window.AdmiritoSuiteBridge?.ready())")
-        ready = value as? Bool == true
+        guard trustedPage else { ready = false; tourRunning = false; tourProgress = ""; return }
+        let value = try? await webView.evaluateJavaScript("({ready:Boolean(window.AdmiritoSuiteBridge?.ready()),running:document.body.classList.contains('gt-on')&&Boolean(document.querySelector('.gt-hud')),progress:document.querySelector('.gt-hud .gt-journey')?.textContent||''})") as? [String: Any]
+        ready = value?["ready"] as? Bool == true
+        tourRunning = value?["running"] as? Bool == true
+        tourProgress = value?["progress"] as? String ?? ""
         if ready && status == "Cargando el modo Experto de admira.biz…" { status = "Modo Experto conectado. Escribe una orden o usa el dictado del teclado." }
     }
     func send(_ preset: String? = nil) {
@@ -69,8 +73,8 @@ struct SuiteExpertSurface: UIViewRepresentable {
     func updateUIView(_ view: WKWebView, context: Context) {}
 }
 struct SuiteExpertView: View {
-    @StateObject private var console = SuiteExpertConsole()
-    @StateObject private var dictation = CommandDictation()
+    @ObservedObject var console: SuiteExpertConsole
+    @ObservedObject var dictation: CommandDictation
     @Environment(\.scenePhase) private var scene
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -102,10 +106,10 @@ struct SuiteExpertView: View {
             }.buttonStyle(.bordered).disabled(!console.ready || console.busy || dictation.listening || dictation.starting || dictation.processing) }
             Text(console.status).font(.caption).accessibilityIdentifier("suiteStatus")
             if !console.output.isEmpty { DisclosureGroup("Respuesta del modo Experto") { Text(console.output).font(.system(.caption, design: .monospaced)).textSelection(.enabled) } }
-            SuiteExpertSurface(console: console).frame(height: 520).clipShape(RoundedRectangle(cornerRadius: 12))
+            SuiteExpertSurface(console: console).frame(height: 520).clipShape(RoundedRectangle(cornerRadius: 12)).id("suiteMap")
             Text("Si una acción requiere identificación, entra con tu cuenta de admira.biz en esta vista. Vincular Admirito no concede permisos de control físico.").font(.caption).foregroundStyle(.secondary)
             Link("Abrir admira.biz en Safari", destination: URL(string: "https://www.admira.biz/")!)
-        }.onAppear { console.observe() }.onDisappear { dictation.cancel(); console.stopObserving() }
+        }.onAppear { console.observe() }.onDisappear { dictation.cancel() }
             .onChange(of: dictation.transcript) { _, text in if !text.isEmpty { console.command = text } }
             .onChange(of: scene) { _, phase in if phase == .background { dictation.cancel() } }
     }

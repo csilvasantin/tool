@@ -14,6 +14,7 @@ body[data-mood=resting] .da-nube-ojos{animation:none;transform:scaleY(.09)}
 body[data-mood=resting] .da-nube-cuerpo{animation:breathe 4s ease-in-out infinite}
 body[data-mood=resting]:after{content:'z Z z';position:absolute;top:10%;right:10%;color:#689840;font:22px system-ui;animation:breathe 4s infinite}
 @keyframes breathe{50%{transform:translateY(-4px)}}
+body[data-mood=awake] .da-nube-cuerpo{animation:breathe 4s ease-in-out infinite}
 body[data-mood=rainbow]:before{content:'';position:absolute;width:80%;height:70%;border-radius:50% 50% 0 0;background:radial-gradient(ellipse at 50% 100%,transparent 45%,#ba7de2 46% 51%,#6ca3e6 52% 57%,#73bd70 58% 63%,#eee75d 64% 69%,#ffbf45 70% 75%,#ff5858 76% 81%,transparent 82%);opacity:.7;animation:breathe 2s infinite}
 body[data-mood=rainbow] .da-nube-risa{opacity:1}body[data-mood=rainbow] .da-nube-boca{opacity:0}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
