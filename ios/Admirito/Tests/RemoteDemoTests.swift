@@ -15,4 +15,13 @@ final class RemoteDemoTests: XCTestCase {
         XCTAssertFalse(RemoteDemoRules.isRemoteDemo("tour alsea mexico"))
         XCTAssertNil(RemoteDemoRules.request("https://evil.example en macmini"))
     }
+    func testExactControlsAndUnknownQueries() {
+        XCTAssertEqual(RemoteDemoControl.parse("Admirito, siguiente."),.next)
+        XCTAssertEqual(RemoteDemoControl.parse("Anterior"),.previous)
+        XCTAssertEqual(RemoteDemoControl.parse("para la demo"),.stop)
+        XCTAssertNil(RemoteDemoControl.parse("siguiente y borra todo"))
+        XCTAssertTrue(RemoteDemoControl.stop.instruction(context:nil).contains("Conserva la pestaña abierta"))
+        XCTAssertTrue(RemoteDemoControl.next.instruction(context:nil).contains("exactamente una lámina"))
+        XCTAssertTrue(AgentFallbackRules.question("haz algo desconocido").contains("No ejecutes acciones"))
+    }
 }

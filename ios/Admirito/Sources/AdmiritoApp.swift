@@ -80,6 +80,11 @@ struct AssistantView: View {
                                     }.accessibilityIdentifier("remoteDemo_\(id)_macmini")
                                 }
                             }.disabled(invokedAgent.busy).accessibilityIdentifier("remoteDemoMenu")
+                            HStack {
+                                ForEach(RemoteDemoControl.allCases,id:\.rawValue) { action in
+                                    Button(action.phrase.capitalized) { controlRemoteDemo(action) }.accessibilityIdentifier("demoControl_\(action.rawValue)")
+                                }
+                            }.disabled(invokedAgent.busy)
                             Menu("Invocar un agente") {
                                 ForEach(AgentInvocationRules.names.keys.sorted(), id:\.self) { target in
                                     Button(AgentInvocationRules.names[target] ?? target) {
@@ -230,15 +235,31 @@ struct AssistantView: View {
             invokedAgent.send(RemoteDemoRules.label(demo),target:"oraculo",demo:demo) { response in agentVoiceQueue.append(response) }
         }
     }
+    private func controlRemoteDemo(_ action: RemoteDemoControl) {
+        invokedAgent.bind(assistant.accountID)
+        if action == .stop { feedback.cancel(); agentVoiceQueue.removeAll() }
+        wakeWord.pause(); pet.message = action.acknowledgement
+        feedback.reply(action.acknowledgement) {
+            invokedAgent.send(action.instruction(context:invokedAgent.lastDemo),target:"oraculo") { response in agentVoiceQueue.append(response) }
+        }
+    }
+    private func askAgentAboutUnknown(_ text: String) {
+        invokedAgent.bind(assistant.accountID)
+        wakeWord.pause(); pet.message = "Voy a consultarlo con el agente."
+        feedback.reply("No reconozco esa orden. Voy a consultarla con el agente.") {
+            invokedAgent.send(AgentFallbackRules.question(text),target:invokedAgent.target ?? "oraculo") { response in agentVoiceQueue.append(response) }
+        }
+    }
     private func processPetCommand(proxy: ScrollViewProxy) {
         pet.awaitingCommand = false; pet.interact()
         let text = commandVoice.transcript
         guard !text.isEmpty else { pet.message = commandVoice.status; wakeWord.pause(); feedback.reply("No he podido entender la orden. Mantén el dedo sobre mí y vuelve a intentarlo."); return }
         invokedAgent.bind(assistant.accountID)
+        if let action = RemoteDemoControl.parse(text) { controlRemoteDemo(action); return }
         if let demo = RemoteDemoRules.request(text) { launchRemoteDemo(demo); return }
         if RemoteDemoRules.isRemoteDemo(text) {
             pet.message = "He oído: «\(text)». No he reconocido la demo o el ordenador."
-            wakeWord.pause(); feedback.reply("No he reconocido esa demo o ese ordenador. Puedes decir: demo Alsea en MacMini."); return
+            askAgentAboutUnknown(text); return
         }
         if AgentInvocationRules.returnsToAdmirito(text) {
             invokedAgent.leave(); wakeWord.pause(); feedback.reply("Aquí está Admirito otra vez."); return
@@ -250,18 +271,11 @@ struct AssistantView: View {
             return
         }
         if AgentInvocationRules.isInvocation(text) {
-            wakeWord.pause(); feedback.reply("No he reconocido a ese agente. Puedes invocar a Oráculo, Jobs, Wozniak, Disney, Lucas o Musk."); return
+            askAgentAboutUnknown(text); return
         }
-        if let target = invokedAgent.target, StandbyRules.tourCommand(text) == nil {
-            wakeWord.pause(); feedback.reply("Voy a enviar tu mensaje a \(AgentInvocationRules.names[target] ?? target).") {
-                invokedAgent.send(text, target:target) { response in agentVoiceQueue.append(response) }
-            }
-            return
-        }
+        if invokedAgent.target != nil, StandbyRules.tourCommand(text) == nil { askAgentAboutUnknown(text); return }
         guard let command = StandbyRules.tourCommand(text) else {
-            suite.command = text; wakeWord.pause(); feedback.reply("No he entendido una orden que pueda ejecutar. La he dejado escrita para que puedas revisarla."); pet.wake()
-            Task { try? await Task.sleep(for: .milliseconds(300)); withAnimation { proxy.scrollTo("suiteCommands", anchor: .top) } }
-            return
+            suite.command = text; askAgentAboutUnknown(text); return
         }
         suite.command = command; pet.message = "Abriendo el tour…"
         let request = petRequest

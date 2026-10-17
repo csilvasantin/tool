@@ -28,6 +28,7 @@ enum AgentInvocationRules {
 /// Uses the real fleet mailbox. The model conversation is never used as a substitute.
 @MainActor final class AgentInvocation: ObservableObject {
     @Published private(set) var target: String?
+    @Published private(set) var lastDemo: RemoteDemoRequest?
     @Published private(set) var busy = false
     @Published private(set) var status = ""
     @Published private(set) var answer = ""
@@ -40,8 +41,9 @@ enum AgentInvocationRules {
     private var key: String? { account.map { "admirito.invocation.\($0)" } }
     func bind(_ account: String?) {
         guard account != self.account else { return }
-        task?.cancel(); task = nil; busy = false; target = nil; answer = ""; status = ""; pending = nil; self.account = account; api = APIClient(); channelConversation = nil
+        task?.cancel(); task = nil; busy = false; target = nil; answer = ""; status = ""; pending = nil; self.account = account; api = APIClient(); channelConversation = nil; lastDemo = nil
         if let key {
+            if let data = UserDefaults.standard.data(forKey:key + ".demo"), let value = try? JSONDecoder().decode(RemoteDemoRequest.self,from:data), RemoteDemoRules.catalog?.demos[value.id] != nil, RemoteDemoRules.catalog?.destinations[value.destination] != nil { lastDemo = value }
             if let selected = UserDefaults.standard.string(forKey:key + ".target"), AgentInvocationRules.names[selected] != nil { target = selected; status = "Canal de \(AgentInvocationRules.names[selected] ?? selected) seleccionado." }
             if let conversation = UserDefaults.standard.string(forKey:key + ".conversation"), UUID(uuidString:conversation) != nil { channelConversation = conversation }
         }
@@ -66,6 +68,7 @@ enum AgentInvocationRules {
                 if let key { UserDefaults.standard.set(conversation,forKey:key + ".conversation") }
                 let item = Pending(conversation:conversation, request:UUID().uuidString.lowercased(), target:selected, text:text, demo:demo)
                 pending = item; save()
+                if let demo, let key, let data = try? JSONEncoder().encode(demo) { lastDemo = demo; UserDefaults.standard.set(data,forKey:key + ".demo") }
                 let result: AgentInvocationReply
                 if let demo { result = try await api.invokeDemo(demo,conversation:conversation,requestID:item.request) }
                 else { result = try await api.invoke(text, target:selected, conversation:conversation, requestID:item.request) }
