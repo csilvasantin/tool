@@ -1,0 +1,4 @@
+FOLD_LATEST_CONFIRMED_clear Supervisor · datos comunicados por el player del Fold en dos muestras recientes. No comunica giro, popup, barra superior, recorte ni pausa. Pieza: Volvemos a empezar. · ES · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LATEST_CONFIRMED_pause Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: reproducción pausada. Pieza: Volvemos a empezar. · ES · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LATEST_CONFIRMED_resume Supervisor · datos comunicados por el player del Fold en dos muestras recientes. No comunica giro, popup, barra superior, recorte ni pausa. Pieza: Let’s go again. · EN · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+** TEST SUCCEEDED **
