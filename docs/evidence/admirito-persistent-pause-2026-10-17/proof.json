@@ -1,0 +1,214 @@
+{
+  "first_pause": {
+    "screen": "macbookpro16",
+    "cmd": "pause",
+    "status": "executed",
+    "appliedAt": 1792265385
+  },
+  "repeat_pause": {
+    "screen": "macbookpro16",
+    "cmd": "pause",
+    "status": "executed",
+    "appliedAt": 1792265805
+  },
+  "supervisor_play": {
+    "screen": "macbookpro16",
+    "cmd": "play",
+    "status": "executed",
+    "appliedAt": 1792266080
+  },
+  "observed_pause_samples_first": [
+    {
+      "at": 1792265414855,
+      "last_seen": 1792265384512,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265420930,
+      "last_seen": 1792265384512,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265427011,
+      "last_seen": 1792265384512,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265433090,
+      "last_seen": 1792265384512,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265439166,
+      "last_seen": 1792265384512,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265445254,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265451336,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265457492,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265463576,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265469675,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265475796,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265481881,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265487951,
+      "last_seen": 1792265384338,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    }
+  ],
+  "observed_pause_samples_final": [
+    {
+      "at": 1792265845644,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265852226,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265858750,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265865176,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265871637,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265878172,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265884611,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265891006,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265897642,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265904043,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265910353,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265916979,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265923581,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265930196,
+      "registry_last_seen": 1792265755310,
+      "item": "default:1792090185362-uashgp",
+      "started_at": 1792265383481
+    },
+    {
+      "at": 1792265936576,
+      "registry_last_seen": 1792265755310,
+      "item": null,
+      "started_at": null
+    }
+  ],
+  "after_play": {
+    "item": "default:1792161195604-chv3js",
+    "title": "Volvemos a empezar. · ES · mural",
+    "started_at": 1792266080571,
+    "last_seen": 1792266080685,
+    "audio": {
+      "muted": true,
+      "volume": 100,
+      "level": 0,
+      "analyzed": false
+    }
+  },
+  "playlist": {
+    "name": "Starbucks 180 · MacBookPro16",
+    "items": 20,
+    "revision": 1792161307082
+  },
+  "fresh_identical_player_captures": {
+    "ack_first_applied_at": 1792265419,
+    "ack_second_applied_at": 1792265512,
+    "sha256": "a3f4d81a21dd854360eee62b01e21a482ee27a5f0a4e89c6d82a8341c3769b16"
+  }
+}

@@ -109,7 +109,9 @@ enum AgentInvocationRules {
     }
     private func poll(_ item: Pending, owner: String?, speak: @escaping (String)->Void) async {
         defer { if owner == account && (pending == nil || pending?.request == item.request) { busy = false } }
-        for _ in 0..<30 {
+        // Real fleet tasks can include a measured pause/recovery interval. Keep
+        // polling for up to ten minutes; never resend a delivered request.
+        for _ in 0..<200 {
             guard owner == account, pending?.request == item.request, !Task.isCancelled else { return }
             do {
                 let result = try await api.invocation(conversation:item.conversation, requestID:item.request)

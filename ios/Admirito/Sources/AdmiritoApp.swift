@@ -329,7 +329,7 @@ struct AssistantView: View {
         if diary.enabled, let last = diary.visible.first, last.morningAppOpen == nil, RestRules.isNight(Date()) { return .resting }
         return .awake
     }
-    private func bindDiary() { invokedAgent.bind(assistant.accountID); diary.bind(assistant.accountID); assistant.restDiary = diary; diary.observeMorning() }
+    private func bindDiary() { invokedAgent.bind(assistant.accountID); invokedAgent.resume { text in agentVoiceQueue.append(text) }; diary.bind(assistant.accountID); assistant.restDiary = diary; diary.observeMorning() }
     private func play(_ mood: PetMood) {
         petMood = mood
         Task { try? await Task.sleep(for: .seconds(5)); if petMood == mood { petMood = nil } }

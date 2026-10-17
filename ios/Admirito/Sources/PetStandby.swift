@@ -135,7 +135,6 @@ struct PetStandbyView: View {
                     }
                     Spacer(minLength: 0)
                     status.padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                    if !landscape { privacy }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -174,14 +173,9 @@ struct PetStandbyView: View {
     private var status: some View {
         VStack(spacing: 12) {
             Text(dictation.listening ? (dictation.handsFree ? "Te escucho. Di tu orden; terminaré cuando hagas una pausa." : "Te escucho. Suelta para continuar.") : dictation.starting ? "Preparando el micrófono…" : dictation.processing ? "Entendiendo tu orden…" : wakeWord.listening ? "Di «Admirito» para llamarme" : pet.message)
-                .font(.headline).multilineTextAlignment(.center).lineLimit(3).accessibilityIdentifier("petStatus")
-            if !dictation.listening && !dictation.processing { Text(wakeWord.status).font(.caption).multilineTextAlignment(.center).accessibilityIdentifier("petWakeWordStatus") }
+                .font(.subheadline.weight(.medium)).lineLimit(1).minimumScaleFactor(0.65).accessibilityIdentifier("petStatus")
+                .accessibilityHint(wakeWord.status)
             if dictation.listening { ProgressView(value: dictation.level).frame(maxWidth: 220).accessibilityLabel("Nivel del micrófono") }
-            if !dictation.transcript.isEmpty && (dictation.listening || dictation.processing || pet.awaitingCommand) { Text(dictation.transcript).lineLimit(2).font(.callout).multilineTextAlignment(.center).accessibilityIdentifier("petTranscript") }
         }
-    }
-    private var privacy: some View {
-        Text(wakeWord.enabled ? "Di Admirito, espera a que te escuche y después di tu orden. La palabra se detecta localmente, con esta pantalla abierta." : "Mantén pulsado para hablar, o activa Admirito para llamarlo por su nombre.")
-            .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
     }
 }
