@@ -1,0 +1,11 @@
+TECH_FAULT_CONFIRMED_popup Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: emisión tapada en un 25 por ciento. Pieza: Volvemos a empezar. · ES · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+TECH_CAMERA_READY_popup
+** TEST SUCCEEDED **
+TECH_INCIDENT_OPENED Incidencia INC-XWY6ZQ abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360.
+** TEST SUCCEEDED **
+INCIDENT_PLAYER_RESTORED Supervisor · datos comunicados por el player del Fold en dos muestras recientes. No comunica giro, popup, barra superior, recorte ni pausa. Pieza: Let’s go again. · EN · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+INCIDENT_SUPERVISOR_REQUESTED
+** TEST SUCCEEDED **
+INCIDENT_SUPERVISOR_REPLY_RECEIVED Supervisor · Respuesta recibida
+DAILY_VERSION_VERIFIED_20261017.1
+** TEST SUCCEEDED **
