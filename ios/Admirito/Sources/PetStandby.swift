@@ -129,7 +129,7 @@ struct PetStandbyView: View {
     private var status: some View {
         VStack(spacing: 12) {
             Text(dictation.listening ? (dictation.handsFree ? "Te escucho. Di tu orden; terminaré cuando hagas una pausa." : "Te escucho. Suelta para continuar.") : dictation.starting ? "Preparando el micrófono…" : dictation.processing ? "Entendiendo tu orden…" : wakeWord.listening ? "Di «Admirito» para llamarme" : pet.message)
-                .font(.headline).multilineTextAlignment(.center).accessibilityIdentifier("petStatus")
+                .font(.headline).multilineTextAlignment(.center).lineLimit(3).accessibilityIdentifier("petStatus")
             if !dictation.listening && !dictation.processing { Text(wakeWord.status).font(.caption).multilineTextAlignment(.center).accessibilityIdentifier("petWakeWordStatus") }
             if dictation.listening { ProgressView(value: dictation.level).frame(maxWidth: 220).accessibilityLabel("Nivel del micrófono") }
             if !dictation.transcript.isEmpty && (dictation.listening || dictation.processing || pet.awaitingCommand) { Text(dictation.transcript).lineLimit(2).font(.callout).multilineTextAlignment(.center).accessibilityIdentifier("petTranscript") }

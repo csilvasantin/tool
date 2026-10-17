@@ -35,26 +35,35 @@ enum AgentInvocationRules {
     private var task: Task<Void, Never>?
     private var account: String?
     private var pending: Pending?
+    private var channelConversation: String?
     private struct Pending: Codable { let conversation: String; let request: String; let target: String; let text: String }
     private var key: String? { account.map { "admirito.invocation.\($0)" } }
     func bind(_ account: String?) {
         guard account != self.account else { return }
-        task?.cancel(); task = nil; busy = false; target = nil; answer = ""; status = ""; pending = nil; self.account = account; api = APIClient()
-        if let key, let data = UserDefaults.standard.data(forKey:key), let value = try? JSONDecoder().decode(Pending.self, from:data) { pending = value; target = value.target; status = "Hay una petición al agente pendiente de comprobar." }
+        task?.cancel(); task = nil; busy = false; target = nil; answer = ""; status = ""; pending = nil; self.account = account; api = APIClient(); channelConversation = nil
+        if let key {
+            if let selected = UserDefaults.standard.string(forKey:key + ".target"), AgentInvocationRules.names[selected] != nil { target = selected; status = "Canal de \(AgentInvocationRules.names[selected] ?? selected) seleccionado." }
+            if let conversation = UserDefaults.standard.string(forKey:key + ".conversation"), UUID(uuidString:conversation) != nil { channelConversation = conversation }
+        }
+        if let key, let data = UserDefaults.standard.data(forKey:key), let value = try? JSONDecoder().decode(Pending.self, from:data) { pending = value; status = "Hay una petición al agente pendiente de comprobar." }
     }
-    func leave() { task?.cancel(); task = nil; busy = false; target = nil; status = "Has vuelto a Admirito. Las peticiones ya enviadas continúan en la flota." }
+    func leave() { if let key { UserDefaults.standard.removeObject(forKey:key + ".target") }; task?.cancel(); task = nil; busy = false; target = nil; status = "Has vuelto a Admirito. Las peticiones ya enviadas continúan en la flota." }
     func stopWaiting() {
         task?.cancel(); task = nil; busy = false; pending = nil; save()
         status = "Has dejado de esperar en el iPhone. Esto no cancela una petición ya entregada al agente."
     }
     func send(_ text: String, target selected: String, speak: @escaping (String)->Void) {
         guard !busy, pending == nil, account != nil else { speak("Todavía hay una petición pendiente. Primero comprobaré su respuesta."); resume(speak:speak); return }
-        target = selected; answer = ""; busy = true; status = "Preparando la petición a \(AgentInvocationRules.names[selected] ?? selected)…"
+        target = selected; if let key { UserDefaults.standard.set(selected,forKey:key + ".target") }; answer = ""; busy = true; status = "Preparando la petición a \(AgentInvocationRules.names[selected] ?? selected)…"
         let owner = account
         task = Task {
             do {
-                let conversation = try await api.conversation()
+                let conversation: String
+                if let existing = channelConversation { conversation = existing }
+                else { conversation = try await api.conversation() }
                 guard owner == account, !Task.isCancelled else { return }
+                channelConversation = conversation
+                if let key { UserDefaults.standard.set(conversation,forKey:key + ".conversation") }
                 let item = Pending(conversation:conversation, request:UUID().uuidString.lowercased(), target:selected, text:text)
                 pending = item; save()
                 let result = try await api.invoke(text, target:selected, conversation:conversation, requestID:item.request)
