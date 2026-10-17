@@ -55,6 +55,8 @@ export async function handlePlayerIncidents(req,env,deps){
    const prior=await env.DB.prepare('SELECT * FROM agent_player_incidents WHERE owner=? AND request_id=?').bind(owner,requestId).first();
    if(prior?.ticket_id)return json({ok:true,id:prior.ticket_id,url:'https://www.admira.app/ticket?id='+prior.ticket_id,replayed:true});
    if(!issues.length)return json({error:'no_current_fault'},409);
+   const captured=Number(req.headers.get('x-captured-at'));
+   if(!Number.isSafeInteger(captured)||captured>now+5000||now-captured>120000)return json({error:'fresh_iphone_photo_required'},400);
    const p=await photo(req,env);
    if(prior&&prior.photo_hash!==p.hash)return json({error:'request_conflict'},409);
    await env.DB.prepare('INSERT OR IGNORE INTO agent_player_incidents(owner,request_id,photo_hash,photo,created_at) VALUES(?,?,?,?,?)').bind(owner,requestId,p.hash,p.url,now).run();

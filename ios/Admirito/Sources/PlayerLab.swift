@@ -61,7 +61,7 @@ struct PlayerLabSnapshot {
     @Published private(set) var incidentURL: URL?
     @Published private(set) var incidentID: String?
     @Published private(set) var pendingIncident = false
-    private struct Pending: Codable { let owner: String; let id: String; let jpeg: Data }
+    private struct Pending: Codable { let owner: String; let id: String; let jpeg: Data; let capturedAt: Int64 }
     private var pendingFile: URL { FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("player-lab-photo.json") }
     init() {
         pendingIncident = FileManager.default.fileExists(atPath:pendingFile.path)
@@ -80,7 +80,7 @@ struct PlayerLabSnapshot {
                 let normalized=UIGraphicsImageRenderer(size:size).image{_ in image.draw(in:CGRect(origin:.zero,size:size))}
                 guard let jpeg=normalized.jpegData(compressionQuality:0.8) else {return}
                 try FileManager.default.createDirectory(at:pendingFile.deletingLastPathComponent(),withIntermediateDirectories:true)
-                try JSONEncoder().encode(Pending(owner:owner,id:UUID().uuidString,jpeg:jpeg)).write(to:pendingFile,options:[.atomic,.completeFileProtection])
+                try JSONEncoder().encode(Pending(owner:owner,id:UUID().uuidString,jpeg:jpeg,capturedAt:Int64(Date().timeIntervalSince1970*1000))).write(to:pendingFile,options:[.atomic,.completeFileProtection])
                 pendingIncident=true
             }
             let pending=try JSONDecoder().decode(Pending.self,from:Data(contentsOf:pendingFile))
@@ -88,7 +88,7 @@ struct PlayerLabSnapshot {
             busy=true;report="Bugito está enviando la foto y abriendo la incidencia…";speak(report)
             Task { defer {busy=false}
                 do {
-                    let reply=try await api.reportPlayerIncident(jpeg:pending.jpeg,requestID:pending.id)
+                    let reply=try await api.reportPlayerIncident(jpeg:pending.jpeg,requestID:pending.id,capturedAt:pending.capturedAt)
                     guard reply.ok,let url=URL(string:reply.url),url.host=="www.admira.app" else {throw URLError(.badServerResponse)}
                     incidentID=reply.id;incidentURL=url
                     UserDefaults.standard.set(reply.id,forKey:"playerLab.incident."+owner)
@@ -98,6 +98,11 @@ struct PlayerLabSnapshot {
                 speak(report)
             }
         }catch {report="No he podido preparar la foto. No he abierto ninguna incidencia.";speak(report)}
+    }
+    func discardPendingPhoto() {
+        guard !busy else {return}
+        try? FileManager.default.removeItem(at:pendingFile);pendingIncident=false
+        report="Foto local descartada. Puedes tomar otra; ninguna incidencia existente se borra."
     }
     private let session = URLSession(configuration:.ephemeral)
     private func request(_ path: String, body: [String:Any]? = nil) async throws -> [String:Any] {
@@ -173,6 +178,7 @@ struct PlayerLabPanel: View {
                 }.disabled(lab.busy).accessibilityIdentifier("lab_incidentPhoto")
                 if let url=lab.incidentURL {Link("Ver incidencia",destination:url);Button("Verificar con Insta360",action:verify).accessibilityIdentifier("lab_verifyIncident")}
             }.font(.caption)
+            if lab.pendingIncident {Button("Descartar foto pendiente"){lab.discardPendingPhoto()}.font(.caption).disabled(lab.busy)}
             ScrollView { LazyVGrid(columns:Array(repeating:GridItem(.flexible()),count:3),spacing:10) {
                 ForEach(PlayerLabAction.allCases,id:\.rawValue) { action in
                     Button(action.label){execute(action)}.buttonStyle(.bordered).disabled(lab.busy).accessibilityIdentifier("lab_"+action.rawValue)
