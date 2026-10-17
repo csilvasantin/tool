@@ -10,4 +10,19 @@ final class AgentInvocationTests: XCTestCase {
         XCTAssertTrue(AgentInvocationRules.returnsToAdmirito("Vuelve a Admirito"))
         XCTAssertFalse(AgentInvocationRules.returnsToAdmirito("Vuelve a Admirito y ejecuta otra cosa"))
     }
+    @MainActor func testSelectedAgentSurvivesRestartAndStaysWithinAccount() {
+        let account = "test-" + UUID().uuidString
+        let other = "test-" + UUID().uuidString
+        let key = "admirito.invocation.\(account)"
+        defer { UserDefaults.standard.removeObject(forKey:key + ".target"); UserDefaults.standard.removeObject(forKey:key + ".conversation") }
+        UserDefaults.standard.set("oraculo",forKey:key + ".target")
+        UserDefaults.standard.set(UUID().uuidString.lowercased(),forKey:key + ".conversation")
+        let channel = AgentInvocation(); channel.bind(account)
+        XCTAssertEqual(channel.target,"oraculo")
+        channel.bind(other); XCTAssertNil(channel.target)
+        channel.bind(account); XCTAssertEqual(channel.target,"oraculo")
+        channel.leave()
+        let restarted = AgentInvocation(); restarted.bind(account)
+        XCTAssertNil(restarted.target)
+    }
 }
