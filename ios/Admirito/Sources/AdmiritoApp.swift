@@ -20,18 +20,29 @@ struct AdmiritoFace: UIViewRepresentable {
     let mood: PetMood
     var gaze = CGPoint.zero
     var immersive = false
+    var character = "Admirito"
+    final class Coordinator { var character = "" }
+    func makeCoordinator() -> Coordinator { Coordinator() }
     func makeUIView(context: Context) -> WKWebView {
         let view = WKWebView(); view.isOpaque = false; view.backgroundColor = .clear; view.scrollView.backgroundColor = .clear; view.scrollView.isScrollEnabled = false; view.isUserInteractionEnabled = false
-        if let svgURL = Bundle.main.url(forResource: "Admirito", withExtension: "svg"), let svg = try? String(contentsOf: svgURL), let templateURL = Bundle.main.url(forResource: "AdmiritoPet", withExtension: "html"), let template = try? String(contentsOf: templateURL) {
+        load(view); context.coordinator.character = character
+        return view
+    }
+    private func load(_ view: WKWebView) {
+        if let svgURL = Bundle.main.url(forResource: character, withExtension: "svg"), let svg = try? String(contentsOf: svgURL), let templateURL = Bundle.main.url(forResource: "AdmiritoPet", withExtension: "html"), let template = try? String(contentsOf: templateURL) {
             var html = template
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--admirito-ui-test") { html += "<style>*,*:before,*:after{animation:none!important;transition:none!important}</style>" }
             #endif
             view.loadHTMLString(html.replacingOccurrences(of: "{{SVG}}", with: svg).replacingOccurrences(of: "{{MOOD}}", with: mood.rawValue) + "<script>window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive));</script>", baseURL: nil)
         }
-        return view
     }
-    func updateUIView(_ view: WKWebView, context: Context) { view.evaluateJavaScript("document.body.dataset.mood='" + mood.rawValue + "'"); view.evaluateJavaScript("window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive))"); view.accessibilityLabel = "Admirito " + mood.rawValue }
+    func updateUIView(_ view: WKWebView, context: Context) {
+        if context.coordinator.character != character { load(view); context.coordinator.character = character }
+        view.evaluateJavaScript("document.body.dataset.mood='" + mood.rawValue + "'")
+        view.evaluateJavaScript("window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive))")
+        view.accessibilityLabel = character + " " + mood.rawValue
+    }
 }
 struct AssistantView: View {
     @EnvironmentObject private var assistant: AssistantStore
@@ -118,7 +129,7 @@ struct AssistantView: View {
             .allowsHitTesting(!pet.showing).accessibilityHidden(pet.showing)
             .background(Color(uiColor: .systemGroupedBackground)).tint(green)
                 if pet.showing {
-                    PetStandbyView(pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet)
+                    PetStandbyView(character: AgentInvocationRules.mascot(invokedAgent.target), pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet)
                 }
             }.tint(green)
             .overlay(alignment: .bottomTrailing) {
@@ -245,9 +256,11 @@ struct AssistantView: View {
     }
     private func askAgentAboutUnknown(_ text: String) {
         invokedAgent.bind(assistant.accountID)
-        wakeWord.pause(); pet.message = "Voy a consultarlo con el agente."
-        feedback.reply("No reconozco esa orden. Voy a consultarla con el agente.") {
-            invokedAgent.send(AgentFallbackRules.question(text),target:invokedAgent.target ?? "oraculo") { response in agentVoiceQueue.append(response) }
+        let mascot = ["bugito", "supervisor"].contains(invokedAgent.target ?? "")
+        let message = mascot ? "Se lo consulto a \(AgentInvocationRules.names[invokedAgent.target ?? ""] ?? "tu agente")." : "No reconozco esa orden. Voy a consultarla con el agente."
+        wakeWord.pause(); pet.message = message
+        feedback.reply(message) {
+            invokedAgent.send(AgentInvocationRules.question(text,target:invokedAgent.target),target:invokedAgent.target ?? "oraculo") { response in agentVoiceQueue.append(response) }
         }
     }
     private func processPetCommand(proxy: ScrollViewProxy) {

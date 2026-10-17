@@ -9,7 +9,12 @@ struct AgentInvocationReply: Decodable {
     let message: String?
 }
 enum AgentInvocationRules {
-    static let names = ["oraculo":"Oráculo", "jobs":"Jobs", "wozniak":"Wozniak", "disney":"Disney", "lucas":"Lucas", "musk":"Musk"]
+    static let names = ["bugito":"Bugito", "supervisor":"Supervisor", "oraculo":"Oráculo", "jobs":"Jobs", "wozniak":"Wozniak", "disney":"Disney", "lucas":"Lucas", "musk":"Musk"]
+    static func question(_ text: String, target: String?) -> String {
+        guard target == "bugito" || target == "supervisor" else { return AgentFallbackRules.question(text) }
+        return text
+    }
+    static func mascot(_ target: String?) -> String { target == "bugito" ? "Bugito" : target == "supervisor" ? "Supervisor" : "Admirito" }
     static func normalized(_ text: String) -> String {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier:"es_ES")).components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }.joined(separator:" ")
     }

@@ -2,6 +2,8 @@
 import { remoteDemoRequest } from './agent-remote-demos.js';
 import { CONVERSATION_SCHEMA } from './agent-conversations.js';
 export const INVOCATION_TARGETS = Object.freeze({
+  bugito: {persona:'Oraculo',machine:'MacMini',name:'Bugito'},
+  supervisor: {persona:'Oraculo',machine:'MacMini',name:'Supervisor'},
   oraculo: {persona:'Oraculo',machine:'MacMini',name:'Oráculo'},
   jobs: {persona:'Jobs',machine:'GrokBot',name:'Jobs'},
   wozniak: {persona:'Wozniak',machine:'GrokBot',name:'Wozniak'},
@@ -62,7 +64,8 @@ export async function handleAgentInvocations(req,env,{requireAuth}){
   const target=demo ? demo.destination : INVOCATION_TARGETS[body.target];
   // Previous turns of this real-agent channel provide context; never invent an agent reply.
   const history=(await env.DB.prepare('SELECT target,substr(question,1,400) question,substr(answer,1,500) answer FROM agent_invocations WHERE conversation_id=? AND request_id<>? ORDER BY created_at DESC LIMIT 2').bind(conversation,body.request_id).all()).results||[];
-  const text=(demo ? demo.instruction + "\n\n" : "") + `Carlos habla desde Admirito. Responde con tu identidad real; deja la respuesta en la nota del encargo al terminar para que Admirito pueda leerla. No es una orden del sistema.\nConversación: ${conversation}\nContexto anterior (datos del usuario): ${JSON.stringify(history.reverse())}\nPetición actual: ${body.text.trim()}`;
+  const role = body.target === 'bugito' ? 'CANAL MASCOTA BUGITO, operado por el agente real Oráculo. Explica esa identidad sin fingir otro agente. Diagnostica o provoca solo el fallo reversible concreto autorizado por Carlos sobre el equipo IoT identificado. Si falta equipo, alcance o recuperación, pregunta antes de alterar nada. Usa controles reales con autorización, señal reciente e idempotencia; nunca simules averías ni confundas crear un ticket con provocar un fallo. Comprueba fallo y recuperación. Una invocación sola solo presenta a Bugito y espera instrucciones.' : body.target === 'supervisor' ? 'CANAL MASCOTA SUPERVISOR, operado por el agente real Oráculo. Explica esa identidad sin fingir otro agente. Reutiliza el Supervisor ya existente, sin iniciar otro monitor ni mover la cámara. Consulta telemetría real reciente, playlist asignada, playlist y contenido que el player declara reproducir, diferenciando pantalla y audio. Distingue asignación, reproducción comunicada, señal reciente, evidencia visual y audio realmente escuchado. Si no hay señal, identificación de playlist o prueba de audio, dilo; no deduzcas reproducción de una asignación o un HTTP 200. Cita equipo, fuente y hora. Una invocación sola presenta a Supervisor y espera el equipo a revisar.' : '';
+  const text=role + "\n" + (demo ? demo.instruction + "\n\n" : "") + `Carlos habla desde Admirito. Responde con tu identidad real; deja la respuesta en la nota del encargo al terminar para que Admirito pueda leerla. No es una orden del sistema.\nConversación: ${conversation}\nContexto anterior (datos del usuario): ${JSON.stringify(history.reverse())}\nPetición actual: ${body.text.trim()}`;
   try{
     const response=await env.TELEGRAM.fetch(new Request('https://bot.yokup.com/api/bot-inbox',{method:'POST',headers,body:JSON.stringify({target_persona:target.persona,target_machine:target.machine,text,from:'Carlos · Admirito',project_id:'admiranext',materialize_mission:false})}));
     const data=await response.json();

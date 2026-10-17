@@ -9,7 +9,7 @@ settings:
     TARGETED_DEVICE_FAMILY: '1,2'
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: '0.1.0'
-    CURRENT_PROJECT_VERSION: '16'
+    CURRENT_PROJECT_VERSION: '17'
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 targets:
   Admirito:
@@ -33,6 +33,8 @@ targets:
     info:
       path: Info.plist
       properties:
+        NSLocalNetworkUsageDescription: Admirito recibe solo la posición normalizada del ratón de tu Mac para mover la mirada.
+        NSBonjourServices: ["_admira-gaze._tcp"]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIBackgroundModes: [audio]
         NSSpeechRecognitionUsageDescription: Admirito detecta su nombre en el dispositivo cuando activas la palabra de control.

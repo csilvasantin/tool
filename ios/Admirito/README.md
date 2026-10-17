@@ -151,3 +151,13 @@ EN: Next, previous and stop-demo commands use the real MacMini agent to control 
 ES: «Continúa la demo» o «reanuda la demo» pide al agente reanudar la presentación ya abierta, conservando lámina y pestaña. Debe quitar la pausa escénica, continuar el ensayo y comprobar que el tiempo avanza; no alterna controles a ciegas si ya estaba en marcha. La mascota usa el espacio restante entre cabecera y mensajes, con margen para sus animaciones y sin recortar el SVG en horizontal.
 
 EN: “Continúa la demo” / “reanuda la demo” asks the real agent to resume the existing presentation, preserving its slide and tab. Resume stage pause and the rehearsal timer only when paused, then verify that time advances. The pet fits the space between controls and feedback, with animation headroom and an uncropped landscape SVG.
+
+## Build 17 · mascotas operativas y mirada desde Mac
+
+ES: «Admirito, invoca a Bugito» y «Admirito, invoca a Supervisor» seleccionan su canal y mascota. Los opera el agente real Oráculo del MacMini, con identidad explícita. Bugito necesita equipo, fallo reversible y recuperación autorizados. Supervisor reutiliza el monitor existente y distingue playlist asignada, reproducción declarada y evidencia visual o de audio. Invocar no provoca fallos. «Vuelve a Admirito» restaura la mascota original.
+
+EN: Invoke Bugito or Supervisor to select its mascot and specialist channel, operated by the real Oráculo. Invocation alone changes no equipment. Bugito requires a concrete authorized reversible fault and recovery; Supervisor separates assigned playlists, reported playback and actual visual/audio evidence. No duplicate monitor is started.
+
+Para la mirada, compilar `Tools/mac-gaze.swift` con `swiftc` y ejecutar en el MacMini; activar «Seguir ratón del Mac» en la mascota y permitir Red local. Bonjour `_admira-gaze._tcp`, nombre `Admirito MacMini`. Recibe solo coordenadas x/y normalizadas: no teclas, clics, capturas ni control del ordenador. Servicio visible en la red local mientras se ejecuta, sin publicación en Internet; detener el proceso al terminar. Sin datos durante dos segundos vuelve a mirada local. Se reciben datos solo con la mascota abierta. La posición procede de la pantalla que contiene el cursor; la cámara solo verifica el resultado.
+
+Compile and run the read-only Mac cursor helper, opt in with the cursor button, and allow Local Network. Only normalized coordinates are shared locally; no keys, clicks or control API. Stop the helper when no longer needed. Gaze falls back locally after two seconds without fresh data.

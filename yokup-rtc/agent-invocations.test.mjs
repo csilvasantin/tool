@@ -41,3 +41,12 @@ test('unknown demo and computer cannot become arbitrary fleet commands',async()=
  for(const demo of [{id:'alsea',destination:'unknown'},{id:'__proto__',destination:'macmini'},{id:'alsea; rm',destination:'macmini'},[],null])assert.equal((await h.call({...body(),demo})).http,400);
  assert.equal(h.sent.length,0);
 });
+
+test('mascot roles dispatch to real operator and preserve evidence requirements',async()=>{
+ for(const target of ['bugito','supervisor']){
+  const h=await harness();const b={...body(),target,text:'Preséntate sin actuar sobre equipos'};
+  assert.equal((await h.call(b)).state,'waiting');assert.equal(h.sent[0].target_persona,'Oraculo');
+  assert.match(h.sent[0].text,/CANAL MASCOTA/);assert.match(h.sent[0].text,/operado por el agente real Oráculo/);
+  assert.match(h.sent[0].text,target==='bugito'?/fallo reversible concreto autorizado/:/playlist y contenido que el player declara reproducir/);
+ }
+});

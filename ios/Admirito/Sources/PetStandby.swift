@@ -73,6 +73,7 @@ struct HoldToTalkSurface: UIViewRepresentable {
 }
 
 struct PetStandbyView: View {
+    var character = "Admirito"
     @ObservedObject var pet: PetStandby
     @ObservedObject var dictation: CommandDictation
     @ObservedObject var wakeWord: WakeWord
@@ -80,6 +81,7 @@ struct PetStandbyView: View {
     let began: () -> Void
     let ended: () -> Void
     let close: () -> Void
+    @StateObject private var macGaze = MacGaze()
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         GeometryReader { geometry in
@@ -89,8 +91,9 @@ struct PetStandbyView: View {
                 let landscape = geometry.size.width > geometry.size.height
                 VStack(spacing: landscape ? 6 : 12) {
                     HStack {
-                        Text("Admirito").font(.headline).foregroundStyle(.secondary)
+                        Text(character).font(.headline).foregroundStyle(.secondary)
                         Spacer()
+                        Button { macGaze.toggle() } label: { Image(systemName: "cursorarrow.motionlines") }.accessibilityLabel("Seguir ratón del Mac").accessibilityIdentifier("petMacGaze").accessibilityValue(macGaze.status)
                         Button { Task { await wakeWord.toggle() } } label: {
                             Label(wakeWord.enabled ? "Admirito: ON" : "Activar Admirito", systemImage: wakeWord.enabled ? "ear.fill" : "ear")
                                 .labelStyle(.iconOnly)
@@ -108,7 +111,7 @@ struct PetStandbyView: View {
                             .accessibilityLabel("Volver a los controles").accessibilityIdentifier("petClose")
                     }
                     ZStack {
-                        AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: pet.gaze, immersive: landscape)
+                        AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: macGaze.point ?? pet.gaze, immersive: landscape, character: character)
                             .accessibilityHidden(true)
                         HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
                     }
@@ -130,6 +133,8 @@ struct PetStandbyView: View {
 
             }
         }
+        .onAppear { macGaze.resume() }
+        .onDisappear { macGaze.stop() }
     }
     private var status: some View {
         VStack(spacing: 12) {

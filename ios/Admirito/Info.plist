@@ -18,8 +18,14 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_admira-gaze._tcp</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Admirito fotografía la proyección solo cuando lo solicitas y adjunta la imagen a tu escucha.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Admirito recibe solo la posición normalizada del ratón de tu Mac para mover la mirada.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Admirito usa el micrófono cuando inicias una escucha o activas su palabra de control.</string>
 	<key>NSMotionUsageDescription</key>

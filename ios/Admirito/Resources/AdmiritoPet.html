@@ -27,7 +27,7 @@ eyes.parentNode.insertBefore(gaze,eyes); gaze.appendChild(eyes);
 window.setPetPresentation = (x,y,immersive) => {
   gaze.setAttribute('transform', `translate(${Math.max(-1,Math.min(1,x))*7} ${Math.max(-1,Math.min(1,y))*5})`);
   const svg = document.querySelector('svg');
-  svg.setAttribute('viewBox', '-6 -20 289 222');
+  svg.setAttribute('viewBox', '-24 -28 330 240');
   svg.style.width = '96%';
   svg.style.height = '96%';
 };

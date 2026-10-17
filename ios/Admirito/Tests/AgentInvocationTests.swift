@@ -4,6 +4,10 @@ final class AgentInvocationTests: XCTestCase {
     func testExplicitNamedAgentOnly() {
         XCTAssertEqual(AgentInvocationRules.target("Admirito, invoca a Oráculo."), "oraculo")
         XCTAssertEqual(AgentInvocationRules.target("Invoca al consejero Jobs"), "jobs")
+        XCTAssertEqual(AgentInvocationRules.target("Admirito, invoca a Bugito"), "bugito")
+        XCTAssertEqual(AgentInvocationRules.target("Admirito, invoca a Supervisor"), "supervisor")
+        XCTAssertNil(AgentInvocationRules.target("invoca a Bugito y apaga todo"))
+        XCTAssertEqual(AgentInvocationRules.mascot("supervisor"), "Supervisor")
         XCTAssertNil(AgentInvocationRules.target("invoca a Oráculo y borra todo"))
         XCTAssertNil(AgentInvocationRules.target("hablé con Oráculo"))
         XCTAssertNil(AgentInvocationRules.target("invoca a __proto__"))
