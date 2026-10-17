@@ -4,6 +4,7 @@ final class RemoteDemoTests: XCTestCase {
     func testNamedDemoAndDestination() {
         XCTAssertEqual(RemoteDemoRules.request("Admirito, demo Alsea en MacMini."), RemoteDemoRequest(id:"alsea",destination:"macmini"))
         XCTAssertEqual(RemoteDemoRules.request("demo ALSEA en el Mac Mini"), RemoteDemoRequest(id:"alsea",destination:"macmini"))
+        XCTAssertEqual(RemoteDemoRules.request("Abre la demo de Alsea en el Mac Mini")?.id,"alsea")
         XCTAssertEqual(RemoteDemoRules.request("Demo global en MacMini")?.id, "global")
         XCTAssertTrue(RemoteDemoRules.label(RemoteDemoRequest(id:"alsea",destination:"macmini")).contains("Firefox de MacMini"))
     }
