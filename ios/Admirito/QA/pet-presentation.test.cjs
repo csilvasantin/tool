@@ -1,0 +1,20 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+test('gaze clamps movement separately from blink and landscape enlarges the canvas',()=>{
+ const svg={style:{},setAttribute(k,v){this[k]=v}};
+ const eyes={parentNode:{insertBefore(){}}};
+ let wrapper;
+ const document={querySelector:s=>s==='svg'?svg:eyes,createElementNS(){return wrapper={appendChild(child){assert.equal(child,eyes)},setAttribute(k,v){this[k]=v}}}};
+ const window={};
+ const html=fs.readFileSync(__dirname+'/../Resources/AdmiritoPet.html','utf8');
+ vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],{document,window});
+ window.setPetPresentation(50,-50,true);
+ assert.equal(wrapper.transform,'translate(7 -5)');
+ assert.equal(svg.viewBox,'-6 35 289 140');
+ assert.equal(svg.style.width,'100%');
+ window.setPetPresentation(0,0,false);
+ assert.equal(wrapper.transform,'translate(0 0)');
+ assert.equal(svg.viewBox,'-6 6 289 186');
+});

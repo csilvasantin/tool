@@ -19,3 +19,16 @@ body[data-mood=rainbow]:before{content:'';position:absolute;width:80%;height:70%
 body[data-mood=rainbow] .da-nube-risa{opacity:1}body[data-mood=rainbow] .da-nube-boca{opacity:0}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 </style><body data-mood="{{MOOD}}">{{SVG}}</body>
+
+<script>
+const eyes = document.querySelector('.da-nube-ojos');
+const gaze = document.createElementNS('http://www.w3.org/2000/svg','g');
+eyes.parentNode.insertBefore(gaze,eyes); gaze.appendChild(eyes);
+window.setPetPresentation = (x,y,immersive) => {
+  gaze.setAttribute('transform', `translate(${Math.max(-1,Math.min(1,x))*7} ${Math.max(-1,Math.min(1,y))*5})`);
+  const svg = document.querySelector('svg');
+  svg.setAttribute('viewBox', immersive ? '-6 35 289 140' : '-6 6 289 186');
+  svg.style.width = immersive ? '100%' : '96%';
+  svg.style.height = immersive ? '100%' : '96%';
+};
+</script>

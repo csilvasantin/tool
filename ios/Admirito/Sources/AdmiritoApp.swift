@@ -13,14 +13,16 @@ import UniformTypeIdentifiers
 enum PetMood: String, CaseIterable { case awake, laugh, rainbow, resting }
 struct AdmiritoFace: UIViewRepresentable {
     let mood: PetMood
+    var gaze = CGPoint.zero
+    var immersive = false
     func makeUIView(context: Context) -> WKWebView {
         let view = WKWebView(); view.isOpaque = false; view.backgroundColor = .clear; view.scrollView.backgroundColor = .clear; view.scrollView.isScrollEnabled = false; view.isUserInteractionEnabled = false
         if let svgURL = Bundle.main.url(forResource: "Admirito", withExtension: "svg"), let svg = try? String(contentsOf: svgURL), let templateURL = Bundle.main.url(forResource: "AdmiritoPet", withExtension: "html"), let template = try? String(contentsOf: templateURL) {
-            view.loadHTMLString(template.replacingOccurrences(of: "{{SVG}}", with: svg).replacingOccurrences(of: "{{MOOD}}", with: mood.rawValue), baseURL: nil)
+            view.loadHTMLString(template.replacingOccurrences(of: "{{SVG}}", with: svg).replacingOccurrences(of: "{{MOOD}}", with: mood.rawValue) + "<script>window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive));</script>", baseURL: nil)
         }
         return view
     }
-    func updateUIView(_ view: WKWebView, context: Context) { view.evaluateJavaScript("document.body.dataset.mood='" + mood.rawValue + "'"); view.accessibilityLabel = "Admirito " + mood.rawValue }
+    func updateUIView(_ view: WKWebView, context: Context) { view.evaluateJavaScript("document.body.dataset.mood='" + mood.rawValue + "'"); view.evaluateJavaScript("window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive))"); view.accessibilityLabel = "Admirito " + mood.rawValue }
 }
 struct AssistantView: View {
     @EnvironmentObject private var assistant: AssistantStore
@@ -96,6 +98,14 @@ struct AssistantView: View {
                     if !pet.showing && StandbyRules.shouldShow(lastInteraction: pet.lastInteraction, now: Date(), busy: busy) {
                         pet.message = "Mantén pulsado para hablar"; pet.showing = true
                     }
+            }
+            .onChange(of: assistant.answer) { _, answer in
+                if !answer.isEmpty {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(100))
+                        withAnimation { proxy.scrollTo("latestAssistantReply", anchor: .bottom) }
+                    }
+                }
             }
             .onChange(of: commandVoice.processing) { _, processing in
                 if !processing && pet.awaitingCommand && !pet.holding { processPetCommand(proxy: proxy) }
@@ -243,7 +253,7 @@ struct AssistantView: View {
                 Button(assistant.replying ? "Pensando…" : "Preguntar") { assistant.ask() }.buttonStyle(.borderedProminent).disabled(assistant.listening || assistant.replying || assistant.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("Interrumpir voz") { assistant.stopSpeaking() }.disabled(assistant.listening)
             }
-            if !assistant.answer.isEmpty { Text(assistant.answer).textSelection(.enabled) }
+            if !assistant.answer.isEmpty { Text(assistant.answer).textSelection(.enabled).id("latestAssistantReply") }
         }.padding().background(.background, in: RoundedRectangle(cornerRadius: 20))
     }
     private var notes: some View {

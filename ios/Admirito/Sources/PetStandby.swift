@@ -20,6 +20,7 @@ enum StandbyRules {
 }
 
 @MainActor final class PetStandby: ObservableObject {
+    @Published var gaze = CGPoint.zero
     @Published var showing = false
     @Published var holding = false
     @Published var awaitingCommand = false
@@ -35,12 +36,19 @@ struct HoldToTalkSurface: UIViewRepresentable {
     let active: Bool
     let began: () -> Void
     let ended: () -> Void
+    var moved: (CGPoint) -> Void = { _ in }
     final class Surface: UIControl {
         var began: (() -> Void)?
         var ended: (() -> Void)?
+        var moved: ((CGPoint) -> Void)?
         private var down = false
+        private func track(_ touch: UITouch) {
+            let point = touch.location(in: self)
+            moved?(CGPoint(x: max(-1, min(1, point.x / max(1, bounds.width) * 2 - 1)), y: max(-1, min(1, point.y / max(1, bounds.height) * 2 - 1))))
+        }
+        override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool { track(touch); return true }
         override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-            down = true; began?(); return true
+            track(touch); down = true; began?(); return true
         }
         override func endTracking(_ touch: UITouch?, with event: UIEvent?) { release() }
         override func cancelTracking(with event: UIEvent?) { release() }
@@ -58,7 +66,7 @@ struct HoldToTalkSurface: UIViewRepresentable {
         return view
     }
     func updateUIView(_ view: Surface, context: Context) {
-        view.began = began; view.ended = ended
+        view.began = began; view.ended = ended; view.moved = moved
         view.accessibilityValue = active ? "Escuchando" : "Micrófono apagado"
     }
 }
@@ -75,38 +83,33 @@ struct PetStandbyView: View {
             ZStack {
                 Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
                 RadialGradient(colors: [Color.green.opacity(scheme == .dark ? 0.17 : 0.10), .clear], center: .center, startRadius: 0, endRadius: max(geometry.size.width, geometry.size.height) * 0.6).ignoresSafeArea()
-                VStack(spacing: 12) {
+                let landscape = geometry.size.width > geometry.size.height
+                ZStack {
+                    AdmiritoFace(mood: dictation.listening ? .laugh : .awake, gaze: pet.gaze, immersive: landscape)
+                        .accessibilityHidden(true)
+                    HoldToTalkSurface(active: dictation.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
+                }
+                .frame(width: geometry.size.width, height: landscape ? geometry.size.height : min(geometry.size.height * 0.7, geometry.size.width))
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        pet.gaze = CGPoint(x: max(-1, min(1, location.x / max(1, geometry.size.width) * 2 - 1)), y: max(-1, min(1, location.y / max(1, geometry.size.height) * 2 - 1)))
+                    case .ended: pet.gaze = .zero
+                    }
+                }
+                VStack {
                     HStack {
                         Text("Admirito").font(.headline).foregroundStyle(.secondary)
                         Spacer()
                         Button(action: close) { Image(systemName: "xmark.circle.fill").font(.title2) }
                             .accessibilityLabel("Volver a los controles").accessibilityIdentifier("petClose")
                     }
-                    if geometry.size.width > geometry.size.height {
-                        HStack(spacing: 16) {
-                            cloud(height: max(120, geometry.size.height - 100)).frame(maxWidth: .infinity)
-                            VStack(spacing: 12) { status; privacy }
-                                .frame(width: min(280, geometry.size.width * 0.35))
-                        }.frame(maxHeight: .infinity)
-                    } else {
-                        Spacer(minLength: 0)
-                        cloud(height: min(geometry.size.height * 0.62, geometry.size.width * 0.8))
-                        status
-                        Spacer(minLength: 0)
-                        privacy
-                    }
-                }.padding(24)
+                    Spacer()
+                    status.padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    if !landscape { privacy }
+                }.padding(16)
             }
         }
-    }
-    private func cloud(height: CGFloat) -> some View {
-        ZStack {
-            AdmiritoFace(mood: dictation.listening ? .laugh : .awake).accessibilityHidden(true)
-            HoldToTalkSurface(active: dictation.listening, began: began, ended: ended)
-        }.frame(height: height)
-            .background {
-                Circle().fill(Color.green.opacity(dictation.listening ? 0.12 + dictation.level * 0.3 : 0)).padding(20)
-            }
     }
     private var status: some View {
         VStack(spacing: 12) {
