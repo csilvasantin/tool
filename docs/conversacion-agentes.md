@@ -31,3 +31,11 @@ ES: No hay una nueva credencial permanente ni secretos en el cliente. La vincula
 EN: No permanent credential or client-side service secret is created. Pairing enforces origin, expiry and frequency limits. No camera controller is accessed and no parallel surveillance is started.
 
 Fuentes / Sources: https://developers.meta.com/wearables/faq/ ; https://github.com/facebook/meta-wearables-webapp ; https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/
+
+## Invocación real / real fleet invocation (17 Oct 2026)
+
+`POST /agents/conversations/:uuid/invocations {target,text,request_id}` creates one real fleet request; `GET /agents/conversations/:uuid/invocations/:request_uuid` retrieves its actual reply. Targets: `oraculo`, `jobs`, `wozniak`, `disney`, `lucas`, `musk`. Initial authorization is restricted server-side to Carlos, with account ownership on every conversation read/write. Paired credentials do not confer arbitrary fleet permissions. Server-only TELEGRAM binding and panel credential mediate delivery; no fleet secret is placed in the client. Requests are UUID-idempotent, capped at six per minute, and uncertain delivery is never replayed.
+
+This first integration uses the real fleet mailbox, not an LLM role impersonating a named agent. It is asynchronous and does not attach to a specific existing Codex thread. The destination's fleet delivery policy determines which runtime receives it. Returned notes can be abbreviated by the existing fleet API. A completed request without a note is explicitly reported without generating an answer. Follow-up context includes recent questions and actual returned notes in the same account-owned conversation. The fleet mailbox also publishes its normal group notice.
+
+ES: La invocación inicial entrega un encargo real y consulta su respuesta; no equivale todavía a hablar en tiempo real en un chat concreto de Codex. Admirito diferencia entrega pendiente, respuesta real y entrega incierta. El historial entre dispositivos de este nuevo canal y la voz en tiempo real siguen pendientes.

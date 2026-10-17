@@ -9,7 +9,7 @@ enum StandbyRules {
     // Everything else remains editable for the existing Expert permission flow.
     static func tourCommand(_ speech: String) -> String? {
         let text = speech.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "es"))
-            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            .components(separatedBy: .whitespacesAndNewlines.union(.punctuationCharacters)).filter { !$0.isEmpty }.joined(separator: " ")
         let prefixes = ["lanza el tour de ", "inicia el tour de ", "lanza el tour ", "inicia el tour ", "start the tour of ", "start the tour ", "tour "]
         guard let prefix = prefixes.first(where: { text.hasPrefix($0) }) else { return nil }
         let target = String(text.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
@@ -34,6 +34,7 @@ enum StandbyRules {
 /// cloud. Accessibility activation offers a start/stop alternative to holding.
 struct HoldToTalkSurface: UIViewRepresentable {
     let active: Bool
+    var monitoring = false
     let began: () -> Void
     let ended: () -> Void
     var moved: (CGPoint) -> Void = { _ in }
@@ -67,13 +68,15 @@ struct HoldToTalkSurface: UIViewRepresentable {
     }
     func updateUIView(_ view: Surface, context: Context) {
         view.began = began; view.ended = ended; view.moved = moved
-        view.accessibilityValue = active ? "Escuchando" : "Micrófono apagado"
+        view.accessibilityValue = active ? "Escuchando" : monitoring ? "Escuchando Admirito en el dispositivo" : "Micrófono apagado"
     }
 }
 
 struct PetStandbyView: View {
     @ObservedObject var pet: PetStandby
     @ObservedObject var dictation: CommandDictation
+    @ObservedObject var wakeWord: WakeWord
+    @ObservedObject var feedback: WakeFeedback
     let began: () -> Void
     let ended: () -> Void
     let close: () -> Void
@@ -85,9 +88,9 @@ struct PetStandbyView: View {
                 RadialGradient(colors: [Color.green.opacity(scheme == .dark ? 0.17 : 0.10), .clear], center: .center, startRadius: 0, endRadius: max(geometry.size.width, geometry.size.height) * 0.6).ignoresSafeArea()
                 let landscape = geometry.size.width > geometry.size.height
                 ZStack {
-                    AdmiritoFace(mood: dictation.listening ? .laugh : .awake, gaze: pet.gaze, immersive: landscape)
+                    AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: pet.gaze, immersive: landscape)
                         .accessibilityHidden(true)
-                    HoldToTalkSurface(active: dictation.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
+                    HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
                 }
                 .frame(width: geometry.size.width, height: landscape ? geometry.size.height : min(geometry.size.height * 0.7, geometry.size.width))
                 .onContinuousHover { phase in
@@ -101,6 +104,18 @@ struct PetStandbyView: View {
                     HStack {
                         Text("Admirito").font(.headline).foregroundStyle(.secondary)
                         Spacer()
+                        Button { Task { await wakeWord.toggle() } } label: {
+                            Label(wakeWord.enabled ? "Admirito: ON" : "Activar Admirito", systemImage: wakeWord.enabled ? "ear.fill" : "ear")
+                        }.buttonStyle(.bordered).disabled(dictation.listening || dictation.starting || dictation.processing || feedback.speaking).accessibilityIdentifier("petWakeWord")
+                            .accessibilityValue(wakeWord.listening ? "Escucha local activa" : wakeWord.enabled ? "En pausa" : "Apagado")
+                        Button {
+                            wakeWord.pause()
+                            pet.awaitingCommand = true
+                            feedback.reply { pet.awaitingCommand = false }
+                        } label: { Image(systemName: "speaker.wave.2.fill") }
+                            .disabled(dictation.listening || dictation.starting || dictation.processing || feedback.speaking)
+                            .accessibilityLabel("Probar voz de Admirito").accessibilityIdentifier("petVoicePreview")
+                            .accessibilityValue(feedback.speaking ? "Hablando con \(feedback.voiceName)" : "Voz \(feedback.voiceName)" + (feedback.lastReplyCompleted ? " · respuesta completada" : ""))
                         Button(action: close) { Image(systemName: "xmark.circle.fill").font(.title2) }
                             .accessibilityLabel("Volver a los controles").accessibilityIdentifier("petClose")
                     }
@@ -113,14 +128,15 @@ struct PetStandbyView: View {
     }
     private var status: some View {
         VStack(spacing: 12) {
-            Text(dictation.listening ? "Te escucho. Suelta para continuar." : dictation.starting ? "Preparando el micrófono…" : dictation.processing ? "Entendiendo tu orden…" : pet.message)
+            Text(dictation.listening ? (dictation.handsFree ? "Te escucho. Di tu orden; terminaré cuando hagas una pausa." : "Te escucho. Suelta para continuar.") : dictation.starting ? "Preparando el micrófono…" : dictation.processing ? "Entendiendo tu orden…" : wakeWord.listening ? "Di «Admirito» para llamarme" : pet.message)
                 .font(.headline).multilineTextAlignment(.center).accessibilityIdentifier("petStatus")
+            if !dictation.listening && !dictation.processing { Text(wakeWord.status).font(.caption).multilineTextAlignment(.center).accessibilityIdentifier("petWakeWordStatus") }
             if dictation.listening { ProgressView(value: dictation.level).frame(maxWidth: 220).accessibilityLabel("Nivel del micrófono") }
-            if !dictation.transcript.isEmpty { Text(dictation.transcript).font(.callout).multilineTextAlignment(.center).accessibilityIdentifier("petTranscript") }
+            if !dictation.transcript.isEmpty && (dictation.listening || dictation.processing || pet.awaitingCommand) { Text(dictation.transcript).lineLimit(2).font(.callout).multilineTextAlignment(.center).accessibilityIdentifier("petTranscript") }
         }
     }
     private var privacy: some View {
-        Text("El micrófono solo se activa al pulsar. Al soltar se procesa tu orden.")
+        Text(wakeWord.enabled ? "Di Admirito, espera a que te escuche y después di tu orden. La palabra se detecta localmente, con esta pantalla abierta." : "Mantén pulsado para hablar, o activa Admirito para llamarlo por su nombre.")
             .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
     }
 }

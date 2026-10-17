@@ -1,3 +1,4 @@
+import { handleAgentInvocations } from './agent-invocations.js';
 import { handleAgentListening } from './agent-listening.js';
 import { handleAgentDevices, pairedConversationSession } from './agent-device-pairing.js';
 import { handleAgentConversations, handleAgentTranscribe } from './agent-conversations.js';
@@ -10092,6 +10093,7 @@ var worker_app = {
     if (url.pathname === '/agents/devices' || url.pathname.startsWith('/agents/devices/')) return handleAgentDevices(req, env, { requireAuth:async (environment,request) => { const session=await requireConversationAuth(environment,request); return session&&!session.conversation_device?session:null; } });
     if (url.pathname === '/agents/listening' || url.pathname.startsWith('/agents/listening/')) return handleAgentListening(req, env, { requireAuth:requireConversationAuth, aiRun });
     if (url.pathname === '/agents/transcribe') return handleAgentTranscribe(req, env, { requireAuth:requireConversationAuth });
+    if (/^\/agents\/conversations\/[^/]+\/invocations(?:\/|$)/.test(url.pathname)) return handleAgentInvocations(req, env, { requireAuth:requireConversationAuth });
     if (url.pathname === '/agents/conversations' || url.pathname.startsWith('/agents/conversations/')) return handleAgentConversations(req, env, { requireAuth:requireConversationAuth, aiRun });
     // Incidencias del MCP de flota (FLT-101298): solo por el binding del gate (src/fleet-incidents.js).
     if (url.pathname === FLEET_INCIDENTS_PREFIX || url.pathname.startsWith(FLEET_INCIDENTS_PREFIX + "/")) return handleFleetIncidents(req, env, url, { json, ensureSchema, createIncident, addEvent, embed });

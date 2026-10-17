@@ -9,7 +9,7 @@ settings:
     TARGETED_DEVICE_FAMILY: '1,2'
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: '0.1.0'
-    CURRENT_PROJECT_VERSION: '11'
+    CURRENT_PROJECT_VERSION: '13'
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 targets:
   Admirito:
@@ -26,7 +26,7 @@ targets:
         INFOPLIST_KEY_UIRequiresFullScreen: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Admirito
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias una escucha o activas su palabra de control.
         INFOPLIST_KEY_UIBackgroundModes: [audio]
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
@@ -35,9 +35,10 @@ targets:
       properties:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIBackgroundModes: [audio]
+        NSSpeechRecognitionUsageDescription: Admirito detecta su nombre en el dispositivo cuando activas la palabra de control.
         NSMotionUsageDescription: Admirito usa el movimiento como pista de tus horarios de acostarte y coger el teléfono, sin medir sueño.
         NSCameraUsageDescription: Admirito fotografía la proyección solo cuando lo solicitas y adjunta la imagen a tu escucha.
-        NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.
+        NSMicrophoneUsageDescription: Admirito usa el micrófono cuando inicias una escucha o activas su palabra de control.
   AdmiritoTests:
     settings:
       base:

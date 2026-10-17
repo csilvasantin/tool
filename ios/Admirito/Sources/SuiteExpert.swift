@@ -38,13 +38,16 @@ enum AssistantMode: String, CaseIterable {
         guard trustedPage else { ready = false; tourRunning = false; tourProgress = ""; return }
         let value = try? await webView.evaluateJavaScript("({ready:Boolean(window.AdmiritoSuiteBridge?.ready()),running:document.body.classList.contains('gt-on')&&Boolean(document.querySelector('.gt-hud')),progress:document.querySelector('.gt-hud .gt-journey')?.textContent||''})") as? [String: Any]
         ready = value?["ready"] as? Bool == true
-        tourRunning = value?["running"] as? Bool == true
-        tourProgress = value?["progress"] as? String ?? ""
+        let running = value?["running"] as? Bool == true
+        let progress = value?["progress"] as? String ?? ""
+        if running != tourRunning || progress != tourProgress { VoiceDiagnostics.record("tour_state", ["running": String(running), "progress": progress]) }
+        tourRunning = running; tourProgress = progress
         if ready && status == "Cargando el modo Experto de admira.biz…" { status = "Modo Experto conectado. Escribe una orden o usa el dictado del teclado." }
     }
-    func send(_ preset: String? = nil) {
+    func send(_ preset: String? = nil, completion: ((String?) -> Void)? = nil) {
         let text = (preset ?? command).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trustedPage, ready, !busy, !text.isEmpty, text.count <= 2000 else { return }
+        guard trustedPage, ready, !busy, !text.isEmpty, text.count <= 2000 else { completion?("El modo Experto no está disponible. No he enviado la orden."); return }
+        VoiceDiagnostics.record("suite_send", ["publicTour": String(text.hasPrefix("/tour "))])
         busy = true; command = text; let requestID = UUID().uuidString
         Task {
             defer { busy = false }
@@ -53,9 +56,13 @@ enum AssistantMode: String, CaseIterable {
                 let result = try await webView.callAsyncJavaScript("return await window.AdmiritoSuiteBridge.execute(command, requestID)", arguments: ["command": text, "requestID": requestID], in: nil, contentWorld: .page) as? [String: Any]
                 output = result?["output"] as? String ?? "Consulta el resultado en el mapa y en la consola web."
                 status = result?["state"] as? String == "not_ready" ? "El modo Experto aún no está listo. No se ha enviado la orden." : "Orden entregada al modo Experto. Comprueba su respuesta y el recorrido."
+                if result?["state"] as? String == "not_ready" { completion?("El modo Experto aún no está listo. No he enviado la orden.") }
+                else if result?["ok"] as? Bool == false { completion?("El modo Experto ha rechazado la orden. Puedes ver el motivo en su respuesta.") }
+                else { completion?(nil) }
             } catch {
                 // A command may navigate. A lost bridge response does not mean it failed, so never retry it automatically.
                 status = "La página ha cambiado o no se pudo recoger la respuesta. Revisa el mapa antes de repetir la orden."
+                completion?("He enviado la orden, pero no puedo confirmar el resultado. Revisa el mapa antes de repetirla.")
             }
         }
     }
@@ -74,6 +81,7 @@ struct SuiteExpertSurface: UIViewRepresentable {
 }
 struct SuiteExpertView: View {
     @ObservedObject var console: SuiteExpertConsole
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @ObservedObject var dictation: CommandDictation
     @Environment(\.scenePhase) private var scene
     var body: some View {
@@ -89,7 +97,7 @@ struct SuiteExpertView: View {
                     Task { await dictation.start() }
                 }
             }.buttonStyle(.bordered).disabled(dictation.starting || dictation.processing || console.busy).accessibilityIdentifier("suiteDictation")
-            Text("El dictado envía hasta 30 segundos de audio al transcriptor de Admira y borra el audio temporal al terminar.").font(.caption2).foregroundStyle(.secondary)
+            Text("Al pulsar «Dictar orden» se envía solo esa grabación al transcriptor de Admira y se borra al terminar.").font(.caption2).foregroundStyle(.secondary)
             if !dictation.status.isEmpty {
                 Text(dictation.status).font(.caption).accessibilityIdentifier("suiteDictationStatus")
                 if dictation.listening { ProgressView(value: dictation.level).accessibilityLabel("Nivel del micrófono").accessibilityIdentifier("suiteMicrophoneLevel") }
@@ -106,7 +114,8 @@ struct SuiteExpertView: View {
             }.buttonStyle(.bordered).disabled(!console.ready || console.busy || dictation.listening || dictation.starting || dictation.processing) }
             Text(console.status).font(.caption).accessibilityIdentifier("suiteStatus")
             if !console.output.isEmpty { DisclosureGroup("Respuesta del modo Experto") { Text(console.output).font(.system(.caption, design: .monospaced)).textSelection(.enabled) } }
-            SuiteExpertSurface(console: console).frame(height: 520).clipShape(RoundedRectangle(cornerRadius: 12)).id("suiteMap")
+            if console.tourRunning { Text("Tour en curso · " + console.tourProgress).font(.caption).accessibilityIdentifier("suiteTourProgress") }
+            SuiteExpertSurface(console: console).frame(height: verticalSizeClass == .compact ? max(240, min(360, UIScreen.main.bounds.height - 110)) : 520).clipShape(RoundedRectangle(cornerRadius: 12)).id("suiteMap")
             Text("Si una acción requiere identificación, entra con tu cuenta de admira.biz en esta vista. Vincular Admirito no concede permisos de control físico.").font(.caption).foregroundStyle(.secondary)
             Link("Abrir admira.biz en Safari", destination: URL(string: "https://www.admira.biz/")!)
         }.onAppear { console.observe() }.onDisappear { dictation.cancel() }

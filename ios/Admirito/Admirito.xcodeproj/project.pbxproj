@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		02BE1CCD4610D85BA1185C02 /* ReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */; };
+		04EE5EFA57AC0CF9BB1E4A22 /* LocalWakeListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BCE821171029B4AD39D645B /* LocalWakeListener.swift */; };
+		0D1A7498C2302CEBBE53C6F8 /* VoiceDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E091CE4E96980611A423A2 /* VoiceDiagnostics.swift */; };
+		29203336DB87888D4D6C70F3 /* WakeFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD5129A66B68AF18F8AB575 /* WakeFeedback.swift */; };
 		3CE62B975DD6B30D823EEBCB /* SuiteExpert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54474E6594597F117A9D75FC /* SuiteExpert.swift */; };
 		415DB1D128C7FCCDE5265A53 /* AdmiritoPet.html in Resources */ = {isa = PBXBuildFile; fileRef = 668CE8917369B0E347B21B2E /* AdmiritoPet.html */; };
 		4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA270DD45862031A659ED735 /* LiveServiceTests.swift */; };
@@ -19,11 +22,15 @@
 		6A28394D0913952FCDA4A80B /* SuiteExpertTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBCCE77B8262B9816436541B /* SuiteExpertTests.swift */; };
 		7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */; };
 		80C1B49AD0A88C2A66AFE8BD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C0E02C4FC2F18A0179CD14 /* APIClient.swift */; };
+		860183312E51D3ED12C69D6C /* WakeWordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0BBB70E75FD4C9B34E112DD /* WakeWordTests.swift */; };
 		86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */; };
 		8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB6E1C3F6AC3061D4AE43BE /* Models.swift */; };
 		966C4E024C6F98B36B852B31 /* PetStandbyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2AA2954DA9606521E07032 /* PetStandbyTests.swift */; };
 		9675AFDBCC6FE0931C77FE43 /* ProjectionPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */; };
+		9E19742D7199EC662C987BCC /* AgentInvocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 436DE830BCFCC4ADA02A8E56 /* AgentInvocationTests.swift */; };
+		A90E192FCBA0DC6B79A4A14A /* WakeWord.swift in Sources */ = {isa = PBXBuildFile; fileRef = D217E5CAF8ACA3E2280B8949 /* WakeWord.swift */; };
 		AD37CA803F7639E27F634C74 /* CommandDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */; };
+		BD3038B8576546A52CB3532E /* AgentInvocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DBEE73BA77282B9BF44CEE /* AgentInvocation.swift */; };
 		D1522EC0931E33794B3381AE /* meeting-proof.wav in Resources */ = {isa = PBXBuildFile; fileRef = ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */; };
 		DB141BE6473277C93671ACA3 /* RestDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124C506F87AF3079CA3C7FF0 /* RestDiary.swift */; };
 		DB5613F9C0F55EF6D2BEF9C9 /* SuiteExpertBridge.js in Resources */ = {isa = PBXBuildFile; fileRef = 211207BFEC7F5C2C2985D6D6 /* SuiteExpertBridge.js */; };
@@ -47,21 +54,28 @@
 		15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStore.swift; sourceTree = "<group>"; };
 		211207BFEC7F5C2C2985D6D6 /* SuiteExpertBridge.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = SuiteExpertBridge.js; sourceTree = "<group>"; };
 		3AB1ACAE8408646AFB90C839 /* AdmiritoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AdmiritoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		436DE830BCFCC4ADA02A8E56 /* AgentInvocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentInvocationTests.swift; sourceTree = "<group>"; };
+		49E091CE4E96980611A423A2 /* VoiceDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceDiagnostics.swift; sourceTree = "<group>"; };
 		54474E6594597F117A9D75FC /* SuiteExpert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuiteExpert.swift; sourceTree = "<group>"; };
 		58631D8173616FB1FEA37A7E /* Admirito.svg */ = {isa = PBXFileReference; path = Admirito.svg; sourceTree = "<group>"; };
 		5D2AA2954DA9606521E07032 /* PetStandbyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStandbyTests.swift; sourceTree = "<group>"; };
 		668CE8917369B0E347B21B2E /* AdmiritoPet.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = AdmiritoPet.html; sourceTree = "<group>"; };
 		6B5F99A836AE1A752079DB64 /* PetStandby.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStandby.swift; sourceTree = "<group>"; };
+		7BCE821171029B4AD39D645B /* LocalWakeListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWakeListener.swift; sourceTree = "<group>"; };
 		8B1D9C4CD1932808285E99DC /* Admirito.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Admirito.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BD5129A66B68AF18F8AB575 /* WakeFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeFeedback.swift; sourceTree = "<group>"; };
 		9DB6E1C3F6AC3061D4AE43BE /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A0BBB70E75FD4C9B34E112DD /* WakeWordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordTests.swift; sourceTree = "<group>"; };
 		A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
 		ABBDFC6DCBDBC2FA2B28CA9F /* meeting-proof.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "meeting-proof.wav"; sourceTree = "<group>"; };
 		AFA73716E94E8B18FBC2603D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B8DBEE73BA77282B9BF44CEE /* AgentInvocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentInvocation.swift; sourceTree = "<group>"; };
 		BBCCE77B8262B9816436541B /* SuiteExpertTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuiteExpertTests.swift; sourceTree = "<group>"; };
 		BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectionPhoto.swift; sourceTree = "<group>"; };
 		C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutput.swift; sourceTree = "<group>"; };
 		C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliabilityTests.swift; sourceTree = "<group>"; };
 		CA270DD45862031A659ED735 /* LiveServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServiceTests.swift; sourceTree = "<group>"; };
+		D217E5CAF8ACA3E2280B8949 /* WakeWord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWord.swift; sourceTree = "<group>"; };
 		D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
 		F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandDictation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -100,16 +114,21 @@
 			isa = PBXGroup;
 			children = (
 				0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */,
+				B8DBEE73BA77282B9BF44CEE /* AgentInvocation.swift */,
 				05C0E02C4FC2F18A0179CD14 /* APIClient.swift */,
 				15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */,
 				A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */,
 				F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */,
+				7BCE821171029B4AD39D645B /* LocalWakeListener.swift */,
 				9DB6E1C3F6AC3061D4AE43BE /* Models.swift */,
 				6B5F99A836AE1A752079DB64 /* PetStandby.swift */,
 				BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */,
 				124C506F87AF3079CA3C7FF0 /* RestDiary.swift */,
 				C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */,
 				54474E6594597F117A9D75FC /* SuiteExpert.swift */,
+				49E091CE4E96980611A423A2 /* VoiceDiagnostics.swift */,
+				8BD5129A66B68AF18F8AB575 /* WakeFeedback.swift */,
+				D217E5CAF8ACA3E2280B8949 /* WakeWord.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -128,11 +147,13 @@
 		C198356210160D6285387350 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				436DE830BCFCC4ADA02A8E56 /* AgentInvocationTests.swift */,
 				CA270DD45862031A659ED735 /* LiveServiceTests.swift */,
 				5D2AA2954DA9606521E07032 /* PetStandbyTests.swift */,
 				C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */,
 				D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */,
 				BBCCE77B8262B9816436541B /* SuiteExpertTests.swift */,
+				A0BBB70E75FD4C9B34E112DD /* WakeWordTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -243,15 +264,20 @@
 			files = (
 				80C1B49AD0A88C2A66AFE8BD /* APIClient.swift in Sources */,
 				654208594CD775CCD9357729 /* AdmiritoApp.swift in Sources */,
+				BD3038B8576546A52CB3532E /* AgentInvocation.swift in Sources */,
 				86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */,
 				7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */,
 				AD37CA803F7639E27F634C74 /* CommandDictation.swift in Sources */,
+				04EE5EFA57AC0CF9BB1E4A22 /* LocalWakeListener.swift in Sources */,
 				8DEA62958BD20B81FF0E73CC /* Models.swift in Sources */,
 				6913249302879AD3CBAD1BA6 /* PetStandby.swift in Sources */,
 				9675AFDBCC6FE0931C77FE43 /* ProjectionPhoto.swift in Sources */,
 				DB141BE6473277C93671ACA3 /* RestDiary.swift in Sources */,
 				503C4D760BACA49E514DAB69 /* SpeechOutput.swift in Sources */,
 				3CE62B975DD6B30D823EEBCB /* SuiteExpert.swift in Sources */,
+				0D1A7498C2302CEBBE53C6F8 /* VoiceDiagnostics.swift in Sources */,
+				29203336DB87888D4D6C70F3 /* WakeFeedback.swift in Sources */,
+				A90E192FCBA0DC6B79A4A14A /* WakeWord.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -259,11 +285,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9E19742D7199EC662C987BCC /* AgentInvocationTests.swift in Sources */,
 				4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */,
 				966C4E024C6F98B36B852B31 /* PetStandbyTests.swift in Sources */,
 				02BE1CCD4610D85BA1185C02 /* ReliabilityTests.swift in Sources */,
 				62E300871BC43BCFFA5211E5 /* SessionTests.swift in Sources */,
 				6A28394D0913952FCDA4A80B /* SuiteExpertTests.swift in Sources */,
+				860183312E51D3ED12C69D6C /* WakeWordTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -313,7 +341,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -372,7 +400,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Admirito;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Admirito usa el micrófono cuando inicias una escucha o activas su palabra de control.";
 				INFOPLIST_KEY_UIBackgroundModes = (
 					audio,
 				);
@@ -397,7 +425,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Admirito;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Admirito usa el micrófono cuando inicias una escucha o activas su palabra de control.";
 				INFOPLIST_KEY_UIBackgroundModes = (
 					audio,
 				);
@@ -448,7 +476,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

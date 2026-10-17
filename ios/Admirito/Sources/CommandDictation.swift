@@ -18,6 +18,9 @@ import SwiftUI
     private var ownsSession = false
     private var interruption: NSObjectProtocol?
     private var peakDB: Float = -160
+    private var automatic = false
+    var handsFree: Bool { automatic }
+    private var spokenSound = false
 
     init(service: (any AssistantService)? = nil) {
         self.service = service ?? APIClient()
@@ -28,9 +31,10 @@ import SwiftUI
     }
     deinit { if let interruption { NotificationCenter.default.removeObserver(interruption) } }
 
-    func start() async {
+    func start(stopAfterSilence: Bool = false) async {
         guard !listening, !starting, !processing else { return }
         cancel(); let id = UUID(); generation = id
+        automatic = stopAfterSilence; spokenSound = false
         starting = true; transcript = ""; level = 0; peakDB = -160; status = "Preparando el micrófono…"
         defer { if generation == id { starting = false } }
         let allowed = await AVAudioApplication.requestRecordPermission()
@@ -54,14 +58,29 @@ import SwiftUI
             recorder.isMeteringEnabled = true
             guard recorder.prepareToRecord(), recorder.record() else { throw AssistantError.recording("No se ha podido abrir el micrófono.") }
             self.recorder = recorder; listening = true
+            VoiceDiagnostics.record("command_ready", ["capture": "recorder"])
             let route = session.currentRoute.inputs.map(\.portName).joined(separator: ", ")
             status = "Escuchando · \(route). Di: tour Starbucks México."
             meter = Task { [weak self] in
+                var lastSound = 0.0
+                var heardSpeech = false
+                var noiseFloor: Float = -45
+                var speechFrames = 0
+                var meterIndex = 0
                 for _ in 0..<150 {
                     try? await Task.sleep(for: .milliseconds(200))
                     guard !Task.isCancelled, let self, self.generation == id, let recorder = self.recorder else { return }
                     recorder.updateMeters(); self.peakDB = max(self.peakDB, recorder.peakPower(forChannel: 0))
                     self.level = min(1, pow(10, Double(recorder.averagePower(forChannel: 0)) / 20) * 12)
+                    let power = recorder.averagePower(forChannel: 0)
+                    if !heardSpeech { noiseFloor = min(noiseFloor, max(-65, power)) }
+                    let aboveNoise = recorder.currentTime > 0.6 && power > max(-65, min(-42, noiseFloor + 6))
+                    speechFrames += aboveNoise ? 1 : 0
+                    meterIndex += 1
+                    if stopAfterSilence && meterIndex % 5 == 0 { VoiceDiagnostics.record("vad", ["power": String(power), "floor": String(noiseFloor), "voicedFrames": String(speechFrames)]) }
+                    if aboveNoise { lastSound = recorder.currentTime }
+                    if speechFrames >= 2 { heardSpeech = true; self.spokenSound = true }
+                    if stopAfterSilence && ((heardSpeech && recorder.currentTime >= 4 && recorder.currentTime - lastSound > 1.8) || (!heardSpeech && recorder.currentTime > 12)) { self.stop(); return }
                 }
                 self?.stop()
             }
@@ -70,6 +89,8 @@ import SwiftUI
     func stop() {
         guard listening, let recorder, let url = audioURL else { return }
         let id = generation; let duration = recorder.currentTime
+        let enoughSpeech = !automatic || spokenSound
+        VoiceDiagnostics.record("capture_finish", ["duration": String(duration), "peakDB": String(peakDB), "speech": String(spokenSound)])
         recorder.updateMeters(); peakDB = max(peakDB, recorder.peakPower(forChannel: 0))
         endCapture(); processing = true
         status = "Transcribiendo la orden…"
@@ -79,7 +100,7 @@ import SwiftUI
                 if generation == id { audioURL = nil; processing = false }
             }
             do {
-                guard duration >= 0.3, peakDB > -70 else {
+                guard duration >= 0.3, peakDB > -70, enoughSpeech else {
                     if generation == id { status = "No he recibido sonido suficiente. No se ha enviado ninguna orden." }; return
                 }
                 let text = try await service.transcribe(url).trimmingCharacters(in: .whitespacesAndNewlines)

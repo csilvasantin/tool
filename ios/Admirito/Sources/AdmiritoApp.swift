@@ -4,6 +4,11 @@ import WebKit
 import UniformTypeIdentifiers
 
 @main struct AdmiritoApp: App {
+    init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--admirito-ui-test") { UIView.setAnimationsEnabled(false) }
+        #endif
+    }
     @StateObject private var assistant = AssistantStore()
     @Environment(\.scenePhase) private var phase
     var body: some Scene {
@@ -18,7 +23,11 @@ struct AdmiritoFace: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let view = WKWebView(); view.isOpaque = false; view.backgroundColor = .clear; view.scrollView.backgroundColor = .clear; view.scrollView.isScrollEnabled = false; view.isUserInteractionEnabled = false
         if let svgURL = Bundle.main.url(forResource: "Admirito", withExtension: "svg"), let svg = try? String(contentsOf: svgURL), let templateURL = Bundle.main.url(forResource: "AdmiritoPet", withExtension: "html"), let template = try? String(contentsOf: templateURL) {
-            view.loadHTMLString(template.replacingOccurrences(of: "{{SVG}}", with: svg).replacingOccurrences(of: "{{MOOD}}", with: mood.rawValue) + "<script>window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive));</script>", baseURL: nil)
+            var html = template
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--admirito-ui-test") { html += "<style>*,*:before,*:after{animation:none!important;transition:none!important}</style>" }
+            #endif
+            view.loadHTMLString(html.replacingOccurrences(of: "{{SVG}}", with: svg).replacingOccurrences(of: "{{MOOD}}", with: mood.rawValue) + "<script>window.setPetPresentation?.(\(gaze.x),\(gaze.y),\(immersive));</script>", baseURL: nil)
         }
         return view
     }
@@ -31,6 +40,10 @@ struct AssistantView: View {
     @StateObject private var suite = SuiteExpertConsole()
     @StateObject private var commandVoice = CommandDictation()
     @StateObject private var pet = PetStandby()
+    @StateObject private var wakeWord = WakeWord()
+    @StateObject private var feedback = WakeFeedback()
+    @StateObject private var invokedAgent = AgentInvocation()
+    @State private var agentVoiceQueue: [String] = []
     @Environment(\.scenePhase) private var scene
     @State private var petMood: PetMood?
     @State private var petRequest = UUID()
@@ -59,7 +72,18 @@ struct AssistantView: View {
                         Picker("Modo de Admirito", selection: $selectedMode) {
                             ForEach(AssistantMode.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
                         }.pickerStyle(.segmented).disabled(assistant.listening || assistant.starting || commandVoice.listening || commandVoice.starting || commandVoice.processing)
-                        if selectedMode == AssistantMode.suite.rawValue { SuiteExpertView(console: suite, dictation: commandVoice).id("suiteCommands") }
+                        if selectedMode == AssistantMode.suite.rawValue { VStack(alignment:.leading, spacing:8) {
+                            if invokedAgent.target != nil || !invokedAgent.status.isEmpty {
+                                Text(invokedAgent.status).font(.caption).accessibilityIdentifier("invokedAgentStatus")
+                                if !invokedAgent.answer.isEmpty { Text(invokedAgent.answer).textSelection(.enabled).accessibilityIdentifier("invokedAgentAnswer") }
+                                HStack {
+                                    Button("Comprobar respuesta") { invokedAgent.resume { text in agentVoiceQueue.append(text) } }.disabled(invokedAgent.busy)
+                                    Button("Dejar de esperar") { invokedAgent.stopWaiting() }.disabled(invokedAgent.busy)
+                                    Button("Volver a Admirito") { invokedAgent.leave() }
+                                }
+                            }
+                        }
+                        SuiteExpertView(console: suite, dictation: commandVoice).id("suiteCommands") }
                         else { listeningControls; RestDiaryView(diary: diary); conversation; notes }
                     }
                     else { pairing }
@@ -72,14 +96,14 @@ struct AssistantView: View {
             .allowsHitTesting(!pet.showing).accessibilityHidden(pet.showing)
             .background(Color(uiColor: .systemGroupedBackground)).tint(green)
                 if pet.showing {
-                    PetStandbyView(pet: pet, dictation: commandVoice, began: beginPetVoice, ended: endPetVoice, close: closePet)
+                    PetStandbyView(pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet)
                 }
             }.tint(green)
             .overlay(alignment: .bottomTrailing) {
                 if assistant.linked && !pet.showing && !assistant.listening && !assistant.starting {
                     Button { pet.message = "Mantén pulsado para hablar"; pet.showing = true; pet.interact() } label: {
                         AdmiritoFace(mood: .awake).frame(width: 76, height: 60).background(.regularMaterial, in: Capsule())
-                    }.accessibilityLabel("Ampliar Admirito").accessibilityValue(suite.tourRunning ? "Tour en curso" : "Sin recorrido activo").accessibilityIdentifier("petWake").padding(12)
+                    }.accessibilityLabel("Ampliar Admirito").accessibilityValue(suite.tourRunning ? "Tour en curso · " + suite.tourProgress : "Sin recorrido activo").accessibilityIdentifier("petWake").padding(12)
                 }
             }
             .navigationTitle("Admirito").navigationBarTitleDisplayMode(.inline)
@@ -92,8 +116,27 @@ struct AssistantView: View {
                 } label: { Image(systemName: "person.crop.circle") } } }
             }
             .onAppear { bindDiary(); applyMode(); suite.observe() }
-            .onDisappear { commandVoice.cancel(); suite.stopObserving() }
+            .onDisappear { feedback.cancel(); wakeWord.pause(); commandVoice.cancel(); suite.stopObserving() }
+            .onChange(of: wakeWord.detections) { _, _ in
+                guard pet.showing, scene == .active, !assistant.listening, !assistant.starting, !commandVoice.processing else { return }
+                pet.awaitingCommand = true; pet.interact(); petRequest = UUID()
+                suite.command = ""; selectedMode = AssistantMode.suite.rawValue
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                pet.message = "¡Aquí estoy! Te escucho."
+                let request = petRequest
+                feedback.reply {
+                    guard request == petRequest, pet.showing, scene == .active else { return }
+                    Task { await commandVoice.start(stopAfterSilence: true) }
+                }
+            }
             .onReceive(idleTimer) { _ in
+                    if scene == .active && !agentVoiceQueue.isEmpty && !feedback.speaking && !commandVoice.listening && !commandVoice.starting && !commandVoice.processing && !pet.holding && !pet.awaitingCommand && !assistant.listening && !assistant.replying {
+                        wakeWord.pause(); let message = agentVoiceQueue.removeFirst(); pet.message = message; feedback.reply(message)
+                    }
+                    if pet.showing && scene == .active && !assistant.listening && !assistant.starting && !assistant.replying && !commandVoice.listening && !commandVoice.starting && !commandVoice.processing && !pet.awaitingCommand && !pet.holding && !feedback.speaking {
+                        Task { await wakeWord.resume() }
+                    } else if wakeWord.listening || wakeWord.starting { wakeWord.pause() }
+
                     let busy = !assistant.linked || scene != .active || assistant.listening || assistant.starting || assistant.replying || commandVoice.listening || commandVoice.starting || commandVoice.processing || pet.awaitingCommand || pet.holding || suite.busy || suite.tourRunning
                     if !pet.showing && StandbyRules.shouldShow(lastInteraction: pet.lastInteraction, now: Date(), busy: busy) {
                         pet.message = "Mantén pulsado para hablar"; pet.showing = true
@@ -107,6 +150,9 @@ struct AssistantView: View {
                     }
                 }
             }
+            .onChange(of: commandVoice.listening) { _, listening in
+                if !listening && !commandVoice.starting && !commandVoice.processing && pet.awaitingCommand && !pet.holding { processPetCommand(proxy: proxy) }
+            }
             .onChange(of: commandVoice.processing) { _, processing in
                 if !processing && pet.awaitingCommand && !pet.holding { processPetCommand(proxy: proxy) }
             }
@@ -118,7 +164,7 @@ struct AssistantView: View {
             }
             .onChange(of: commandVoice.starting) { _, starting in
                 if !starting && !commandVoice.listening && !commandVoice.processing && pet.awaitingCommand {
-                    pet.awaitingCommand = false; pet.message = commandVoice.status
+                    pet.awaitingCommand = false; pet.message = commandVoice.status; wakeWord.pause(); feedback.reply("No he podido iniciar el micrófono. Revisa el permiso y vuelve a intentarlo.")
                 }
             }
             .onChange(of: scene) { _, phase in
@@ -140,6 +186,8 @@ struct AssistantView: View {
     }
     private func beginPetVoice() {
         guard !pet.holding, !commandVoice.processing, !commandVoice.starting, !assistant.listening, !assistant.starting else { return }
+        wakeWord.pause(); feedback.cancel()
+        if commandVoice.listening { pet.awaitingCommand = false; commandVoice.cancel() }
         pet.holding = true; pet.awaitingCommand = true; pet.interact()
         petRequest = UUID()
         suite.command = ""; selectedMode = AssistantMode.suite.rawValue
@@ -154,15 +202,35 @@ struct AssistantView: View {
         if commandVoice.listening { commandVoice.stop() }
     }
     private func closePet() {
+        wakeWord.pause(); feedback.cancel()
         petRequest = UUID()
         pet.holding = false; pet.awaitingCommand = false; commandVoice.cancel(); pet.wake()
     }
     private func processPetCommand(proxy: ScrollViewProxy) {
         pet.awaitingCommand = false; pet.interact()
         let text = commandVoice.transcript
-        guard !text.isEmpty else { pet.message = commandVoice.status; return }
+        guard !text.isEmpty else { pet.message = commandVoice.status; wakeWord.pause(); feedback.reply("No he podido entender la orden. Mantén el dedo sobre mí y vuelve a intentarlo."); return }
+        invokedAgent.bind(assistant.accountID)
+        if AgentInvocationRules.returnsToAdmirito(text) {
+            invokedAgent.leave(); wakeWord.pause(); feedback.reply("Aquí está Admirito otra vez."); return
+        }
+        if let target = AgentInvocationRules.target(text) {
+            wakeWord.pause(); feedback.reply("Voy a contactar con \(AgentInvocationRules.names[target] ?? target).") {
+                invokedAgent.send("Carlos quiere hablar contigo desde Admirito. Preséntate brevemente y espera su siguiente petición.", target:target) { response in agentVoiceQueue.append(response) }
+            }
+            return
+        }
+        if AgentInvocationRules.isInvocation(text) {
+            wakeWord.pause(); feedback.reply("No he reconocido a ese agente. Puedes invocar a Oráculo, Jobs, Wozniak, Disney, Lucas o Musk."); return
+        }
+        if let target = invokedAgent.target, StandbyRules.tourCommand(text) == nil {
+            wakeWord.pause(); feedback.reply("Voy a enviar tu mensaje a \(AgentInvocationRules.names[target] ?? target).") {
+                invokedAgent.send(text, target:target) { response in agentVoiceQueue.append(response) }
+            }
+            return
+        }
         guard let command = StandbyRules.tourCommand(text) else {
-            suite.command = text; pet.wake()
+            suite.command = text; wakeWord.pause(); feedback.reply("No he entendido una orden que pueda ejecutar. La he dejado escrita para que puedas revisarla."); pet.wake()
             Task { try? await Task.sleep(for: .milliseconds(300)); withAnimation { proxy.scrollTo("suiteCommands", anchor: .top) } }
             return
         }
@@ -176,9 +244,17 @@ struct AssistantView: View {
             }
             guard request == petRequest else { return }
             guard scene == .active, pet.showing, suite.ready, !suite.busy else {
-                pet.message = "El modo Experto no está listo. Abre los controles para revisar la conexión."; return
+                pet.message = "El modo Experto no está listo. Abre los controles para revisar la conexión."; feedback.reply("El modo Experto no está listo. No he enviado la orden."); return
             }
-            suite.send(command); pet.wake()
+            wakeWord.pause()
+            feedback.reply("Voy a abrir el tour.") {
+                guard request == petRequest, scene == .active else { return }
+                suite.send(command) { warning in
+                    guard request == petRequest, scene == .active else { return }
+                    if let warning { agentVoiceQueue.append(warning) }
+                }
+                pet.wake()
+            }
             try? await Task.sleep(for: .milliseconds(300))
             withAnimation { proxy.scrollTo("suiteMap", anchor: .top) }
         }
@@ -193,7 +269,7 @@ struct AssistantView: View {
         if diary.enabled, let last = diary.visible.first, last.morningAppOpen == nil, RestRules.isNight(Date()) { return .resting }
         return .awake
     }
-    private func bindDiary() { diary.bind(assistant.accountID); assistant.restDiary = diary; diary.observeMorning() }
+    private func bindDiary() { invokedAgent.bind(assistant.accountID); diary.bind(assistant.accountID); assistant.restDiary = diary; diary.observeMorning() }
     private func play(_ mood: PetMood) {
         petMood = mood
         Task { try? await Task.sleep(for: .seconds(5)); if petMood == mood { petMood = nil } }

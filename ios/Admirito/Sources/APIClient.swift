@@ -109,6 +109,12 @@ private enum CredentialStore {
         struct Reply: Decodable { let answer: String }
         let reply: Reply = try await request("agents/conversations/\(conversation)/messages", method: "POST", object: ["text": text, "agent": "admirito", "lang": "es", "request_id": requestID]); return reply.answer
     }
+    func invoke(_ text: String, target: String, conversation: String, requestID: String) async throws -> AgentInvocationReply {
+        try await request("agents/conversations/\(conversation)/invocations", method:"POST", object:["text":text,"target":target,"request_id":requestID])
+    }
+    func invocation(conversation: String, requestID: String) async throws -> AgentInvocationReply {
+        try await request("agents/conversations/\(conversation)/invocations/\(requestID)")
+    }
     func identifyFilm(_ note: ListeningNote, jpeg: Data) async throws -> FilmIdentification {
         try await request("agents/listening/\(note.id)/identify", method: "POST", data: jpeg, mime: "image/jpeg")
     }

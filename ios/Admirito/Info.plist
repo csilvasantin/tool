@@ -21,9 +21,11 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Admirito fotografía la proyección solo cuando lo solicitas y adjunta la imagen a tu escucha.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Admirito usa el micrófono cuando inicias la escucha para transcribir y resumir tus reuniones o películas.</string>
+	<string>Admirito usa el micrófono cuando inicias una escucha o activas su palabra de control.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Admirito usa el movimiento como pista de tus horarios de acostarte y coger el teléfono, sin medir sueño.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Admirito detecta su nombre en el dispositivo cuando activas la palabra de control.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

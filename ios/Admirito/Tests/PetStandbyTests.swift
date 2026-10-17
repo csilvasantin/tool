@@ -15,6 +15,12 @@ final class PetStandbyTests: XCTestCase {
         XCTAssertEqual(StandbyRules.tourCommand("Start the tour of Altadis"), "/tour altadis")
         XCTAssertEqual(StandbyRules.tourCommand("/tour DooH total"), "/tour dooh total")
     }
+    func testDictationPunctuationDoesNotChangeTheRequestedTour() {
+        XCTAssertEqual(StandbyRules.tourCommand("Lanza el Tour de Starbucks, México."), "/tour starbucks mexico")
+        XCTAssertEqual(StandbyRules.tourCommand("Tour   Alsea, México"), "/tour alsea mexico")
+        XCTAssertNil(StandbyRules.tourCommand("Tour Starbucks, México; borrar todo"))
+        XCTAssertNil(StandbyRules.tourCommand("Toar Starbucks, México"))
+    }
     func testUnclearSpeechAndOtherActionsCannotAutoExecute() {
         for text in ["", "TOR Starbucks México", "borrar todo", "tour starbucks mexico; /borrar todo", "tour starbucks mexico y compra una campaña", "tour cliente desconocido", "tour", "tour starbucks mexico\n/parar"] {
             XCTAssertNil(StandbyRules.tourCommand(text), text)
