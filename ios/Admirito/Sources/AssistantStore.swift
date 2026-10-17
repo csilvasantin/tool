@@ -22,19 +22,21 @@ import UniformTypeIdentifiers
     private var photoRequest = UUID()
     private var chatConversation: String?
     private var pendingQuestion: (text: String, conversation: String, requestID: String)?
-    private let api = APIClient()
+    private let api: any AssistantService
     private let audio = AudioCapture()
     weak var restDiary: RestDiary?
     var accountID: String? { api.accountID }
     private let files: NoteFiles
     private var pairingTask: Task<Void, Never>?
     private var worker: Task<Void, Never>?
+    private var retryRequested = false
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
     var active: ListeningNote? { notes.first { $0.id == activeID } }
     var listening: Bool { active?.state == .listening }
     var visibleNotes: [ListeningNote] { notes.filter { $0.accountID == api.accountID } }
-    init() {
-        do { files = try NoteFiles() } catch { fatalError("No se puede abrir el almacenamiento protegido de Admirito.") }
+    init(service: (any AssistantService)? = nil, noteFiles: NoteFiles? = nil) {
+        api = service ?? APIClient()
+        do { files = try noteFiles ?? NoteFiles() } catch { fatalError("No se puede abrir el almacenamiento protegido de Admirito.") }
         notes = (try? files.load()) ?? []; linked = api.connected
         audio.onInterruption = { [weak self] message in guard self?.listening == true else { return }; self?.pause(); self?.status = message }
     }
@@ -111,11 +113,11 @@ import UniformTypeIdentifiers
         audio.onChunk = { [weak self] chunk in self?.append(chunk, to: id) }
         audio.onSilence = { [weak self] in
             guard let self, self.listening, self.activeID == id else { return }
-            self.finish(id)
+            self.finish(id, silenceEnded: true)
             self.status = "Escucha terminada automáticamente tras cinco minutos de silencio. Preparando el resumen…"
         }
     }
-    private func append(_ chunk: AudioChunk, to id: String) {
+    func append(_ chunk: AudioChunk, to id: String) {
         guard let i = index(id), !notes[i].chunks.contains(where: { $0.seq == chunk.seq }) else { return }
         notes[i].chunks.append(chunk); notes[i].chunks.sort { $0.seq < $1.seq }; persist(id); retry()
         if chunk.seq == 1439 && activeID == id && listening { Task { [weak self] in guard let self, self.listening, self.activeID == id else { return }; self.finish(id); self.status = "Escucha de diez horas completada. Preparando el resumen…" } }
@@ -129,14 +131,14 @@ import UniformTypeIdentifiers
         guard !listening, !starting, let i = index(id), notes[i].state == .paused, notes[i].accountID == api.accountID else { return }; starting = true; activeID = id; speech.stop()
         Task { do { let sequence = max((notes[i].chunks.map(\.seq).max() ?? -1) + 1, notes[i].expectedChunks ?? 0); guard sequence < 1440 else { throw AssistantError.recording("Esta escucha ya está completa. Pulsa Resumir lo grabado.") }; bindChunks(to: id); try await audio.start(directory: files.directory(id), sequence: sequence, offset: Date().timeIntervalSince(notes[i].startedAt)); notes[i].state = .listening; persist(id); if notes[i].kind == .movie { restDiary?.startMotion() }; inputName = audio.routeName; status = "Escuchando de nuevo." } catch { status = error.localizedDescription }; starting = false }
     }
-    func finish(_ id: String) {
+    func finish(_ id: String, silenceEnded: Bool = false) {
         let finishingLive = listening && activeID == id
         guard let i = index(id) else { return }
         if listening && activeID == id {
             do { let (chunk, expected) = try audio.stop(); if let chunk { append(chunk, to: id) }; notes[i].expectedChunks = expected } catch { status = error.localizedDescription; return }
         } else { notes[i].expectedChunks = (notes[i].chunks.map(\.seq).max() ?? -1) + 1 }
         if notes[i].expectedChunks == 0 { restDiary?.stopMotion(); notes[i].state = .paused; persist(id); status = "Todavía no se ha captado audio. Puedes reanudar la escucha."; return }
-        if finishingLive && notes[i].kind == .movie { restDiary?.movieEnded() }
+        if finishingLive && notes[i].kind == .movie { restDiary?.movieEnded(silenceEnded: silenceEnded) }
         notes[i].state = .recorded; persist(id); status = "Escucha terminada. Transcribiendo y preparando el resumen…"; beginBackgroundWork(); retry()
     }
     @discardableResult private func update(_ id: String, _ body: (inout ListeningNote) -> Void) -> Bool {
@@ -144,13 +146,14 @@ import UniformTypeIdentifiers
     }
     private func note(_ id: String) -> ListeningNote? { notes.first { $0.id == id } }
     func retry() {
-        linked = api.connected; guard worker == nil, linked else { return }
+        linked = api.connected; guard linked else { return }
+        if worker != nil { retryRequested = true; return }
         worker = Task {
             isWorking = true; defer { isWorking = false; worker = nil; endBackgroundWork() }
             do {
                 var shouldRepeat = true
                 while shouldRepeat && !Task.isCancelled {
-                    shouldRepeat = false
+                    shouldRepeat = false; retryRequested = false
                     for id in visibleNotes.filter({ $0.state != .complete }).map(\.id) {
                         try Task.checkCancellation()
                         guard let initial = note(id) else { continue }
@@ -176,6 +179,7 @@ import UniformTypeIdentifiers
                             update(id) { $0.summary = summary; $0.state = .complete }; status = "Resumen guardado en la misma conversación de admira.app."
                         } else { shouldRepeat = true; status = "Resumiendo fragmentos \(result.processed ?? 0)/\(result.total ?? 0)…" }
                     }
+                    shouldRepeat = shouldRepeat || retryRequested
                     if shouldRepeat { try await Task.sleep(for: .seconds(3)) }
                 }
             } catch is CancellationError {} catch { linked = api.connected; status = error.localizedDescription }

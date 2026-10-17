@@ -12,6 +12,10 @@ struct RestEntry: Codable, Identifiable {
     var correctedMorning = false
 }
 enum RestRules {
+    static func bedtimeProposal(filmEnd: Date, silenceEnded: Bool) -> Date {
+        // The phone may have been stationary for the entire film. Never backdate to that quiet period.
+        silenceEnded ? filmEnd.addingTimeInterval(-300) : filmEnd
+    }
     static func isNight(_ date: Date, calendar: Calendar = .current) -> Bool { let hour = calendar.component(.hour, from: date); return hour >= 20 || hour < 4 }
     static func isMorning(_ date: Date, after bedtime: Date, calendar: Calendar = .current) -> Bool { let hour = calendar.component(.hour, from: date); return date.timeIntervalSince(bedtime) >= 7200 && date.timeIntervalSince(bedtime) < 20 * 3600 && (4..<15).contains(hour) }
 }
@@ -57,12 +61,14 @@ enum RestRules {
         }
     }
     func stopMotion() { motion.stopAccelerometerUpdates(); stillSince = nil; lastSample = nil }
-    func movieEnded(at date: Date = Date()) {
+    func movieEnded(at date: Date = Date(), silenceEnded: Bool = false) {
         defer { stopMotion() }
         guard enabled, let accountID, RestRules.isNight(date) else { return }
         guard !visible.contains(where: { abs($0.bedtime.timeIntervalSince(date)) < 4 * 3600 && $0.morningAppOpen == nil }) else { return }
         let still = stillSince.flatMap { date.timeIntervalSince($0) >= 120 && date.timeIntervalSince(lastSample ?? .distantPast) < 5 ? $0 : nil }
-        entries.append(RestEntry(accountID: accountID, bedtime: still ?? date, bedtimeSource: still == nil ? "Fin de escucha nocturna; pendiente de confirmar" : "Teléfono quieto al menos dos minutos y fin de escucha nocturna; estimación")); save()
+        let proposed = RestRules.bedtimeProposal(filmEnd: date, silenceEnded: silenceEnded)
+        let source = silenceEnded ? "Inicio del silencio final de cinco minutos; pendiente de confirmar" : "Fin de escucha nocturna; pendiente de confirmar"
+        entries.append(RestEntry(accountID: accountID, bedtime: proposed, bedtimeSource: source + (still == nil ? "" : "; teléfono quieto como pista adicional"))); save()
     }
     func observeMorning(at date: Date = Date()) {
         guard enabled, let accountID, let entry = visible.first, RestRules.isMorning(date, after: entry.bedtime), let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }

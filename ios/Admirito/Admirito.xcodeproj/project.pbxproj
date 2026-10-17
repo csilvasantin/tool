@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		02BE1CCD4610D85BA1185C02 /* ReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */; };
 		415DB1D128C7FCCDE5265A53 /* AdmiritoPet.html in Resources */ = {isa = PBXBuildFile; fileRef = 668CE8917369B0E347B21B2E /* AdmiritoPet.html */; };
 		4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA270DD45862031A659ED735 /* LiveServiceTests.swift */; };
 		4E557514CE8256E1E9C12200 /* Admirito.svg in Resources */ = {isa = PBXBuildFile; fileRef = 58631D8173616FB1FEA37A7E /* Admirito.svg */; };
@@ -48,6 +49,7 @@
 		AFA73716E94E8B18FBC2603D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectionPhoto.swift; sourceTree = "<group>"; };
 		C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutput.swift; sourceTree = "<group>"; };
+		C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliabilityTests.swift; sourceTree = "<group>"; };
 		CA270DD45862031A659ED735 /* LiveServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServiceTests.swift; sourceTree = "<group>"; };
 		D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -111,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				CA270DD45862031A659ED735 /* LiveServiceTests.swift */,
+				C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */,
 				D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */,
 			);
 			path = Tests;
@@ -235,6 +238,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */,
+				02BE1CCD4610D85BA1185C02 /* ReliabilityTests.swift in Sources */,
 				62E300871BC43BCFFA5211E5 /* SessionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -285,7 +289,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -422,7 +426,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

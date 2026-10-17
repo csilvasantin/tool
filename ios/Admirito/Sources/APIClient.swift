@@ -27,7 +27,21 @@ private enum CredentialStore {
     }
     static func clear() { SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "device"] as CFDictionary) }
 }
-@MainActor final class APIClient {
+@MainActor protocol AssistantService: AnyObject {
+    var accountID: String? { get }
+    var connected: Bool { get }
+    func disconnect()
+    func beginPairing() async throws -> PairingChallenge
+    func poll(_ challenge: PairingChallenge) async throws -> Bool
+    func conversation() async throws -> String
+    func register(_ note: ListeningNote) async throws
+    func transcribe(_ file: URL) async throws -> String
+    func upload(_ chunk: AudioChunk, noteID: String) async throws
+    func ask(_ text: String, conversation: String, requestID: String) async throws -> String
+    func summarize(_ note: ListeningNote) async throws -> SummaryReply
+    func identifyFilm(_ note: ListeningNote, jpeg: Data) async throws -> FilmIdentification
+}
+@MainActor final class APIClient: AssistantService {
     private let base = URL(string: "https://api.admira.app")!
     private let session = URLSession(configuration: .ephemeral)
     private(set) var accountID: String?

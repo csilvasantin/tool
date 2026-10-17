@@ -63,3 +63,11 @@ Al abrir Admirito entre las 04:00 y las 15:00, tras al menos dos horas y menos d
 La nube reutiliza el SVG compartido y las animaciones da-parpadeo y da-bote de admira-next-web/assets/avatar.js. Añade descanso (ojos cerrados y zetas) y arcoíris, con botones y reposo automático al terminar una escucha nocturna con diario activo. Respeta reducir movimiento. El estado de la mascota no afirma que el usuario duerma.
 
 Build 5 adds an opt-in, local rest schedule with editable estimates, not sleep measurement. Night film completion and optional accelerometer stillness provide bedtime clues. The first morning app opening and historical walking/running are separately labelled observations, never global phone pickup or wake-up measurements. Missing motion data stays missing. Native companion reuses the web SVG/blink/bounce and adds resting and rainbow states with reduced-motion support. Overnight behavior still requires a real overnight trial.
+
+### Fiabilidad · 17 octubre / Reliability · October 17
+
+Compilación 6: la cola conserva la petición de trabajo cuando llega el último fragmento durante un envío. La prueba nativa suspende una subida, entrega el fragmento final durante esa espera y comprueba que ambos se guardan y el resumen se completa sin reintento manual.
+
+Corrección del diario: la quietud desde el comienzo de una película ya no adelanta la hora de acostarse. La propuesta es el fin de la escucha manual o el comienzo del silencio final de cinco minutos cuando la parada fue automática; la quietud es solo una pista adicional. Sigue siendo una estimación corregible y no mide sueño. Esto sustituye la regla inicial de la compilación 5 descrita arriba.
+
+Build 6 drains chunks arriving while an upload is suspended, including the final chunk required for the summary. Bedtime is no longer backdated to the start of a potentially hours-long stationary period: use the end of manual listening, or the start of the final five-minute silence for automatic stops. Real overnight and five-minute silence behavior still require physical validation.
