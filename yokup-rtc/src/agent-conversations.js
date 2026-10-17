@@ -102,7 +102,7 @@ export async function handleAgentTranscribe(req, env, {requireAuth}) {
   if(!bytes.length||bytes.length>3000000)return reply({error:'too_large'},413);
   let raw='';for(let offset=0;offset<bytes.length;offset+=8192)raw+=String.fromCharCode(...bytes.subarray(offset,offset+8192));
   try {
-    const result=await env.AI.run('@cf/openai/whisper-large-v3-turbo',{audio:btoa(raw),...(req.headers.get('x-admirito-language')==='es'?{language:'es',initial_prompt:'Nombres propios: Admirito, Alsea, MacMini, Mac Mini, Firefox, Oráculo, Pixeria, XpaceOS.',vad_filter:true,condition_on_previous_text:false,hallucination_silence_threshold:1}:{})});
+    const result=await env.AI.run('@cf/openai/whisper-large-v3-turbo',{audio:btoa(raw),...(req.headers.get('x-admirito-language')==='es'?{language:'es',initial_prompt:'Nombres propios: Admirito, Bugito, Supervisor, Alsea, MacMini, Mac Mini, Firefox, Oráculo, Pixeria, XpaceOS.',vad_filter:true,condition_on_previous_text:false,hallucination_silence_threshold:1}:{})});
     const text=String(result.text||'').trim().slice(0,2000);
     return text?reply({text}):reply({error:'no_speech'},422);
   }catch{return reply({error:'transcription_unavailable'},503);}

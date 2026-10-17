@@ -81,17 +81,24 @@ struct PetStandbyView: View {
     let began: () -> Void
     let ended: () -> Void
     let close: () -> Void
+    let selectMascot: (String) -> Void
     @StateObject private var macGaze = MacGaze()
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
-                RadialGradient(colors: [Color.green.opacity(scheme == .dark ? 0.17 : 0.10), .clear], center: .center, startRadius: 0, endRadius: max(geometry.size.width, geometry.size.height) * 0.6).ignoresSafeArea()
+                RadialGradient(colors: [characterColor.opacity(scheme == .dark ? 0.17 : 0.10), .clear], center: .center, startRadius: 0, endRadius: max(geometry.size.width, geometry.size.height) * 0.6).ignoresSafeArea()
                 let landscape = geometry.size.width > geometry.size.height
                 VStack(spacing: landscape ? 6 : 12) {
                     HStack {
-                        Text(character).font(.headline).foregroundStyle(.secondary)
+                        Button("Supervisor") { selectMascot("supervisor") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectSupervisor")
+                        Spacer(minLength:4)
+                        Text(character).font(.headline).lineLimit(1).minimumScaleFactor(0.8).accessibilityIdentifier("petCharacter")
+                        Spacer(minLength:4)
+                        Button("Bugito") { selectMascot("bugito") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectBugito")
+                    }
+                    HStack {
                         Spacer()
                         Button { macGaze.toggle() } label: { Image(systemName: "cursorarrow.motionlines") }.accessibilityLabel("Seguir ratón del Mac").accessibilityIdentifier("petMacGaze").accessibilityValue(macGaze.status)
                         Button { Task { await wakeWord.toggle() } } label: {
@@ -133,9 +140,11 @@ struct PetStandbyView: View {
 
             }
         }
+        .tint(characterColor)
         .onAppear { macGaze.resume() }
         .onDisappear { macGaze.stop() }
     }
+    private var characterColor: Color { character == "Bugito" ? .red : character == "Supervisor" ? .blue : .green }
     private var status: some View {
         VStack(spacing: 12) {
             Text(dictation.listening ? (dictation.handsFree ? "Te escucho. Di tu orden; terminaré cuando hagas una pausa." : "Te escucho. Suelta para continuar.") : dictation.starting ? "Preparando el micrófono…" : dictation.processing ? "Entendiendo tu orden…" : wakeWord.listening ? "Di «Admirito» para llamarme" : pet.message)

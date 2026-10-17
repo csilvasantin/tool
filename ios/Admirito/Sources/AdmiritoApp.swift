@@ -129,7 +129,11 @@ struct AssistantView: View {
             .allowsHitTesting(!pet.showing).accessibilityHidden(pet.showing)
             .background(Color(uiColor: .systemGroupedBackground)).tint(green)
                 if pet.showing {
-                    PetStandbyView(character: AgentInvocationRules.mascot(invokedAgent.target), pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet)
+                    PetStandbyView(character: AgentInvocationRules.mascot(invokedAgent.target), pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet, selectMascot: { target in
+                        invokedAgent.bind(assistant.accountID); invokedAgent.selectMascot(target)
+                        pet.message = "Has cambiado a " + (AgentInvocationRules.names[target] ?? target)
+                        wakeWord.pause(); feedback.reply(pet.message)
+                    })
                 }
             }.tint(green)
             .overlay(alignment: .bottomTrailing) {

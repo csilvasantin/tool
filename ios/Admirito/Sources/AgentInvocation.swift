@@ -22,7 +22,8 @@ enum AgentInvocationRules {
         var words = normalized(text)
         if words.hasPrefix("admirito ") { words.removeFirst(9) }
         for prefix in ["invoca a ", "invoca al consejero ", "invoca al agente ", "invoca "] where words.hasPrefix(prefix) {
-            let name = String(words.dropFirst(prefix.count))
+            let literal = String(words.dropFirst(prefix.count))
+            let name = literal == "bujito" ? "bugito" : literal
             return names[name] == nil ? nil : name
         }
         return nil
@@ -54,6 +55,13 @@ enum AgentInvocationRules {
         }
         if let key, let data = UserDefaults.standard.data(forKey:key), let value = try? JSONDecoder().decode(Pending.self, from:data) { pending = value; status = "Hay una petición al agente pendiente de comprobar." }
     }
+    func selectMascot(_ selected: String) {
+        guard account != nil, ["bugito","supervisor"].contains(selected) else { return }
+        target = selected
+        if let key { UserDefaults.standard.set(selected,forKey:key + ".target") }
+        status = "Canal de \(SelfName(selected)) seleccionado."
+    }
+    private func SelfName(_ value: String) -> String { AgentInvocationRules.names[value] ?? value }
     func leave() { if let key { UserDefaults.standard.removeObject(forKey:key + ".target") }; task?.cancel(); task = nil; busy = false; target = nil; status = "Has vuelto a Admirito. Las peticiones ya enviadas continúan en la flota." }
     func stopWaiting() {
         task?.cancel(); task = nil; busy = false; pending = nil; save()
