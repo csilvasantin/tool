@@ -1,0 +1,55 @@
+{
+  "pause_ack": {
+    "screen": "macbookpro16",
+    "cmd": "pause",
+    "status": "executed",
+    "appliedAt": 1792264407
+  },
+  "play_ack": {
+    "screen": "macbookpro16",
+    "cmd": "play",
+    "status": "executed",
+    "appliedAt": 1792264670
+  },
+  "pause_first": {
+    "last_seen": 1792264405780,
+    "item_id": "default:1792090360723-wqjjoc",
+    "title": "Starbucks · Diagonal 634 · D634-01 · Abre tu próximo horizonte.",
+    "started_at": 1792264405556,
+    "audio": {
+      "muted": true,
+      "volume": 100,
+      "level": 0,
+      "analyzed": false
+    }
+  },
+  "pause_later": {
+    "last_seen": 1792264429892,
+    "item_id": "default:1792089919054-auo5am",
+    "title": "Starbucks · Gran de Gràcia · GGR-01 · Buenos días, Gràcia.",
+    "started_at": 1792264429668,
+    "audio": {
+      "muted": true,
+      "volume": 100,
+      "level": 0,
+      "analyzed": false
+    }
+  },
+  "after_play": {
+    "last_seen": 1792264699888,
+    "item_id": "default:1792090794030-3teu9g",
+    "title": "Starbucks · Paseo de Gracia 103 · PG103-02 · El paseo también se saborea.",
+    "started_at": 1792264699841,
+    "audio": {
+      "muted": true,
+      "volume": 100,
+      "level": 0,
+      "analyzed": false
+    }
+  },
+  "playlist": {
+    "name": "Starbucks 180 · MacBookPro16",
+    "items": 20,
+    "revision": 1792161307082
+  }
+}

@@ -131,7 +131,7 @@ struct AssistantView: View {
                 if pet.showing {
                     PetStandbyView(character: AgentInvocationRules.mascot(invokedAgent.target), pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet, selectMascot: { target in
                         invokedAgent.bind(assistant.accountID); invokedAgent.selectMascot(target)
-                        pet.message = "Has cambiado a " + (AgentInvocationRules.names[target] ?? target)
+                        pet.message = "Mantén pulsado para hablar"
                         wakeWord.pause(); feedback.reply(pet.message)
                     })
                 }

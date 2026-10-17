@@ -90,16 +90,30 @@ struct PetStandbyView: View {
                 Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
                 RadialGradient(colors: [characterColor.opacity(scheme == .dark ? 0.17 : 0.10), .clear], center: .center, startRadius: 0, endRadius: max(geometry.size.width, geometry.size.height) * 0.6).ignoresSafeArea()
                 let landscape = geometry.size.width > geometry.size.height
-                VStack(spacing: landscape ? 6 : 12) {
+                ZStack {
+                    ZStack {
+                        AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: macGaze.point ?? pet.gaze, immersive: true, character: character)
+                            .id(landscape)
+                            .accessibilityHidden(true)
+                        HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            pet.gaze = CGPoint(x: max(-1, min(1, location.x / max(1, geometry.size.width) * 2 - 1)), y: max(-1, min(1, location.y / max(1, geometry.size.height) * 2 - 1)))
+                        case .ended: pet.gaze = .zero
+                        }
+                    }
+                VStack(spacing: 6) {
                     HStack {
-                        Button("Supervisor") { selectMascot("supervisor") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectSupervisor")
+                        mascotButton("Supervisor", id: "supervisor")
                         Spacer(minLength:4)
-                        Button("Admirito") { selectMascot("admirito") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectAdmirito")
+                        mascotButton("Admirito", id: "admirito")
                         Spacer(minLength:4)
-                        Button("Bugito") { selectMascot("bugito") }.buttonStyle(.bordered).accessibilityIdentifier("petSelectBugito")
+                        mascotButton("Bugito", id: "bugito")
                     }
                     HStack {
-                        Text(character).font(.headline).accessibilityIdentifier("petCharacter")
                         Spacer()
                         Button { rotateStage() } label: { Image(systemName:"rotate.right") }.accessibilityLabel("Girar la mascota").accessibilityIdentifier("petRotate")
                         Button { macGaze.toggle() } label: { Image(systemName: "cursorarrow.motionlines") }.accessibilityLabel("Seguir ratón del Mac").accessibilityIdentifier("petMacGaze").accessibilityValue(macGaze.status)
@@ -119,33 +133,35 @@ struct PetStandbyView: View {
                         Button(action: close) { Image(systemName: "xmark.circle.fill").font(.title2) }
                             .accessibilityLabel("Volver a los controles").accessibilityIdentifier("petClose")
                     }
-                    ZStack {
-                        AdmiritoFace(mood: (dictation.listening || feedback.speaking) ? .laugh : .awake, gaze: macGaze.point ?? pet.gaze, immersive: landscape, character: character)
-                            .id(landscape)
-                            .accessibilityHidden(true)
-                        HoldToTalkSurface(active: dictation.listening, monitoring: wakeWord.listening, began: began, ended: ended, moved: { pet.gaze = $0 })
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .layoutPriority(-1)
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            pet.gaze = CGPoint(x: max(-1, min(1, location.x / max(1, geometry.size.width) * 2 - 1)), y: max(-1, min(1, location.y / max(1, geometry.size.height) * 2 - 1)))
-                        case .ended: pet.gaze = .zero
-                        }
-                    }
+                    Spacer(minLength: 0)
                     status.padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                     if !landscape { privacy }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                }
 
             }
         }
         .tint(characterColor)
         .onAppear { macGaze.resume() }
         .onDisappear { macGaze.stop() }
+    }
+    private func mascotButton(_ name: String, id: String) -> some View {
+        let selected = character == name
+        let color: Color = id == "bugito" ? .red : id == "supervisor" ? .blue : .green
+        return Button { selectMascot(id) } label: {
+            Text(name).font(.subheadline.weight(selected ? .bold : .medium))
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .background(selected ? color : Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+                .overlay(Capsule().strokeBorder(color.opacity(selected ? 1 : 0.25), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("petSelect" + name)
+        .accessibilityValue(selected ? "Seleccionado" : "No seleccionado")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
     private func rotateStage() {
         guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive }) else { return }
