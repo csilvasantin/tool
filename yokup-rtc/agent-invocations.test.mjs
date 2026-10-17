@@ -25,7 +25,7 @@ test('Spanish command language hint is explicit and never imposed on listening a
  const {handleAgentTranscribe}=await import('./src/agent-conversations.js');const inputs=[];
  const env={AI:{run:async(_,input)=>{inputs.push(input);return {text:'Invoca a Oráculo'};}}};
  for(const hint of [null,'es','invalid']){const headers={'content-type':'audio/wav'};if(hint)headers['x-admirito-language']=hint;const req=new Request('https://api.admira.biz/agents/transcribe',{method:'POST',headers,body:new Uint8Array([1,2])});await handleAgentTranscribe(req,env,{requireAuth:async()=>({email:'a'})});}
- assert.equal(inputs[0].language,undefined);assert.equal(inputs[1].language,'es');assert.equal(inputs[2].language,undefined);
+ assert.equal(inputs[0].language,undefined);assert.equal(inputs[1].language,'es');assert.equal(inputs[2].language,undefined);assert.equal(inputs[0].initial_prompt,undefined);assert.match(inputs[1].initial_prompt,/Alsea.*MacMini/);assert.equal(inputs[1].vad_filter,true);assert.equal(inputs[1].condition_on_previous_text,false);
 });
 
 test('remote demo uses canonical Alsea URL and routes only to the catalog destination/browser',async()=>{

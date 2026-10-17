@@ -73,6 +73,13 @@ struct AssistantView: View {
                             ForEach(AssistantMode.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
                         }.pickerStyle(.segmented).disabled(assistant.listening || assistant.starting || commandVoice.listening || commandVoice.starting || commandVoice.processing)
                         if selectedMode == AssistantMode.suite.rawValue { VStack(alignment:.leading, spacing:8) {
+                            Menu("Demo en otro ordenador") {
+                                ForEach((RemoteDemoRules.catalog?.demos.keys.sorted() ?? []),id:\.self) { id in
+                                    Button("\(RemoteDemoRules.catalog?.demos[id]?.name ?? id) en Firefox de MacMini") {
+                                        launchRemoteDemo(RemoteDemoRequest(id:id,destination:"macmini"))
+                                    }.accessibilityIdentifier("remoteDemo_\(id)_macmini")
+                                }
+                            }.disabled(invokedAgent.busy).accessibilityIdentifier("remoteDemoMenu")
                             Menu("Invocar un agente") {
                                 ForEach(AgentInvocationRules.names.keys.sorted(), id:\.self) { target in
                                     Button(AgentInvocationRules.names[target] ?? target) {
@@ -216,19 +223,21 @@ struct AssistantView: View {
         petRequest = UUID()
         pet.holding = false; pet.awaitingCommand = false; commandVoice.cancel(); pet.wake()
     }
+    private func launchRemoteDemo(_ demo: RemoteDemoRequest) {
+        invokedAgent.bind(assistant.accountID)
+        wakeWord.pause(); pet.message = "Preparando \(RemoteDemoRules.label(demo))…"
+        feedback.reply("Voy a abrir la \(RemoteDemoRules.label(demo)).") {
+            invokedAgent.send(RemoteDemoRules.label(demo),target:"oraculo",demo:demo) { response in agentVoiceQueue.append(response) }
+        }
+    }
     private func processPetCommand(proxy: ScrollViewProxy) {
         pet.awaitingCommand = false; pet.interact()
         let text = commandVoice.transcript
         guard !text.isEmpty else { pet.message = commandVoice.status; wakeWord.pause(); feedback.reply("No he podido entender la orden. Mantén el dedo sobre mí y vuelve a intentarlo."); return }
         invokedAgent.bind(assistant.accountID)
-        if let demo = RemoteDemoRules.request(text) {
-            wakeWord.pause(); pet.message = "Preparando \(RemoteDemoRules.label(demo))…"
-            feedback.reply("Voy a abrir la \(RemoteDemoRules.label(demo)).") {
-                invokedAgent.send(RemoteDemoRules.label(demo),target:"oraculo",demo:demo) { response in agentVoiceQueue.append(response) }
-            }
-            return
-        }
+        if let demo = RemoteDemoRules.request(text) { launchRemoteDemo(demo); return }
         if RemoteDemoRules.isRemoteDemo(text) {
+            pet.message = "He oído: «\(text)». No he reconocido la demo o el ordenador."
             wakeWord.pause(); feedback.reply("No he reconocido esa demo o ese ordenador. Puedes decir: demo Alsea en MacMini."); return
         }
         if AgentInvocationRules.returnsToAdmirito(text) {
