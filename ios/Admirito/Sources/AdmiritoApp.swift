@@ -215,7 +215,13 @@ struct AssistantView: View {
             .onChange(of: assistant.linked) { _, _ in bindDiary() }
             .onChange(of: scene) { _, phase in if phase == .active { bindDiary() } }
             .onChange(of: diary.enabled) { _, enabled in if enabled && assistant.listening { diary.startMotion() } }
-            .sheet(isPresented: $showingPlayerLab) { PlayerLabPanel(lab:playerLab) { action in runLab(action) } }
+            .sheet(isPresented: $showingPlayerLab) { PlayerLabPanel(lab:playerLab,execute:runLab,reportPhoto:{image in
+                wakeWord.pause();playerLab.reportPhoto(image){response in pet.message=response;agentVoiceQueue.append(response)}
+            },verify:{
+                guard let id=playerLab.incidentID else {return}
+                invokedAgent.bind(assistant.accountID)
+                invokedAgent.send("Verifica la recuperación de la incidencia \(id) del Fold de laboratorio con la Insta360 existente macmini-insta360. Documenta dos capturas ópticas distintas y recientes, comprueba dos lecturas saludables del player y solo entonces cierra mediante /agents/player-incidents/\(id)/recovery. No cierres por telemetría sola. Si no ves el Fold o falta evidencia, deja abierta y explica el motivo.",target:"supervisor"){response in agentVoiceQueue.append(response)}
+            }) }
             .sheet(isPresented: $takingPhoto) { ProjectionPhoto { assistant.attachProjection($0) } }
             .sheet(isPresented: $sharing) { if let image = sharingPhoto { PhotoSummaryShare(image: image, text: sharingText) } }
             .alert("Cámara", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) { Button("Aceptar") { photoError = nil } } message: { Text(photoError ?? "") }

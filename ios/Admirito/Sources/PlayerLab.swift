@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AVFoundation
 
 /// A dedicated laboratory player; never accepts an arbitrary screen or circuit.
 enum PlayerLabAction: String, CaseIterable {
@@ -57,6 +58,47 @@ struct PlayerLabSnapshot {
     static let screen = "virtual-lab-admirito-fold"
     @Published private(set) var busy = false
     @Published private(set) var report = "Destino: Samsung Fold · laboratorio. Inicia Player en Admirito Android."
+    @Published private(set) var incidentURL: URL?
+    @Published private(set) var incidentID: String?
+    @Published private(set) var pendingIncident = false
+    private struct Pending: Codable { let owner: String; let id: String; let jpeg: Data }
+    private var pendingFile: URL { FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("player-lab-photo.json") }
+    init() {
+        pendingIncident = FileManager.default.fileExists(atPath:pendingFile.path)
+        if let owner=APIClient().accountID,let id=UserDefaults.standard.string(forKey:"playerLab.incident."+owner),id.hasPrefix("INC-") {
+            incidentID=id;incidentURL=URL(string:"https://www.admira.app/ticket?id="+id)
+        }
+    }
+    func reportPhoto(_ image: UIImage?, speak:@escaping(String)->Void) {
+        guard !busy else {return}
+        let api=APIClient()
+        guard let owner=api.accountID else {speak("Vincula primero tu cuenta.");return}
+        do {
+            if let image {
+                guard !pendingIncident else {speak("Reintenta primero la foto pendiente.");return}
+                let scale=min(1,1600/max(image.size.width,image.size.height)),size=CGSize(width:image.size.width*scale,height:image.size.height*scale)
+                let normalized=UIGraphicsImageRenderer(size:size).image{_ in image.draw(in:CGRect(origin:.zero,size:size))}
+                guard let jpeg=normalized.jpegData(compressionQuality:0.8) else {return}
+                try FileManager.default.createDirectory(at:pendingFile.deletingLastPathComponent(),withIntermediateDirectories:true)
+                try JSONEncoder().encode(Pending(owner:owner,id:UUID().uuidString,jpeg:jpeg)).write(to:pendingFile,options:[.atomic,.completeFileProtection])
+                pendingIncident=true
+            }
+            let pending=try JSONDecoder().decode(Pending.self,from:Data(contentsOf:pendingFile))
+            guard pending.owner==owner else {speak("La foto pendiente pertenece a otra cuenta. Vuelve a vincular esa cuenta para enviarla.");return}
+            busy=true;report="Bugito está enviando la foto y abriendo la incidencia…";speak(report)
+            Task { defer {busy=false}
+                do {
+                    let reply=try await api.reportPlayerIncident(jpeg:pending.jpeg,requestID:pending.id)
+                    guard reply.ok,let url=URL(string:reply.url),url.host=="www.admira.app" else {throw URLError(.badServerResponse)}
+                    incidentID=reply.id;incidentURL=url
+                    UserDefaults.standard.set(reply.id,forKey:"playerLab.incident."+owner)
+                    try? FileManager.default.removeItem(at:pendingFile);pendingIncident=false
+                    report="Incidencia \(reply.id) abierta con foto del iPhone. Falta que Supervisor compruebe la recuperación con la Insta360."
+                }catch {report="No he podido confirmar el alta. La foto sigue guardada; puedes reintentar sin duplicar la petición."}
+                speak(report)
+            }
+        }catch {report="No he podido preparar la foto. No he abierto ninguna incidencia.";speak(report)}
+    }
     private let session = URLSession(configuration:.ephemeral)
     private func request(_ path: String, body: [String:Any]? = nil) async throws -> [String:Any] {
         let base="https://api.admira.store/"
@@ -116,16 +158,29 @@ struct PlayerLabSnapshot {
 struct PlayerLabPanel: View {
     @ObservedObject var lab: PlayerLab
     let execute:(PlayerLabAction)->Void
+    let reportPhoto:(UIImage?)->Void
+    let verify:()->Void
+    @State private var camera=false
+    @State private var cameraError=false
     @Environment(\.dismiss) private var dismiss
     var body:some View {
         NavigationStack { VStack(spacing:10) {
             Text(lab.report).font(.caption).lineLimit(5).frame(maxWidth:.infinity,alignment:.leading).accessibilityIdentifier("playerLabStatus")
+            HStack {
+                Button(lab.pendingIncident ? "Reintentar foto pendiente" : "Foto y abrir incidencia") {
+                    if lab.pendingIncident {reportPhoto(nil);return}
+                    Task {let allowed=await AVCaptureDevice.requestAccess(for:.video);if allowed && UIImagePickerController.isSourceTypeAvailable(.camera) {camera=true}else {cameraError=true}}
+                }.disabled(lab.busy).accessibilityIdentifier("lab_incidentPhoto")
+                if let url=lab.incidentURL {Link("Ver incidencia",destination:url);Button("Verificar con Insta360",action:verify).accessibilityIdentifier("lab_verifyIncident")}
+            }.font(.caption)
             ScrollView { LazyVGrid(columns:Array(repeating:GridItem(.flexible()),count:3),spacing:10) {
                 ForEach(PlayerLabAction.allCases,id:\.rawValue) { action in
                     Button(action.label){execute(action)}.buttonStyle(.bordered).disabled(lab.busy).accessibilityIdentifier("lab_"+action.rawValue)
                 }
             } }
             Text("Destino exclusivo: Fold de laboratorio · lectura del player, no prueba de cámara.").font(.caption2).foregroundStyle(.secondary)
-        }.padding().navigationTitle("Player del Fold").navigationBarTitleDisplayMode(.inline).toolbar{Button("Cerrar"){dismiss()}}}
+        }.sheet(isPresented:$camera){ProjectionPhoto{image in reportPhoto(image)}}
+        .alert("Cámara no disponible",isPresented:$cameraError){Button("Aceptar",role:.cancel){}} message:{Text("Activa la cámara para adjuntar una foto real desde el iPhone.")}
+        .padding().navigationTitle("Player del Fold").navigationBarTitleDisplayMode(.inline).toolbar{Button("Cerrar"){dismiss()}}}
     }
 }

@@ -59,6 +59,10 @@ private enum CredentialStore {
             if let cookie { session.configuration.httpCookieStorage?.setCookie(cookie); accountID = credential.accountID }
         }
     }
+    struct LabIncidentReply: Decodable { let ok: Bool; let id: String; let url: String }
+    func reportPlayerIncident(jpeg: Data, requestID: String) async throws -> LabIncidentReply {
+        try await request("agents/player-incidents",method:"POST",data:jpeg,mime:"image/jpeg",headers:["X-Request-ID":requestID])
+    }
     func disconnect() { accountID = nil; CredentialStore.clear(); session.configuration.httpCookieStorage?.removeCookies(since: .distantPast) }
     private func request<T: Decodable>(_ path: String, method: String = "GET", object: [String: Any]? = nil, data: Data? = nil, mime: String = "application/json", headers: [String:String] = [:]) async throws -> T {
         var request = URLRequest(url: base.appendingPathComponent(path)); request.httpMethod = method; request.timeoutInterval = 110
