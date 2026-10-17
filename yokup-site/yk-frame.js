@@ -264,7 +264,6 @@
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
     ["SUPERVISOR",  "/supervisor"],
-    ["ADMIRITO",    "/admirito"],
     ["CONVERSAR",   "/conversar"],
     ["INFORMES",    "/informes"],
     // FLT-1020: un diálogo del sistema en cualquier equipo lo deja PARADO. Va en la
