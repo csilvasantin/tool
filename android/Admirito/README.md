@@ -30,3 +30,11 @@ La app conserva orientación mediante `configChanges`; la interfaz usa el viewpo
 Configuration changes preserve the running UI; layout uses actual viewport dimensions. Force-stop ends recording; the current open segment may be lost. Closed audio is retained until the final summary is saved.
 
 Android microphone background rules: https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
+
+## 0.1.1 · Player del Fold / Fold player
+
+En Cuenta y escuchas → Player en este Fold se abre el canal real de Admira TV a pantalla completa, sin permisos de micrófono ni cuenta de conversación para esta pantalla de pruebas. Cerrar × vuelve a la mascota. Conserva pantalla encendida y se adapta al viewport. No se inicia al arrancar el teléfono.
+
+El player de laboratorio utiliza `virtual-lab-admirito-fold`, su propio productor y cola; la reproducción comunica su pieza y geometría reales. Lee una copia de la playlist pública Starbucks del laboratorio (`macbookpro16`) sin escribirla ni tocar su emisión. La fuente es una playlist de referencia, no una asignación de inventario de restaurantes. El iPhone build 23 controla esta única ranura de laboratorio. Es un banco de pruebas compartido con control público de laboratorio, no un mecanismo de autorización para pantallas de clientes ni un identificador único provisionado para cada instalación.
+
+Account and listening → Player on this Fold opens the real Admira TV channel with an independent producer and laboratory control queue. It reads the reference Starbucks laboratory playlist without changing the MacBook player. The phone reports its own playback, not the source device's telemetry. This fixed public laboratory slot is not customer-device authorization or unique per-install provisioning. Closing the player returns to the mascot; it does not start at phone boot.

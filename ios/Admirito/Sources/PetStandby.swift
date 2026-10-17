@@ -81,6 +81,7 @@ struct PetStandbyView: View {
     let began: () -> Void
     let ended: () -> Void
     let close: () -> Void
+    let labControls: () -> Void
     let selectMascot: (String) -> Void
     @StateObject private var macGaze = MacGaze()
     @Environment(\.colorScheme) private var scheme
@@ -115,6 +116,7 @@ struct PetStandbyView: View {
                     }
                     HStack {
                         Spacer()
+                        Button(action:labControls) { Image(systemName:"display") }.accessibilityLabel("Player del Fold").accessibilityIdentifier("petPlayerLab")
                         Button { rotateStage() } label: { Image(systemName:"rotate.right") }.accessibilityLabel("Girar la mascota").accessibilityIdentifier("petRotate")
                         Button { macGaze.toggle() } label: { Image(systemName: "cursorarrow.motionlines") }.accessibilityLabel("Seguir ratón del Mac").accessibilityIdentifier("petMacGaze").accessibilityValue(macGaze.status)
                         Button { Task { await wakeWord.toggle() } } label: {

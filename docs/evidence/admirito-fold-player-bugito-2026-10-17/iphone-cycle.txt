@@ -1,0 +1,13 @@
+FOLD_LAB_DETECTED popup Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: emisión tapada en un 25 por ciento. Pieza: Volvemos a empezar. · ES · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LAB_RECOVERED popup
+FOLD_LAB_DETECTED rotate Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: contenido girado 90 grados. Pieza: Your next pause starts here. · EN · individual. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LAB_RECOVERED rotate
+FOLD_LAB_DETECTED canvas Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: proporción del lienzo distinta a la pantalla. Pieza: Pasea. Saborea. Inspírate. · Paseo de Gracia 103 · IA. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LAB_RECOVERED canvas
+FOLD_LAB_DETECTED half Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: contenido limitado al 50 por ciento del lienzo. Pieza: Starbucks · Diagonal 634 · D634-01 · Abre tu próximo horizonte.. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LAB_RECOVERED half
+FOLD_LAB_DETECTED title Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: barra superior de 36 píxeles. Pieza: Volvemos a empezar. · ES · mural. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LAB_RECOVERED title
+FOLD_LAB_DETECTED pause Supervisor · datos comunicados por el player del Fold en dos muestras recientes. Detecto: reproducción pausada. Pieza: Tu próxima pausa empieza aquí. · ES · individual. Esto no confirma por sí solo la imagen de la cámara ni el audio.
+FOLD_LAB_RECOVERED pause
+** TEST SUCCEEDED **

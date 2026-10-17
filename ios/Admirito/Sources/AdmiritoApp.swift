@@ -54,6 +54,8 @@ struct AssistantView: View {
     @StateObject private var wakeWord = WakeWord()
     @StateObject private var feedback = WakeFeedback()
     @StateObject private var invokedAgent = AgentInvocation()
+    @StateObject private var playerLab = PlayerLab()
+    @State private var showingPlayerLab = false
     @State private var agentVoiceQueue: [String] = []
     @Environment(\.scenePhase) private var scene
     @State private var petMood: PetMood?
@@ -84,6 +86,7 @@ struct AssistantView: View {
                             ForEach(AssistantMode.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
                         }.pickerStyle(.segmented).disabled(assistant.listening || assistant.starting || commandVoice.listening || commandVoice.starting || commandVoice.processing)
                         if selectedMode == AssistantMode.suite.rawValue { VStack(alignment:.leading, spacing:8) {
+                            Button("Player del Fold · Bugito y Supervisor") { showingPlayerLab = true }.accessibilityIdentifier("playerLabOpen")
                             Menu("Demo en otro ordenador") {
                                 ForEach((RemoteDemoRules.catalog?.demos.keys.sorted() ?? []),id:\.self) { id in
                                     Button("\(RemoteDemoRules.catalog?.demos[id]?.name ?? id) en Firefox de MacMini") {
@@ -129,7 +132,7 @@ struct AssistantView: View {
             .allowsHitTesting(!pet.showing).accessibilityHidden(pet.showing)
             .background(Color(uiColor: .systemGroupedBackground)).tint(green)
                 if pet.showing {
-                    PetStandbyView(character: AgentInvocationRules.mascot(invokedAgent.target), pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet, selectMascot: { target in
+                    PetStandbyView(character: AgentInvocationRules.mascot(invokedAgent.target), pet: pet, dictation: commandVoice, wakeWord: wakeWord, feedback: feedback, began: beginPetVoice, ended: endPetVoice, close: closePet, labControls: { showingPlayerLab = true }, selectMascot: { target in
                         invokedAgent.bind(assistant.accountID); invokedAgent.selectMascot(target)
                         pet.message = "Mantén pulsado para hablar"
                         wakeWord.pause(); feedback.reply(pet.message)
@@ -212,6 +215,7 @@ struct AssistantView: View {
             .onChange(of: assistant.linked) { _, _ in bindDiary() }
             .onChange(of: scene) { _, phase in if phase == .active { bindDiary() } }
             .onChange(of: diary.enabled) { _, enabled in if enabled && assistant.listening { diary.startMotion() } }
+            .sheet(isPresented: $showingPlayerLab) { PlayerLabPanel(lab:playerLab) { action in runLab(action) } }
             .sheet(isPresented: $takingPhoto) { ProjectionPhoto { assistant.attachProjection($0) } }
             .sheet(isPresented: $sharing) { if let image = sharingPhoto { PhotoSummaryShare(image: image, text: sharingText) } }
             .alert("Cámara", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) { Button("Aceptar") { photoError = nil } } message: { Text(photoError ?? "") }
@@ -267,11 +271,19 @@ struct AssistantView: View {
             invokedAgent.send(AgentInvocationRules.question(text,target:invokedAgent.target),target:invokedAgent.target ?? "oraculo") { response in agentVoiceQueue.append(response) }
         }
     }
+    private func runLab(_ action: PlayerLabAction) {
+        guard assistant.linked else { feedback.reply("Vincula primero tu cuenta.");return }
+        guard !playerLab.busy else { feedback.reply("Estoy comprobando la orden anterior en el Fold.");return }
+        wakeWord.pause();playerLab.perform(action) { response in
+            pet.message=response;agentVoiceQueue.append(response)
+        }
+    }
     private func processPetCommand(proxy: ScrollViewProxy) {
         pet.awaitingCommand = false; pet.interact()
         let text = commandVoice.transcript
         guard !text.isEmpty else { pet.message = commandVoice.status; wakeWord.pause(); feedback.reply("No he podido entender la orden. Mantén el dedo sobre mí y vuelve a intentarlo."); return }
         invokedAgent.bind(assistant.accountID)
+        if let action = PlayerLabAction.parse(text) { runLab(action);return }
         if let action = RemoteDemoControl.parse(text) { controlRemoteDemo(action); return }
         if let demo = RemoteDemoRules.request(text) { launchRemoteDemo(demo); return }
         if RemoteDemoRules.isRemoteDemo(text) {
