@@ -71,3 +71,13 @@ Compilación 6: la cola conserva la petición de trabajo cuando llega el último
 Corrección del diario: la quietud desde el comienzo de una película ya no adelanta la hora de acostarse. La propuesta es el fin de la escucha manual o el comienzo del silencio final de cinco minutos cuando la parada fue automática; la quietud es solo una pista adicional. Sigue siendo una estimación corregible y no mide sueño. Esto sustituye la regla inicial de la compilación 5 descrita arriba.
 
 Build 6 drains chunks arriving while an upload is suspended, including the final chunk required for the summary. Bedtime is no longer backdated to the start of a potentially hours-long stationary period: use the end of manual listening, or the start of the final five-minute silence for automatic stops. Real overnight and five-minute silence behavior still require physical validation.
+
+### Modo AdmiraNeXT / AdmiraNeXT mode
+
+Compilación 7 incorpora el tercer modo «AdmiraNeXT» junto a Reunión y Película, y conserva la última elección. Usa el modo Experto publicado de admira.biz dentro de una vista web nativa: no copia su gramática, no pide al modelo de conversación que simule una ejecución ni convierte respuestas de IA en órdenes.
+
+Puedes escribir o usar el dictado del teclado. Atajos: `/tour alsea mexico`, `/tour altadis`, `/tour DooH total`, `/parar` y `/help`. Se despachan mediante `AdmiraExperto.exec` con el log DOM original y se muestra el mapa real. Un identificador por envío evita ejecutar dos veces la misma petición en esa página. Una navegación que pierde la respuesta no se reintenta automáticamente.
+
+Este modo no inicia grabación y no se puede seleccionar mientras hay una escucha activa. La sesión web de admira.biz es independiente del vínculo de conversación; no se inyectan cookies ni credenciales nativas. Las acciones conservan sus permisos originales. El puente solo envía desde HTTPS a admira.biz/www.admira.biz; otras páginas pueden abrirse mediante la navegación normal, pero no reciben órdenes del campo nativo.
+
+Build 7 adds a persisted AdmiraNeXT mode backed by the real published biz Expert engine. Commands are passed unchanged through WebKit arguments, not interpolated into JavaScript or interpreted by a second parser. Presets launch Starbucks Mexico, Altadis and total DOOH tours; /parar stops and /help reads the canonical catalogue. Keyboard dictation is supported, not an always-listening command microphone. Website identity/permissions remain separate from paired chat credentials. Dispatch acknowledgements and actual tour playback are distinct, and navigation never triggers automatic replay.

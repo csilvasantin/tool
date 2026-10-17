@@ -28,6 +28,7 @@ struct AssistantView: View {
     @StateObject private var diary = RestDiary()
     @Environment(\.scenePhase) private var scene
     @State private var petMood: PetMood?
+    @AppStorage("admirito.selectedMode") private var selectedMode = AssistantMode.meeting.rawValue
     @State private var kind = ListeningKind.meeting
     @State private var title = ""
     @State private var importing = false
@@ -46,9 +47,11 @@ struct AssistantView: View {
                     Text(assistant.status).font(.callout).foregroundStyle(.secondary).accessibilityIdentifier("assistantStatus")
                     if assistant.linked {
                         HStack { Button("Ríe") { play(.laugh) }; Button("Arcoíris") { play(.rainbow) }; Button("Descansa") { play(.resting) } }.font(.caption)
-                        listeningControls
-                        RestDiaryView(diary: diary)
-                        conversation; notes
+                        Picker("Modo de Admirito", selection: $selectedMode) {
+                            ForEach(AssistantMode.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
+                        }.pickerStyle(.segmented).disabled(assistant.listening || assistant.starting)
+                        if selectedMode == AssistantMode.suite.rawValue { SuiteExpertView() }
+                        else { listeningControls; RestDiaryView(diary: diary); conversation; notes }
                     }
                     else { pairing }
                     Text("La escucha solo empieza cuando tú la activas. Puedes pausarla o terminarla en cualquier momento. Se detiene automáticamente tras cinco minutos seguidos de silencio. El resumen utiliza lo realmente captado por el micrófono; no ve las imágenes del televisor.")
@@ -64,7 +67,8 @@ struct AssistantView: View {
                     Button("Salir de esta app", role: .destructive) { assistant.signOut() }.disabled(assistant.listening || assistant.starting)
                 } label: { Image(systemName: "person.crop.circle") } } }
             }
-            .onAppear { bindDiary() }
+            .onAppear { bindDiary(); applyMode() }
+            .onChange(of: selectedMode) { _, _ in applyMode() }
             .onChange(of: assistant.linked) { _, _ in bindDiary() }
             .onChange(of: scene) { _, phase in if phase == .active { bindDiary() } }
             .onChange(of: diary.enabled) { _, enabled in if enabled && assistant.listening { diary.startMotion() } }
@@ -75,6 +79,11 @@ struct AssistantView: View {
                 if case .success(let url) = result { assistant.importMedia(url, kind: kind) }
             }
         }
+    }
+    private func applyMode() {
+        if selectedMode == AssistantMode.movie.rawValue { kind = .movie }
+        else if selectedMode == AssistantMode.meeting.rawValue { kind = .meeting }
+        else if selectedMode != AssistantMode.suite.rawValue { selectedMode = AssistantMode.meeting.rawValue }
     }
     private var defaultMood: PetMood {
         if assistant.listening { return .awake }
@@ -107,7 +116,6 @@ struct AssistantView: View {
                     Button("Terminar y resumir") { assistant.finish(active.id) }.buttonStyle(.borderedProminent)
                 }
             } else {
-                Picker("Voy a escuchar", selection: $kind) { ForEach(ListeningKind.allCases, id: \.self) { Text($0.label).tag($0) } }.pickerStyle(.segmented)
                 TextField(kind == .meeting ? "Nombre de la reunión (opcional)" : "Nombre de la película (opcional)", text: $title).textFieldStyle(.roundedBorder)
                 Text(kind == .meeting ? "Deja el iPhone cerca de las personas que hablan." : "Deja el iPhone cerca del televisor u ordenador, con volumen audible.").font(.callout)
                 if kind == .movie {
