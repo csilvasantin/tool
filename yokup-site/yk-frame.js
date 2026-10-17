@@ -357,6 +357,7 @@
     ["Mi comercio",        "/retailer"],
     ["Instaladores",       "/instalador"],
     ["Llamadas",           "/llamadas"],
+    ["Admirito",           "/admirito"],
     ["Entrenamiento",      "/entrenamiento"],
     ["Ayuda",              "/help"],
     ["Para agentes · MCP", "/mcp"],
