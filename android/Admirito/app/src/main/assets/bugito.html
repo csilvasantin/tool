@@ -1,0 +1,35 @@
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{width:100%;height:100%;margin:0;overflow:hidden}body{background:transparent;display:grid;place-items:center}svg{width:85%;height:85%;position:relative;z-index:1}
+/* Shared web mascot: admira-next-web/assets/avatar.js, da-parpadeo and da-bote. */
+.da-nube-cuerpo{transform-box:fill-box;transform-origin:50% 100%}
+.da-nube-ojos{transform-box:fill-box;transform-origin:50% 50%;animation:da-parpadeo 5s infinite}
+.da-nube-risa{opacity:0;transition:opacity .15s}.da-nube-boca{transition:opacity .15s}
+body[data-mood=Laugh] .da-nube-risa,body[data-mood=laugh] .da-nube-risa{opacity:1}
+body[data-mood=laugh] .da-nube-boca{opacity:0}
+body[data-mood=laugh] .da-nube-cuerpo{animation:da-bote .6s ease-out infinite}
+@keyframes da-parpadeo{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes da-bote{0%{transform:translateY(0) scale(1,1)}30%{transform:translateY(-14%) scale(.97,1.04)}55%{transform:translateY(0) scale(1.05,.94)}75%{transform:translateY(-4%) scale(1,1)}100%{transform:translateY(0) scale(1,1)}}
+body[data-mood=resting] .da-nube-ojos{animation:none;transform:scaleY(.09)}
+body[data-mood=resting] .da-nube-cuerpo{animation:breathe 4s ease-in-out infinite}
+body[data-mood=resting]:after{content:'z Z z';position:absolute;top:10%;right:10%;color:#689840;font:22px system-ui;animation:breathe 4s infinite}
+@keyframes breathe{50%{transform:translateY(-4px)}}
+body[data-mood=awake] .da-nube-cuerpo{animation:breathe 4s ease-in-out infinite}
+body[data-mood=rainbow]:before{content:'';position:absolute;width:80%;height:70%;border-radius:50% 50% 0 0;background:radial-gradient(ellipse at 50% 100%,transparent 45%,#ba7de2 46% 51%,#6ca3e6 52% 57%,#73bd70 58% 63%,#eee75d 64% 69%,#ffbf45 70% 75%,#ff5858 76% 81%,transparent 82%);opacity:.7;animation:breathe 2s infinite}
+body[data-mood=rainbow] .da-nube-risa{opacity:1}body[data-mood=rainbow] .da-nube-boca{opacity:0}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+</style><body data-mood="awake"><svg class="da-nube" viewBox="-18 -15 325 220" width="62" height="40" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><g class="da-nube-cuerpo"><path d="M92 66 L65 2 L124 46 M179 46 L233 2 L211 71" fill="#ad1515" stroke="#510b0b" stroke-width="9" stroke-linejoin="round"/><path d="M244 146 Q296 177 280 107 M269 118 L280 97 L289 118" fill="none" stroke="#ee3434" stroke-width="8" stroke-linecap="round"/><path d="M213.31,59.13c-1,0-1.9.1-2.85.15a83,83,0,0,0-144,0c-1-.05-1.89-.15-2.85-.15A58.22,58.22,0,1,0,90.81,168.79a82.72,82.72,0,0,0,95.29,0A58.21,58.21,0,1,0,213.31,59.13Z" fill="#ee3434"/><path d="M213.31,59.13c-1,0-1.9.1-2.85.15a83,83,0,0,0-144,0c-1-.05-1.89-.15-2.85-.15A58.22,58.22,0,1,0,90.81,168.79a82.72,82.72,0,0,0,95.29,0A58.21,58.21,0,1,0,213.31,59.13Zm0,99.81a41.75,41.75,0,0,1-28.06-11,67.09,67.09,0,0,1-13.39,10.21,65.93,65.93,0,0,1-66.81,0A67.09,67.09,0,0,1,91.66,148,41.56,41.56,0,1,1,59,76a43.33,43.33,0,0,1,4.58-.26A41.39,41.39,0,0,1,76.11,77.7a66.43,66.43,0,0,1,124.69,0,41.39,41.39,0,0,1,12.51-1.93,43.33,43.33,0,0,1,4.58.26,41.58,41.58,0,0,1-4.58,82.91Z" fill="#510b0b"/><ellipse cx="92" cy="138" rx="15" ry="9" fill="#f5a3a3" opacity=".75"/><ellipse cx="185" cy="138" rx="15" ry="9" fill="#f5a3a3" opacity=".75"/><g class="da-nube-ojos"><ellipse cx="111" cy="110" rx="12.5" ry="17" fill="#1d2b12"/><ellipse cx="166" cy="110" rx="12.5" ry="17" fill="#1d2b12"/><circle cx="115.5" cy="103" r="5" fill="#fff"/><circle cx="170.5" cy="103" r="5" fill="#fff"/></g><path class="da-nube-boca" d="M122,135 Q138.5,153 155,135" fill="none" stroke="#1d2b12" stroke-width="8" stroke-linecap="round"/><path class="da-nube-risa" d="M121,131 Q138.5,162 156,131 Z" fill="#1d2b12" stroke="#1d2b12" stroke-width="4" stroke-linejoin="round"/><path class="da-nube-risa" d="M129,145 Q138.5,154 148,145 Q138.5,141 129,145Z" fill="#e8706f"/></g></svg></body>
+
+<script>
+const eyes = document.querySelector('.da-nube-ojos');
+const gaze = document.createElementNS('http://www.w3.org/2000/svg','g');
+eyes.parentNode.insertBefore(gaze,eyes); gaze.appendChild(eyes);
+window.setPetPresentation = (x,y,immersive) => {
+  gaze.setAttribute('transform', `translate(${Math.max(-1,Math.min(1,x))*7} ${Math.max(-1,Math.min(1,y))*5})`);
+  const svg = document.querySelector('svg');
+  svg.setAttribute('viewBox', '-24 -28 330 240');
+  svg.style.width = '96%';
+  svg.style.height = '96%';
+};
+</script>
+<script>setPetPresentation(0,0,true)</script>

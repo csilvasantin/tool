@@ -36,7 +36,7 @@ export async function handleAgentDevices(req,env,{requireAuth}){
     await env.DB.prepare('DELETE FROM agent_conversation_devices WHERE expires_at<=?').bind(now).run();
     const id=crypto.randomUUID(),secret=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join(''),alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const code=Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>alphabet[b%alphabet.length]).join('');
-    await env.DB.prepare('INSERT INTO agent_conversation_devices(id,secret_hash,code,label,client_hash,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').bind(id,await hash(secret),code,body.client==='ios'?'Admirito iOS':'Meta Display',client,now,now+300000).run();
+    await env.DB.prepare('INSERT INTO agent_conversation_devices(id,secret_hash,code,label,client_hash,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').bind(id,await hash(secret),code,body.client==='ios'?'Admirito iOS':body.client==='android'?'Admirito Android':'Meta Display',client,now,now+300000).run();
     return json({device_id:id,secret,code,expires_in:300},201);
   }
   if(path==='/agents/devices/approve'){

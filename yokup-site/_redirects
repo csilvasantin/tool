@@ -1,3 +1,5 @@
+/admirito /admirito.html 200
+/admirito/ /admirito.html 200
 /agentica         /dashboard    301
 /agentica.html    /dashboard    301
 # Las dos puertas de la regla 24, ANTES del catch-all. Sin estas cuatro líneas el

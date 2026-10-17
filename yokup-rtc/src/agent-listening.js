@@ -19,7 +19,7 @@ export function summarizeHeardAudio(chunks) {
 export async function handleAgentListening(req,env,{requireAuth,aiRun}){
  const session=await requireAuth(env,req);
  if(!session?.email)return json({error:'unauthorized'},401);
- if(session.conversation_device&&session.conversation_device_label!=='Admirito iOS')return json({error:'listening_scope_required'},403);
+ if(session.conversation_device&&!['Admirito iOS','Admirito Android'].includes(session.conversation_device_label))return json({error:'listening_scope_required'},403);
  const owner=String(session.email).trim().toLowerCase(),parts=new URL(req.url).pathname.split('/').filter(Boolean),id=parts[2],action=parts[3];
  if(parts.length>4||id&&!uuid.test(id))return json({error:'not_found'},404);
  for(const sql of LISTENING_SCHEMA)await env.DB.prepare(sql).run();

@@ -1,0 +1,13 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'com.admira.admirito'
+ compileSdk 35
+ def signingFile = new File(System.getProperty('user.home'), '.config/admiranext/admirito-android/signing.properties')
+ if(signingFile.exists()) {
+  def credentials = new Properties(); signingFile.withInputStream { credentials.load(it) }
+  signingConfigs { release { storeFile file(credentials.storeFile); storePassword credentials.storePassword; keyAlias credentials.keyAlias; keyPassword credentials.keyPassword } }
+  buildTypes { release { signingConfig signingConfigs.release } }
+ }
+ defaultConfig { applicationId 'com.admira.admirito'; minSdk 26; targetSdk 35; versionCode 1; versionName '0.1.0' }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

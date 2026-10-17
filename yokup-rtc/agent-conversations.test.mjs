@@ -26,3 +26,22 @@ test('silent listening produces an honest deterministic note without invoking a 
 
 test('TV summary quotes only captured text and never invents a plot from song or uncertain foreign speech',async()=>{const h=listeningHarness(),conversation=(await h.call('a','',{})).conversation.id,id=crypto.randomUUID();await h.listening('a','',{id,conversation_id:conversation,kind:'movie',title:'Una trama inventada'});for(const [seq,text] of ['Voz cantando sobre amor.','次の動画でお会いしましょう。'].entries())await h.listening('a','/'+id+'/chunks',{seq,start_seconds:seq*25,duration_seconds:25,text});const result=await h.listening('a','/'+id+'/summary',{expected_chunks:2});assert.equal(result.status,'complete');assert.match(result.summary,/\[0:25\] 次の動画/);assert.match(result.summary,/sin verificar/);assert.doesNotMatch(result.summary,/Una trama inventada|la trama gira|serie de videos|hasta la próxima/);assert.equal(h.prompts.length,0);assert.equal((await h.call('a','/'+conversation)).messages.length,2);});
 test('film scene recognition is account-owned and requires a finished movie and JPEG',async()=>{const h=listeningHarness(),conversation=(await h.call('a','',{})).conversation.id,id=crypto.randomUUID();await h.listening('a','',{id,conversation_id:conversation,kind:'movie'});assert.equal((await h.listening('other','/'+id+'/identify',{})).http,404);assert.equal((await h.listening('a','/'+id+'/identify',{})).error,'summary_required');await h.listening('a','/'+id+'/chunks',{seq:0,start_seconds:0,duration_seconds:25,text:'Audio de prueba de una escena.'});await h.listening('a','/'+id+'/summary',{expected_chunks:1});assert.equal((await h.listening('a','/'+id+'/identify',{})).http,415);});
+
+test('Android pairing keeps its own label and revocable account session', async()=>{
+ const env={DB:database(),YK_SESSION_SECRET:'test-only'};
+ const call=async(path,body,user)=>{const r=await handleAgentDevices(new Request('https://api.admira.app/agents/devices'+path,{method:'POST',headers:{origin:'https://www.admira.app','content-type':'application/json',...(user?{'x-test-user':user}:{})},body:JSON.stringify(body)}),env,{requireAuth:auth});return {http:r.status,cookie:r.headers.get('set-cookie'),...await r.json()};};
+ const challenge=await call('/start',{client:'android'});assert.equal(challenge.http,201);
+ const pending={device_id:challenge.device_id,secret:challenge.secret};assert.equal((await call('/poll',pending)).status,'pending');
+ assert.equal((await call('/approve',{code:challenge.code},'android-owner@example.com')).ok,true);
+ const paired=await call('/poll',pending);const request=new Request('https://api.admira.app/agents/conversations',{headers:{cookie:paired.cookie.split(';')[0],origin:'https://www.admira.app'}});
+ const session=await pairedConversationSession(request,env);assert.equal(session.email,'android-owner@example.com');assert.equal(session.conversation_device_label,'Admirito Android');
+ await call('/revoke',{device_id:challenge.device_id},'android-owner@example.com');assert.equal(await pairedConversationSession(request,env),null);
+});
+test('Android can summarize its own captured audio but cannot access another owner',async()=>{
+ const h=listeningHarness(),conversation=(await h.call('android-owner','',{})).conversation.id,id=crypto.randomUUID();
+ assert.equal((await h.listening('android-owner','',{id,conversation_id:conversation,kind:'movie'},'POST','Admirito Android')).http,201);
+ assert.equal((await h.listening('other','/'+id,null,'GET','Admirito Android')).http,404);
+ assert.equal((await h.listening('android-owner','/'+id+'/chunks',{seq:0,start_seconds:0,duration_seconds:4,text:'No inventes el título de esta película.'},'POST','Admirito Android')).http,201);
+ const result=await h.listening('android-owner','/'+id+'/summary',{expected_chunks:1},'POST','Admirito Android');assert.equal(result.status,'complete');assert.equal((await h.call('android-owner','/'+conversation)).messages.length,2);
+ assert.equal((await h.listening('android-owner','',{},'POST','Meta Display')).http,403);
+});

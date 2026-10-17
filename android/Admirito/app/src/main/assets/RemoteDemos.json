@@ -1,0 +1,72 @@
+{
+  "demos": {
+    "alsea": {
+      "name": "Alsea",
+      "url": "https://www.admiranext.com/pruebas/alsea/?lang=es",
+      "aliases": [
+        "alsea"
+      ]
+    },
+    "global": {
+      "name": "suite AdmiraNeXT",
+      "url": "https://www.admira.biz/demo/",
+      "aliases": [
+        "global",
+        "suite",
+        "admiranext"
+      ]
+    },
+    "studio": {
+      "name": "Studio",
+      "url": "https://www.admira.studio/?lang=es&ax_demo=studio",
+      "aliases": [
+        "studio",
+        "pixeria"
+      ]
+    },
+    "store": {
+      "name": "Store",
+      "url": "https://www.admira.store/admira-xp/?marca=starbucks&loc=alsea-sbux-021&project=starbucks&circuit=alsea_starbucks&lang=es&ax_demo=store",
+      "aliases": [
+        "store",
+        "xpaceos"
+      ]
+    },
+    "tv": {
+      "name": "TV",
+      "url": "https://admira.tv/adcelerate/demo/?view=human&site=starbucks&lang=es&ax_demo=tv",
+      "aliases": [
+        "tv"
+      ]
+    },
+    "app": {
+      "name": "App",
+      "url": "https://www.admira.app/retailer?marca=starbucks&lang=es&ax_demo=app",
+      "aliases": [
+        "app",
+        "yokup"
+      ]
+    },
+    "biz": {
+      "name": "Biz",
+      "url": "https://www.admira.biz/?lang=es&ax_demo=biz",
+      "aliases": [
+        "biz"
+      ]
+    }
+  },
+  "destinations": {
+    "macmini": {
+      "name": "MacMini",
+      "browser": "Firefox",
+      "persona": "Oraculo",
+      "machine": "MacMini",
+      "aliases": [
+        "macmini",
+        "mac mini",
+        "el macmini",
+        "el mac mini"
+      ]
+    }
+  }
+}
