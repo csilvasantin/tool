@@ -19,7 +19,8 @@ import SwiftUI
     func resume() {
         guard enabled, browser == nil else { return }
         status = "Buscando ratón del MacMini…"
-        let browser = NWBrowser(for:.bonjour(type:"_admira-gaze._tcp",domain:nil),using:.tcp)
+        let parameters = NWParameters.tcp; parameters.includePeerToPeer = true
+        let browser = NWBrowser(for:.bonjour(type:"_admira-gaze._tcp",domain:nil),using:parameters)
         self.browser = browser
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             let match = results.first { result in
@@ -42,12 +43,14 @@ import SwiftUI
     }
     private func connect(_ endpoint: NWEndpoint) {
         guard connection == nil else { return }
-        let c = NWConnection(to:endpoint,using:.tcp); connection = c
+        let parameters = NWParameters.tcp; parameters.includePeerToPeer = true
+        let c = NWConnection(to:endpoint,using:parameters); connection = c
         c.stateUpdateHandler = { [weak self, weak c] state in
             Task { @MainActor in
                 guard let self, let c, self.connection === c else { return }
                 switch state {
-                case .ready: self.receive(c)
+                case .ready: self.status = "Conectando mirada…"; self.receive(c)
+                case .waiting(let error): self.status = "Esperando red local del Mac"; VoiceDiagnostics.record("mac_gaze_waiting", ["error":String(describing:error)])
                 case .failed, .cancelled: self.connection = nil; self.point = nil; self.buffer.removeAll(); self.status = "Ratón del Mac desconectado"
                 default: break
                 }
