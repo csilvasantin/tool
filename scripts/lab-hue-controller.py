@@ -89,7 +89,7 @@ def main():
                 if result:private_json(ROOT/'status.json',result);print(json.dumps(result),flush=True)
             except Exception as error:
                 # Exception text from urllib may contain URLs with API keys. Never log it.
-                result={'error':type(error).__name__,'bridge_verified':False,'at':int(time.time()*1000)}
+                result={'error':type(error).__name__,'reason_type':type(getattr(error,'reason',None)).__name__,'errno':getattr(getattr(error,'reason',None),'errno',None),'bridge_verified':False,'at':int(time.time()*1000)}
                 private_json(ROOT/'status.json',result);print(json.dumps(result),flush=True)
                 if a.once:raise SystemExit(1)
             if a.once:return
