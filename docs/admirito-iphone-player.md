@@ -31,3 +31,7 @@ Empty or unplayable assignments fail visibly. Missing inventory associations are
 Mission FLT-102549 · reproductor configurable en iPhone; encargo #6480 · player desde Experto del iPhone. The source iPad's playlist is used read-only; no physical source-display behavior is inferred. [Sanitized evidence](evidence/admirito-iphone-player-2026-10-18/verification.json).
 
 ![Selected playlist playing on the physical iPhone](evidence/admirito-iphone-player-2026-10-18/iphone-playback-final.png)
+
+## Actualización / Update 20261018.7
+
+Ambos players incluyen «Por libre» y «Sincronizado», con la misma playlist y reloj central; comprobados con Insta360. Both native players now expose independent and synchronized playback, physically verified with Insta360. See [mobile modes and evidence](admirito-mobile-sync.md).

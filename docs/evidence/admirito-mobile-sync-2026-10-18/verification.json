@@ -22,6 +22,35 @@
   "source": "ipad-admin-mupi",
   "selected_iot": "Starbucks_PaseodeGracia_103_iPad_1",
   "identities": "independent virtual identities; source IoT not mutated",
-  "optical_joint_acceptance": "pending: Fold USB disconnected after native contracts; iPhone playing and Fold main UI seen by live Insta360",
-  "apk_sha256": "15009beca0088be844ec21bce38c856a683ecb4d2f4fea132342ebe1333aa149"
+  "optical_joint_acceptance": "passed: both phones visible with assigned playlist in independent and synchronized modes; only post-automation frames accepted",
+  "apk_sha256": "15009beca0088be844ec21bce38c856a683ecb4d2f4fea132342ebe1333aa149",
+  "public_download_verified": true,
+  "public_download": "https://www.admira.app/downloads/admirito-android-20261018.7.apk",
+  "web_version": "v.18.10.2026.r6.12:47",
+  "deployed_commit": "231b609",
+  "installed_apk_matches_build": true,
+  "same_signer": true,
+  "ios_second_sync_offsets_seconds": [
+    0.2,
+    0.04,
+    0.07,
+    0.1
+  ],
+  "fold_second_sync_offsets_seconds": [
+    0.03,
+    0.03,
+    0.03
+  ],
+  "optical_sync_manifest": "optical-sync-visible.json",
+  "optical_free_manifest": "optical-free-visible.json",
+  "optical_final_sync_manifest": "optical-final-sync.json",
+  "final_state": "both left synchronized and playing; Fold native seconds 15.1\u219221.1 with offset0.04s; iPhone final selection offset0.02s",
+  "final_iphone_sync_offset_seconds": 0.02,
+  "final_fold_sync_offset_seconds": 0.04,
+  "web_tests_passed": 1674,
+  "limits": [
+    "muted",
+    "network/decode warmup can display waiting status during transitions",
+    "measured time offsets are not a frame-lock guarantee"
+  ]
 }

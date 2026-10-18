@@ -21,3 +21,7 @@ Admirito Android → Account/listening → Expert → Player on this Fold select
 Android 20261018.6, versionCode9. Signed update preserves the existing pairing and signing key. iPhone retains its installed20261018.5; shared source release metadata advances for the next build.
 
 Build and release lint passed. Three on-device instrumentation contract tests passed (commands, catalogue association and unplayable assignments). On the physical Fold, Expert → project starbucks → Starbucks Paseo de Gracia → iPad horizontal played the assigned video. Native time advanced through 7, 9 and 10 seconds, with a real [phone capture](evidence/admirito-fold-selector-2026-10-18/fold-player.png). Backgrounding displayed the paused state; explicit Resume returned to advancing playback. Playback is muted. Public APK, build and installed APK hashes match.
+
+## Actualización / Update 20261018.7
+
+Ambos players incluyen «Por libre» y «Sincronizado», con la misma playlist y reloj central; comprobados con Insta360. Both native players now expose independent and synchronized playback, physically verified with Insta360. See [mobile modes and evidence](admirito-mobile-sync.md).
