@@ -17,6 +17,8 @@ enum AssistantMode: String, CaseIterable {
     @Published private(set) var tourProgress = ""
     let webView: WKWebView
     private var timer: Timer?
+    private var navigationGeneration = 0
+    private var waitingForReady = false
     override init() {
         let config = WKWebViewConfiguration()
         // Website's own login and cookies. The paired conversation credential is never injected here.
@@ -44,7 +46,10 @@ enum AssistantMode: String, CaseIterable {
         let progress = value?["progress"] as? String ?? ""
         if running != tourRunning || progress != tourProgress { VoiceDiagnostics.record("tour_state", ["running": String(running), "progress": progress]) }
         tourRunning = running; tourProgress = progress
-        if ready && status == "Cargando el modo Experto de admira.biz…" { status = "Modo Experto conectado. Escribe una orden o usa el dictado del teclado." }
+        if ready && (waitingForReady || status == "Cargando el modo Experto de admira.biz…") {
+            waitingForReady = false; output = ""
+            status = "Modo Experto conectado. Escribe una orden o usa el dictado del teclado."
+        }
     }
     func send(_ preset: String? = nil, completion: ((String?) -> Void)? = nil) {
         let text = (preset ?? command).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -56,25 +61,36 @@ enum AssistantMode: String, CaseIterable {
         guard trustedPage, !busy, !text.isEmpty, text.count <= 2000 else { completion?("El modo Experto no está disponible. No he enviado la orden."); return }
         VoiceDiagnostics.record("suite_send", ["publicTour": String(text.hasPrefix("/tour "))])
         busy = true; command = text; let requestID = UUID().uuidString
+        let generation = navigationGeneration
         Task {
             defer { busy = false }
             do {
                 // Arguments are data, never JavaScript interpolation. No native parser or automatic replay.
                 let result = try await webView.callAsyncJavaScript("if (!window.AdmiritoSuiteBridge || !window.AdmiritoSuiteBridge.ready()) return {state:'not_ready',ok:false,output:'El modo Experto todavía no está listo. No se ha enviado la orden.'}; return await window.AdmiritoSuiteBridge.execute(command, requestID)", arguments: ["command": text, "requestID": requestID], in: nil, contentWorld: .page) as? [String: Any]
+                guard generation == navigationGeneration else { completion?(nil); return }
+                waitingForReady = result?["state"] as? String == "not_ready"
                 output = result?["output"] as? String ?? "Consulta el resultado en el mapa y en la consola web."
                 status = result?["state"] as? String == "not_ready" ? "El modo Experto aún no está listo. No se ha enviado la orden." : "Orden entregada al modo Experto. Comprueba su respuesta y el recorrido."
                 if result?["state"] as? String == "not_ready" { completion?("El modo Experto aún no está listo. No he enviado la orden.") }
                 else if result?["ok"] as? Bool == false { completion?("El modo Experto ha rechazado la orden. Puedes ver el motivo en su respuesta.") }
                 else { completion?(nil) }
             } catch {
+                guard generation == navigationGeneration else { completion?(nil); return }
                 // A command may navigate. A lost bridge response does not mean it failed, so never retry it automatically.
                 status = "La página ha cambiado o no se pudo recoger la respuesta. Revisa el mapa antes de repetir la orden."
                 completion?("He enviado la orden, pero no puedo confirmar el resultado. Revisa el mapa antes de repetirla.")
             }
         }
     }
-    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { ready = false }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { Task { await refresh() } }
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        navigationGeneration += 1; ready = false; waitingForReady = false; output = ""
+        status = "Cargando la página del modo Experto…"
+    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        output = ""; waitingForReady = true
+        status = "Página abierta en el modo Experto. Comprueba el resultado en pantalla."
+        Task { await refresh() }
+    }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { status = "No se ha podido cargar admira.biz. Revisa la conexión o abre su sesión en la vista web." }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url, url.scheme == "https" { webView.load(URLRequest(url: url)) }

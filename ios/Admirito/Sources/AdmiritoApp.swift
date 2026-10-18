@@ -181,7 +181,7 @@ struct AssistantView: View {
                         Task { await wakeWord.resume() }
                     } else if wakeWord.listening || wakeWord.starting { wakeWord.pause() }
 
-                    let busy = !assistant.linked || scene != .active || assistant.listening || assistant.starting || assistant.replying || commandVoice.listening || commandVoice.starting || commandVoice.processing || pet.awaitingCommand || pet.holding || suite.busy || suite.tourRunning
+                    let busy = !assistant.linked || scene != .active || assistant.listening || assistant.starting || assistant.replying || commandVoice.listening || commandVoice.starting || commandVoice.processing || pet.awaitingCommand || pet.holding || selectedMode == AssistantMode.suite.rawValue || suite.busy || suite.tourRunning
                     if !pet.showing && StandbyRules.shouldShow(lastInteraction: pet.lastInteraction, now: Date(), busy: busy) {
                         pet.message = "Mantén pulsado para hablar"; pet.showing = true
                     }

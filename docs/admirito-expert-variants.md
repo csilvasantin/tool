@@ -31,3 +31,9 @@ Las respuestas se muestran en pantalla. El conector comprueba los comandos compa
 - La consola web autenticada de Biz no se dio por comprobada: el acceso Google de IAB no completó el popup. Su motor real sí ejecutó las variantes a través de los clientes nativos. Las capturas de teléfonos y sesiones se conservan en privado; la bóveda guarda rutas y hashes, no credenciales de navegador.
 
 El contrato de variantes no genera incidencias ni contenido de pago por sí solo. No se modifica la automatización Hue ni se declara verificado el RGB pendiente.
+
+## Corrección de continuidad · 20261018.10
+
+Experto mantiene la vista abierta durante la inactividad; la mascota sigue disponible al invocarla manualmente. Cada navegación retira el resultado de la página anterior y descarta sus respuestas tardías, sin repetir la orden. Android pausa la activación por voz mientras está abierta la consola.
+
+Expert stays visible while idle; the pet remains available when explicitly opened. Navigation clears the previous page's result and ignores its late responses without replaying the command. Android pauses wake recognition while the console is open.
