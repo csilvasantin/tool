@@ -14,6 +14,7 @@
 		1269CC8010CF3885E9F1B953 /* PlayerLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B1CFBA9E93237FFF9A24A8 /* PlayerLab.swift */; };
 		12DA2EE2A6AE9011185E1774 /* RemoteDemos.json in Resources */ = {isa = PBXBuildFile; fileRef = 6D2316041BCBF20766235E44 /* RemoteDemos.json */; };
 		29203336DB87888D4D6C70F3 /* WakeFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD5129A66B68AF18F8AB575 /* WakeFeedback.swift */; };
+		382DCD02AE7769BE0C8781BB /* LabCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6EA186F5E5C475A84972238 /* LabCameraView.swift */; };
 		3CE62B975DD6B30D823EEBCB /* SuiteExpert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54474E6594597F117A9D75FC /* SuiteExpert.swift */; };
 		415DB1D128C7FCCDE5265A53 /* AdmiritoPet.html in Resources */ = {isa = PBXBuildFile; fileRef = 668CE8917369B0E347B21B2E /* AdmiritoPet.html */; };
 		4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA270DD45862031A659ED735 /* LiveServiceTests.swift */; };
@@ -92,6 +93,7 @@
 		BEBA7E770352A00B0AA08CBE /* ProjectionPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectionPhoto.swift; sourceTree = "<group>"; };
 		C21CC8EE03FE0F37BF231622 /* SpeechOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutput.swift; sourceTree = "<group>"; };
 		C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliabilityTests.swift; sourceTree = "<group>"; };
+		C6EA186F5E5C475A84972238 /* LabCameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCameraView.swift; sourceTree = "<group>"; };
 		CA270DD45862031A659ED735 /* LiveServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServiceTests.swift; sourceTree = "<group>"; };
 		D217E5CAF8ACA3E2280B8949 /* WakeWord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWord.swift; sourceTree = "<group>"; };
 		D2BAF7D354A95C6195C6CD00 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */,
 				A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */,
 				F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */,
+				C6EA186F5E5C475A84972238 /* LabCameraView.swift */,
 				7BCE821171029B4AD39D645B /* LocalWakeListener.swift */,
 				A4CA9DA1807259DC86BF3B83 /* MacGaze.swift */,
 				5EC327722BEFA8292EFBBB86 /* MobileRelease.swift */,
@@ -298,6 +301,7 @@
 				86D51C27538F1AF19AAD5674 /* AssistantStore.swift in Sources */,
 				7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */,
 				AD37CA803F7639E27F634C74 /* CommandDictation.swift in Sources */,
+				382DCD02AE7769BE0C8781BB /* LabCameraView.swift in Sources */,
 				04EE5EFA57AC0CF9BB1E4A22 /* LocalWakeListener.swift in Sources */,
 				9E603D5847C5CE431B149D12 /* MacGaze.swift in Sources */,
 				0C6F43A47089420CA5632E3C /* MobileRelease.swift in Sources */,
@@ -377,7 +381,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -397,7 +401,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 20261018.1;
+				MARKETING_VERSION = 20261018.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -512,7 +516,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -526,7 +530,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 20261018.1;
+				MARKETING_VERSION = 20261018.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

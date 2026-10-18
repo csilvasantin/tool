@@ -67,6 +67,14 @@ private enum CredentialStore {
     func reportPlayerIncident(jpeg: Data, requestID: String, capturedAt: Int64) async throws -> LabIncidentReply {
         try await request("agents/player-incidents",method:"POST",data:jpeg,mime:"image/jpeg",headers:["X-Request-ID":requestID,"X-Captured-At":String(capturedAt)])
     }
+    func labCameraFrame() async throws -> Data {
+        var request=URLRequest(url:base.appendingPathComponent("agents/lab-camera/frame"))
+        request.timeoutInterval=20
+        request.setValue("https://www.admira.app",forHTTPHeaderField:"Origin")
+        let (data,response)=try await session.data(for:request)
+        guard let http=response as? HTTPURLResponse,http.statusCode==200,http.mimeType=="image/jpeg" else { throw AssistantError.recording("No se recibe la Insta360. Comprueba el vínculo y la conexión del Lab.") }
+        return data
+    }
     func disconnect() { accountID = nil; CredentialStore.clear(); session.configuration.httpCookieStorage?.removeCookies(since: .distantPast) }
     private func request<T: Decodable>(_ path: String, method: String = "GET", object: [String: Any]? = nil, data: Data? = nil, mime: String = "application/json", headers: [String:String] = [:]) async throws -> T {
         var request = URLRequest(url: base.appendingPathComponent(path)); request.httpMethod = method; request.timeoutInterval = 110

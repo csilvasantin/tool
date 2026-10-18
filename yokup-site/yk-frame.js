@@ -2288,9 +2288,24 @@
     // [▤ AVANZADO] [⌘ EXPERTO] al extremo derecho
     var icoR = icon("yk-ico yk-ico-adv", "right", "▤", "Avanzado");
     var icoB = icon("yk-ico yk-ico-exp", "bottom", "⌘", "Modo experto");
-    bar.appendChild(icoR);
-    if (esPortadaYk()) bar.appendChild(pastillaIdioma());
-    else bar.appendChild(icoB);
+    if (esPortadaYk() && /^(www\.)?admira\.app$/.test(location.hostname)) {
+      var login = el("a", "yk-ico yk-home-login");
+      login.id = "ykHomeLogin";
+      login.href = "/dashboard";
+      login.setAttribute("data-admira-compact-control", "");
+      function loginLabel() {
+        login.textContent = localEn() ? "Sign in" : "Entrar";
+        login.setAttribute("aria-label", localEn() ? "Sign in to admira.app" : "Entrar en admira.app");
+      }
+      loginLabel();
+      new MutationObserver(loginLabel).observe(document.documentElement, {attributes:true, attributeFilter:["lang"]});
+      bar.appendChild(login);
+      bar.appendChild(pastillaIdioma());
+    } else {
+      bar.appendChild(icoR);
+      if (esPortadaYk()) bar.appendChild(pastillaIdioma());
+      else bar.appendChild(icoB);
+    }
 
     // ------------------------- PANELES (raíles) ----------------------------
     // Rótulos por página: <body data-yk-rail-left="…" data-yk-rail-right="…">.

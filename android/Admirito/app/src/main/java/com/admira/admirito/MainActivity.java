@@ -17,6 +17,7 @@ import java.util.concurrent.*;
 import org.json.*;
 
 public final class MainActivity extends Activity {
+ private Dialog labCameraDialog;
  private WebView web; private Api api; private TextToSpeech tts;
  private final Handler main=new Handler(Looper.getMainLooper());
  private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -33,7 +34,7 @@ public final class MainActivity extends Activity {
   setContentView(web);web.loadUrl("https://appassets.androidplatform.net/assets/index.html");
  }
  @Override protected void onResume(){super.onResume();foreground=true;restMorning();main.removeCallbacks(refresh);main.postDelayed(refresh,1200);}
- @Override protected void onPause(){foreground=false;main.removeCallbacks(refresh);stopRecognition();cancelRecording();super.onPause();}
+ @Override protected void onPause(){foreground=false;if(labCameraDialog!=null)labCameraDialog.dismiss();main.removeCallbacks(refresh);stopRecognition();cancelRecording();super.onPause();}
  @Override protected void onDestroy(){stopRecognition();if(recognizer!=null)recognizer.destroy();if(tts!=null){tts.stop();tts.shutdown();}main.removeCallbacksAndMessages(null);worker.shutdownNow();web.removeJavascriptInterface("Native");web.destroy();super.onDestroy();}
  private void event(String key,Object value){try{JSONObject j=Api.object(key,value);main.post(()->web.evaluateJavascript("update("+j+")",null));}catch(Exception ignored){}}
  private void status(String text){event("status",text);}
@@ -56,6 +57,7 @@ public final class MainActivity extends Activity {
   @JavascriptInterface public void finishListening(){main.post(()->{startService(new Intent(MainActivity.this,ListeningService.class).setAction("finish"));status("Terminando y preparando el resumen…");});}
   @JavascriptInterface public void retryListening(){ListeningService.recover(MainActivity.this);}
   @JavascriptInterface public String version(){return MainActivity.this.appVersion();}
+  @JavascriptInterface public void camera(){main.post(()->openLabCamera());}
   @JavascriptInterface public void player(){main.post(()->openPlayer());}
   @JavascriptInterface public void photo(){main.post(()->takePhoto());}
   @JavascriptInterface public void identify(){main.post(()->identifyFilm());}
@@ -91,6 +93,22 @@ public final class MainActivity extends Activity {
  private void suite(String command){stopRecognition();speak("Voy a abrir el tour en el modo Experto.");WebView suite=new WebView(this);suite.getSettings().setJavaScriptEnabled(true);suite.getSettings().setDomStorageEnabled(true);suite.getSettings().setAllowFileAccess(false);suite.getSettings().setAllowContentAccess(false);Dialog dialog=new Dialog(this,android.R.style.Theme_Material_Light_NoActionBar_Fullscreen);android.widget.LinearLayout box=new android.widget.LinearLayout(this);box.setOrientation(android.widget.LinearLayout.VERTICAL);Button close=new Button(this);close.setText("Volver a Admirito");close.setOnClickListener(v->dialog.dismiss());box.addView(close);box.addView(suite,new android.widget.LinearLayout.LayoutParams(-1,0,1));dialog.setContentView(box);dialog.setOnDismissListener(d->{suite.destroy();});suite.setWebViewClient(new WebViewClient(){boolean sent;int tries;private boolean trusted(String url){Uri u=Uri.parse(url);return "https".equals(u.getScheme())&&Arrays.asList("www.admira.biz","admira.biz").contains(u.getHost());}@Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest req){return !trusted(req.getUrl().toString());}@Override public void onPageFinished(WebView v,String url){if(!trusted(url))return;try{v.evaluateJavascript(readAsset("SuiteExpertBridge.js"),null);Runnable check=new Runnable(){public void run(){if(sent||!dialog.isShowing()||!trusted(v.getUrl()))return;v.evaluateJavascript("Boolean(window.AdmiritoSuiteBridge?.ready())",r->{if(r.equals("true")){sent=true;v.evaluateJavascript("window.AdmiritoSuiteBridge.execute("+JSONObject.quote(command)+","+JSONObject.quote(UUID.randomUUID().toString())+")",null);speak("Orden enviada al modo Experto. Comprueba el recorrido en pantalla.");}else if(++tries<40)main.postDelayed(this,500);else speak("El modo Experto no está disponible. No he enviado la orden.");});}};check.run();}catch(Exception e){speak("No se ha podido abrir el modo Experto.");}}});dialog.show();suite.loadUrl("https://www.admira.biz/");}
  private void beginListening(String kind){if(!Arrays.asList("movie","meeting").contains(kind)||busy||ListeningService.active||!permission())return;stopRecognition();if(tts!=null)tts.stop();worker.execute(()->{try{String thread=ensureConversation();Intent i=new Intent(this,ListeningService.class).setAction("start").putExtra("conversation",thread).putExtra("account",api.account()).putExtra("kind",kind).putExtra("rest",getPreferences(0).getBoolean("rest",false));main.post(()->{if(!foreground){status("Abre la app para iniciar la escucha.");return;}if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},2);startForegroundService(i);status("Escucha iniciada. Puedes bloquear el teléfono; consulta la notificación.");});}catch(Exception e){fail(e);}});}
  private String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "desconocida";}}
+ private void openLabCamera(){
+  if(api.account().isEmpty()){status("Vincula tu cuenta para ver la Insta360.");return;}
+  Dialog dialog=new Dialog(this,android.R.style.Theme_Material_Light_NoActionBar_Fullscreen);
+  LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(16,16,16,16);
+  Button close=new Button(this);close.setText("Cerrar Insta360");close.setOnClickListener(v->dialog.dismiss());box.addView(close);
+  ImageView image=new ImageView(this);image.setContentDescription("Insta360 · Lab");image.setScaleType(ImageView.ScaleType.FIT_CENTER);box.addView(image,new LinearLayout.LayoutParams(-1,0,1));
+  TextView state=new TextView(this);state.setText("Conectando con la Insta360 del Lab…");box.addView(state);
+  TextView info=new TextView(this);info.setText("Vista remota · actualización cada 3 segundos. Se detiene al cerrar o salir de la aplicación.");box.addView(info);
+  ExecutorService cameraWorker=Executors.newSingleThreadExecutor();
+  Runnable poll=new Runnable(){public void run(){if(!dialog.isShowing()||!foreground)return;cameraWorker.execute(()->{
+   try{byte[] bytes=api.cameraFrame();Bitmap frame=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length);if(frame==null)throw new IOException();main.post(()->{if(dialog.isShowing()&&foreground){image.setImageBitmap(frame);state.setText("Insta360 conectada · "+java.text.DateFormat.getTimeInstance().format(new Date()));}});}
+   catch(Exception e){main.post(()->{if(dialog.isShowing()){image.setImageDrawable(null);state.setText("Sin imagen reciente. Reintentando conexión…");}});}
+   finally{main.post(()->{if(dialog.isShowing()&&foreground)main.postDelayed(this,3000);});}
+  });}};
+  labCameraDialog=dialog;dialog.setContentView(box);dialog.setOnDismissListener(d->{labCameraDialog=null;main.removeCallbacks(poll);cameraWorker.shutdownNow();});dialog.show();poll.run();
+ }
  private void openPlayer(){
   if(ListeningService.active||busy||recording){speak("Termina primero la escucha o la petición actual.");return;}
   stopRecognition();if(tts!=null)tts.stop();

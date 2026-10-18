@@ -1,3 +1,4 @@
+import { handleLabCamera } from './lab-camera.js';
 import { handlePlayerIncidents } from './agent-player-incidents.js';
 import { handleLabLighting } from './lab-lighting.js';
 import { handleAgentInvocations } from './agent-invocations.js';
@@ -10091,6 +10092,7 @@ var worker_app = {
       sessionInfo:async (_environment, session) => supervisorSessionInfo(await currentSupervisorAccess(session))
     });
     if (authResponse) return authResponse;
+    if (url.pathname === '/agents/lab-camera/frame') return handleLabCamera(req, env, {requireAuth:requireConversationAuth});
     if (url.pathname === '/agents/lab-lighting') return handleLabLighting(req, env, {requireAuth:requireConversationAuth,ensureSchema});
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     if (url.pathname === '/agents/player-incidents' || url.pathname.startsWith('/agents/player-incidents/')) return handlePlayerIncidents(req, env, {requireAuth:requireConversationAuth,ensureSchema,createIncident,addEvent,portalAssigned});

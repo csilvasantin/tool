@@ -1,0 +1,7 @@
+Test Case '-[AdmiritoUSBControl.LabHueTests testMascotLightingSequence]' started.
+HUE_NATIVE_MASCOT_Admirito
+HUE_NATIVE_MASCOT_Bugito
+HUE_NATIVE_MASCOT_Supervisor
+HUE_NATIVE_SEQUENCE_COMPLETED
+Test Case '-[AdmiritoUSBControl.LabHueTests testMascotLightingSequence]' passed (52.411 seconds).
+** TEST SUCCEEDED **

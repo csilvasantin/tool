@@ -23,6 +23,12 @@ final class Api {
    return result;
   }finally{c.disconnect();}
  }
+ byte[] cameraFrame() throws Exception {
+  HttpURLConnection c=(HttpURLConnection)new URL("https://api.admira.biz/agents/lab-camera/frame").openConnection();
+  c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(20000);c.setRequestProperty("Origin","https://www.admira.app");
+  synchronized(this){if(credential.optLong("expires")>System.currentTimeMillis())c.setRequestProperty("Cookie",credential.optString("cookie"));}
+  try{if(c.getResponseCode()!=200||!"image/jpeg".equals(c.getContentType()))throw new IOException("camera_unavailable");return read(c.getInputStream());}finally{c.disconnect();}
+ }
  static String text(java.nio.file.Path path) throws IOException {return new String(java.nio.file.Files.readAllBytes(path),StandardCharsets.UTF_8);}
  static byte[] read(InputStream in) throws IOException {ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);return out.toByteArray();}
  static JSONObject object(Object... pairs) throws JSONException {JSONObject o=new JSONObject();for(int i=0;i<pairs.length;i+=2)o.put((String)pairs[i],pairs[i+1]);return o;}

@@ -1,0 +1,28 @@
+{
+  "screen": "virtual-lab-admirito-fold",
+  "lastSeen": 1792308746489,
+  "standby": false,
+  "display": {
+    "width": 2505,
+    "height": 2256,
+    "cssWidth": 835,
+    "cssHeight": 752,
+    "viewportWidth": 834,
+    "viewportHeight": 752,
+    "devicePixelRatio": 3,
+    "colorDepth": 24,
+    "orientation": "landscape-secondary",
+    "rotation": 0,
+    "fit": "fill",
+    "paintedRotation": 0,
+    "painted": "horizontal",
+    "canvas": {
+      "w": 835,
+      "h": 752
+    },
+    "overlay": 0,
+    "visible": 100,
+    "chromeTop": 0,
+    "playbackPaused": false
+  }
+}

@@ -56,6 +56,7 @@ struct AssistantView: View {
     @StateObject private var invokedAgent = AgentInvocation()
     @StateObject private var playerLab = PlayerLab()
     @State private var showingPlayerLab = false
+    @State private var showingLabCamera = false
     @State private var agentVoiceQueue: [String] = []
     @Environment(\.scenePhase) private var scene
     @State private var petMood: PetMood?
@@ -86,6 +87,7 @@ struct AssistantView: View {
                         Picker("Modo de Admirito", selection: $selectedMode) {
                             ForEach(AssistantMode.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
                         }.pickerStyle(.segmented).disabled(assistant.listening || assistant.starting || commandVoice.listening || commandVoice.starting || commandVoice.processing)
+                        Button("Insta360 · ver el Lab") { showingLabCamera = true }.accessibilityIdentifier("labCameraOpen")
                         if selectedMode == AssistantMode.suite.rawValue { VStack(alignment:.leading, spacing:8) {
                             Button("Player del Fold · Bugito y Supervisor") { showingPlayerLab = true }.accessibilityIdentifier("playerLabOpen")
                             Menu("Demo en otro ordenador") {
@@ -225,6 +227,7 @@ struct AssistantView: View {
                 invokedAgent.bind(assistant.accountID)
                 invokedAgent.send("Verifica la recuperación de la incidencia \(id) del Fold de laboratorio con la Insta360 existente macmini-insta360. Documenta dos capturas ópticas distintas y recientes, comprueba dos lecturas saludables del player y solo entonces cierra mediante /agents/player-incidents/\(id)/recovery. No cierres por telemetría sola. Si no ves el Fold o falta evidencia, deja abierta y explica el motivo.",target:"supervisor"){response in agentVoiceQueue.append(response)}
             },supervisorStatus:invokedAgent.status) }
+            .sheet(isPresented: $showingLabCamera) { LabCameraView() }
             .sheet(isPresented: $takingPhoto) { ProjectionPhoto { assistant.attachProjection($0) } }
             .sheet(isPresented: $sharing) { if let image = sharingPhoto { PhotoSummaryShare(image: image, text: sharingText) } }
             .alert("Cámara", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) { Button("Aceptar") { photoError = nil } } message: { Text(photoError ?? "") }
