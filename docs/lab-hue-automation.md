@@ -27,6 +27,8 @@ El último evento confirmado manda: una nueva incidencia apaga; una invocación 
 
 `ADMIRANEXT_LAB_HUE_CONFIG` conserva identidad del puente, credencial, objetivo, estado de referencia, modo activo, estado RGB pendiente y mapas completos. `ADMIRABOT_HUE_API` conserva compatibilidad con la app de Telegram anterior. `ADMIRANEXT_LAB_HUE_AUTOMATION` registra fuente, contrato, instalación, versión, pruebas y pendientes. Nunca publicar los valores de estas entradas.
 
+Instalador reproducible: `python3 scripts/install-lab-hue.py`. El proceso utiliza prioridad Interactive para responder a eventos sin abrir ventanas ni tomar foco; Background produjo retrasos en este Mac.
+
 Instalación local: copia verificable del actuador en `~/agent-tools/lab-hue/lab-hue-controller.py`; servicio `com.admira.lab-hue`, sin claves en el plist; logs y lectura física más reciente en `~/.config/admiranext/lab-hue/`. La clave se recupera de la bóveda al arrancar. Al cambiar configuración hay que reiniciar este servicio. El modo activo es `intensity`.
 
 Para parar: retirar únicamente `com.admira.lab-hue` de launchctl; restaurar el objetivo a `baseline` desde la bóveda. No reiniciar Supervisor ni cámara y no alterar otros puentes o luces. La automatización no se usa para volver a encender tras una orden manual sin un nuevo evento; al reiniciar se aplica el estado canónico más reciente.
