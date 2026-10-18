@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-18 Europe/Madrid",
+  "mission": "FLT-102549 · reproductor configurable en iPhone",
+  "release": {
+    "date": "2026-10-18",
+    "revision": 5,
+    "version": "20261018.5",
+    "iosBuild": 30,
+    "androidVersionCode": 8
+  },
+  "ios_installed": true,
+  "validation_tests_passed": 3,
+  "public_catalog": "https://api.admira.store/locations",
+  "selected_source": {
+    "project": "starbucks",
+    "location": "alsea-sbux-021",
+    "iot": "Starbucks_PaseodeGracia_103_iPad_1",
+    "playlist_screen": "ipad-admin-mupi"
+  },
+  "source_mutation": false,
+  "physical_source_display_observed": false,
+  "expert_command_playback": {
+    "passed": true,
+    "first_seconds": 0,
+    "second_seconds": 5,
+    "returned_to_expert": true,
+    "reopened_without_stale_target": true
+  },
+  "manual_selector_passed": true,
+  "background_resume": {
+    "passed": true,
+    "procedure": "Switch to Settings, return, observe native paused status, tap explicit Resume, observe advancing video",
+    "final_video_seconds": 4
+  },
+  "empty_assignment": {
+    "passed": true,
+    "iot": "Starbucks_PaseodeGracia_103_Pantalla_1",
+    "fallback_to_global_stock": false
+  },
+  "public_android_apk": "20261018.3 unchanged; iPhone-only feature",
+  "final_ui_acceptance": "passed",
+  "left_visible": "Assigned playlist playing on physical iPhone",
+  "xctest_limit": "Simulated Home did not reliably switch apps; application.state stale during explicit switch. Verified actual native pause/resume and video instead.",
+  "evidence": [
+    "iphone-playback-final.png",
+    "iphone-selected-playlist.png"
+  ],
+  "highscore_closure": "https://api.yokup.com/media/fleet/79506b0597653ec3.png"
+}

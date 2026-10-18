@@ -13,6 +13,7 @@
 		0D1A7498C2302CEBBE53C6F8 /* VoiceDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E091CE4E96980611A423A2 /* VoiceDiagnostics.swift */; };
 		1269CC8010CF3885E9F1B953 /* PlayerLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B1CFBA9E93237FFF9A24A8 /* PlayerLab.swift */; };
 		12DA2EE2A6AE9011185E1774 /* RemoteDemos.json in Resources */ = {isa = PBXBuildFile; fileRef = 6D2316041BCBF20766235E44 /* RemoteDemos.json */; };
+		2725C21D13D39F9C1F7B633E /* LocalPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1F9F70BD2778EDAAAA3714 /* LocalPlayerTests.swift */; };
 		29203336DB87888D4D6C70F3 /* WakeFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD5129A66B68AF18F8AB575 /* WakeFeedback.swift */; };
 		382DCD02AE7769BE0C8781BB /* LabCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6EA186F5E5C475A84972238 /* LabCameraView.swift */; };
 		3CE62B975DD6B30D823EEBCB /* SuiteExpert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54474E6594597F117A9D75FC /* SuiteExpert.swift */; };
@@ -26,6 +27,7 @@
 		654208594CD775CCD9357729 /* AdmiritoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */; };
 		6913249302879AD3CBAD1BA6 /* PetStandby.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B5F99A836AE1A752079DB64 /* PetStandby.swift */; };
 		6A28394D0913952FCDA4A80B /* SuiteExpertTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBCCE77B8262B9816436541B /* SuiteExpertTests.swift */; };
+		6A88037CE807BA268FECE992 /* LocalPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 929A809D83CA82AE850D47B7 /* LocalPlayer.swift */; };
 		7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */; };
 		80C1B49AD0A88C2A66AFE8BD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C0E02C4FC2F18A0179CD14 /* APIClient.swift */; };
 		860183312E51D3ED12C69D6C /* WakeWordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0BBB70E75FD4C9B34E112DD /* WakeWordTests.swift */; };
@@ -63,6 +65,7 @@
 		0D0EAD3B63E10786D821B0E3 /* AdmiritoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmiritoApp.swift; sourceTree = "<group>"; };
 		124C506F87AF3079CA3C7FF0 /* RestDiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestDiary.swift; sourceTree = "<group>"; };
 		15E7BDFC3B2E7A869F667AB7 /* AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStore.swift; sourceTree = "<group>"; };
+		1B1F9F70BD2778EDAAAA3714 /* LocalPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPlayerTests.swift; sourceTree = "<group>"; };
 		211207BFEC7F5C2C2985D6D6 /* SuiteExpertBridge.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = SuiteExpertBridge.js; sourceTree = "<group>"; };
 		3AB1ACAE8408646AFB90C839 /* AdmiritoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AdmiritoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DA9CF647EA1E4B384451AC2 /* Bugito.svg */ = {isa = PBXFileReference; path = Bugito.svg; sourceTree = "<group>"; };
@@ -81,6 +84,7 @@
 		8B1D9C4CD1932808285E99DC /* Admirito.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Admirito.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BD5129A66B68AF18F8AB575 /* WakeFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeFeedback.swift; sourceTree = "<group>"; };
 		8BF2D0BD6C915512327C7453 /* RemoteDemoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDemoTests.swift; sourceTree = "<group>"; };
+		929A809D83CA82AE850D47B7 /* LocalPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPlayer.swift; sourceTree = "<group>"; };
 		9DB6E1C3F6AC3061D4AE43BE /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		A0BBB70E75FD4C9B34E112DD /* WakeWordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordTests.swift; sourceTree = "<group>"; };
 		A4CA9DA1807259DC86BF3B83 /* MacGaze.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacGaze.swift; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 				A9D87A13C125FEFA4B28BB4D /* AudioCapture.swift */,
 				F10CF9C85C0F1054E5E93041 /* CommandDictation.swift */,
 				C6EA186F5E5C475A84972238 /* LabCameraView.swift */,
+				929A809D83CA82AE850D47B7 /* LocalPlayer.swift */,
 				7BCE821171029B4AD39D645B /* LocalWakeListener.swift */,
 				A4CA9DA1807259DC86BF3B83 /* MacGaze.swift */,
 				5EC327722BEFA8292EFBBB86 /* MobileRelease.swift */,
@@ -177,6 +182,7 @@
 			children = (
 				436DE830BCFCC4ADA02A8E56 /* AgentInvocationTests.swift */,
 				CA270DD45862031A659ED735 /* LiveServiceTests.swift */,
+				1B1F9F70BD2778EDAAAA3714 /* LocalPlayerTests.swift */,
 				5D2AA2954DA9606521E07032 /* PetStandbyTests.swift */,
 				07A548E050595748D595EB64 /* PlayerLabTests.swift */,
 				C446DCD45B84CEA314605E86 /* ReliabilityTests.swift */,
@@ -302,6 +308,7 @@
 				7E64FE319DF2123EDD939ECD /* AudioCapture.swift in Sources */,
 				AD37CA803F7639E27F634C74 /* CommandDictation.swift in Sources */,
 				382DCD02AE7769BE0C8781BB /* LabCameraView.swift in Sources */,
+				6A88037CE807BA268FECE992 /* LocalPlayer.swift in Sources */,
 				04EE5EFA57AC0CF9BB1E4A22 /* LocalWakeListener.swift in Sources */,
 				9E603D5847C5CE431B149D12 /* MacGaze.swift in Sources */,
 				0C6F43A47089420CA5632E3C /* MobileRelease.swift in Sources */,
@@ -325,6 +332,7 @@
 			files = (
 				9E19742D7199EC662C987BCC /* AgentInvocationTests.swift in Sources */,
 				4B1267DE33CC25A988FE791A /* LiveServiceTests.swift in Sources */,
+				2725C21D13D39F9C1F7B633E /* LocalPlayerTests.swift in Sources */,
 				966C4E024C6F98B36B852B31 /* PetStandbyTests.swift in Sources */,
 				CE6F17259E1048A62B216571 /* PlayerLabTests.swift in Sources */,
 				02BE1CCD4610D85BA1185C02 /* ReliabilityTests.swift in Sources */,
@@ -381,7 +389,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -401,7 +409,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 20261018.3;
+				MARKETING_VERSION = 20261018.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -516,7 +524,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -530,7 +538,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 20261018.3;
+				MARKETING_VERSION = 20261018.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -122,7 +122,7 @@ struct AssistantView: View {
                                 }
                             }
                         }
-                        SuiteExpertView(console: suite, dictation: commandVoice).id("suiteCommands") }
+                        SuiteExpertView(console: suite, dictation: commandVoice).disabled(assistant.listening || assistant.starting || assistant.replying).id("suiteCommands") }
                         else { listeningControls; RestDiaryView(diary: diary); conversation; notes }
                     }
                     else { pairing }
@@ -173,6 +173,7 @@ struct AssistantView: View {
                 }
             }
             .onReceive(idleTimer) { _ in
+                    if suite.showingPlayer { wakeWord.pause(); return }
                     if scene == .active && !agentVoiceQueue.isEmpty && !feedback.speaking && !commandVoice.listening && !commandVoice.starting && !commandVoice.processing && !pet.holding && !pet.awaitingCommand && !assistant.listening && !assistant.replying {
                         wakeWord.pause(); let message = agentVoiceQueue.removeFirst(); pet.message = message; feedback.reply(message)
                     }
@@ -213,9 +214,13 @@ struct AssistantView: View {
                 }
             }
             .onChange(of: scene) { _, phase in
-                if phase == .background { closePet() }
+                if phase == .background {
+                    if suite.showingPlayer { wakeWord.pause(); feedback.cancel(); commandVoice.cancel() }
+                    else { closePet() }
+                }
                 else if phase == .active { pet.interact() }
             }
+            .onChange(of: suite.showingPlayer) { _, active in if active { wakeWord.pause(); feedback.cancel(); commandVoice.cancel(); pet.showing = false } else { pet.interact() } }
             .onChange(of: selectedMode) { _, _ in applyMode() }
             .onChange(of: assistant.linked) { _, _ in bindDiary() }
             .onChange(of: scene) { _, phase in if phase == .active { bindDiary() } }

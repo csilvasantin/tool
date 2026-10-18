@@ -7,6 +7,8 @@ enum AssistantMode: String, CaseIterable {
 }
 @MainActor final class SuiteExpertConsole: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
     @Published var command = ""
+    @Published var showingPlayer = false
+    var localPlayerRequest: LocalPlayerRequest?
     @Published var ready = false
     @Published var busy = false
     @Published var status = "Cargando el modo Experto de admira.biz…"
@@ -46,6 +48,11 @@ enum AssistantMode: String, CaseIterable {
     }
     func send(_ preset: String? = nil, completion: ((String?) -> Void)? = nil) {
         let text = (preset ?? command).trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.split(whereSeparator: \.isWhitespace).first?.lowercased() == "/player" {
+            do { localPlayerRequest = try LocalPlayerRequest.parse(text); showingPlayer = true; completion?(nil) }
+            catch { output = error.localizedDescription; status = output; completion?(output) }
+            return
+        }
         guard trustedPage, ready, !busy, !text.isEmpty, text.count <= 2000 else { completion?("El modo Experto no está disponible. No he enviado la orden."); return }
         VoiceDiagnostics.record("suite_send", ["publicTour": String(text.hasPrefix("/tour "))])
         busy = true; command = text; let requestID = UUID().uuidString
@@ -87,6 +94,7 @@ struct SuiteExpertView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("AdmiraNeXT · modo Experto").font(.headline)
+            Button("Player en este iPhone") { dictation.cancel(); console.localPlayerRequest = nil; console.showingPlayer = true }.buttonStyle(.borderedProminent).accessibilityIdentifier("localPlayerOpen")
             Text("Las mismas órdenes y permisos de admira.biz. Dicta la orden, revísala y pulsa Ejecutar.").font(.caption).foregroundStyle(.secondary)
             TextField("/tour alsea mexico", text: $console.command, axis: .vertical).textFieldStyle(.roundedBorder).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("suiteCommand")
             Button(dictation.listening ? "Terminar dictado" : dictation.starting ? "Preparando voz…" : "Dictar orden") {
@@ -103,7 +111,7 @@ struct SuiteExpertView: View {
                 if dictation.listening { ProgressView(value: dictation.level).accessibilityLabel("Nivel del micrófono").accessibilityIdentifier("suiteMicrophoneLevel") }
             }
             HStack {
-                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); console.send() }.buttonStyle(.borderedProminent).disabled(!console.ready || console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing)
+                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); console.send() }.buttonStyle(.borderedProminent).disabled((!console.ready && !console.command.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("/player")) || console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing)
                 Button("Ayuda") { console.send("/help") }.disabled(!console.ready || console.busy)
             }
             ScrollView(.horizontal) { HStack {
@@ -118,7 +126,7 @@ struct SuiteExpertView: View {
             SuiteExpertSurface(console: console).frame(height: verticalSizeClass == .compact ? max(240, min(360, UIScreen.main.bounds.height - 110)) : 520).clipShape(RoundedRectangle(cornerRadius: 12)).id("suiteMap")
             Text("Si una acción requiere identificación, entra con tu cuenta de admira.biz en esta vista. Vincular Admirito no concede permisos de control físico.").font(.caption).foregroundStyle(.secondary)
             Link("Abrir admira.biz en Safari", destination: URL(string: "https://www.admira.biz/")!)
-        }.onAppear { console.observe() }.onDisappear { dictation.cancel() }
+        }.fullScreenCover(isPresented: $console.showingPlayer) { LocalPlayerView(request: console.localPlayerRequest) }.onAppear { console.observe() }.onDisappear { dictation.cancel() }
             .onChange(of: dictation.transcript) { _, text in if !text.isEmpty { console.command = text } }
             .onChange(of: scene) { _, phase in if phase == .background { dictation.cancel() } }
     }
