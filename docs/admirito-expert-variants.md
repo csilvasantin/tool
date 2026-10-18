@@ -71,3 +71,12 @@ Se localizó un bloqueo concreto del retorno de Google: el acceso oficial de Liv
 Pruebas: política de navegación con retornos válidos y rutas, dominios, credenciales y puertos rechazados; compilación Android firmada y lint correctos. La prueba física actual del iPhone abre `/admirito supervisor`, la vista «Gran de Gràcia · Insta360 Link 2» y los controles; el vídeo indica «Conectando o recuperando vídeo», por lo que no se acredita reproducción en directo. La instalación y la prueba física del Fold quedan pendientes: el teléfono no aparece por USB. Esta corrección preparada no cierra todavía la comprobación de Supervisor.
 
 Android now permits only the official Live one-use Google handoff navigation, without granting that host the suite command bridge. Navigation policy checks, signed build and lint pass. Current iPhone UI opens the Insta360 view and controls, but video remains connecting. Fold installation and end-to-end verification remain pending USB reconnection; no live playback is claimed.
+
+
+### Fold físico: acceso corregido y vídeo real
+
+Actualización instalada por USB y verificada: versión 20261018.12, APK instalado igual al público por SHA-256 `907feab24b035e6025ebfeedd596fb95ffb25d1143317a0034ff93308d07fa03`. `/admirito supervisor` abre Google, se selecciona la cuenta habitual y vuelve a la vista Insta360 sin pantalla en blanco. Imagen real del Lab e indicador «EN VIVO», con búfer de 0,27 s. Al cerrar y volver a invocar Supervisor, conserva el acceso y vuelve a mostrar vídeo real (0,12 s). Se ocultan solo los controles para ver la imagen; no se mueve PTZ. El botón «Volver a entrar con Google» aparece después junto al reproductor: esta prueba no acredita acciones de control de cámara ni autorización del backend de controles.
+
+La prueba actual del iPhone abre la misma vista y sus controles; el resultado inicial seguía conectando. Las capturas físicas y los hashes están en la evidencia privada de Supervisor, referenciada desde la bóveda.
+
+Physical Fold verification: installed .12 matches the public signed APK. Normal Google account selection returns to Insta360 without a blank page; real Lab video and LIVE status confirmed. Reopening Supervisor retains access and live video. Camera was not moved; backend PTZ authorization is not claimed. iPhone opens the same analysis view and controls; initial video still connecting.
