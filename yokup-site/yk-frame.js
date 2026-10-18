@@ -2291,7 +2291,7 @@
     if (esPortadaYk() && /^(www\.)?admira\.app$/.test(location.hostname)) {
       var login = el("a", "yk-ico yk-home-login");
       login.id = "ykHomeLogin";
-      login.href = "/dashboard";
+      login.href = "/conversar";
       login.setAttribute("data-admira-compact-control", "");
       function loginLabel() {
         login.textContent = localEn() ? "Sign in" : "Entrar";

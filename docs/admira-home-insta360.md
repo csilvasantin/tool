@@ -1,6 +1,6 @@
 # Entrada DMZ y visor Insta360 · 18 octubre 2026
 
-La portada de admira.app coloca Entrar junto al idioma. Lleva a `/dashboard`, protegido por la verja Google y autorización vigente del servidor (`acceso.js`). Avanzado y Experto pertenecen a la zona autenticada; se conservan cerrados inicialmente. No se introduce almacenamiento de privilegios en el navegador. El cambio de la portada se limita a admira.app; otros dominios mantienen su cabecera.
+La portada de admira.app coloca Entrar junto al idioma. Lleva a `/conversar`, protegido por la verja Google y autorización vigente del servidor (`acceso.js`). Avanzado y Experto pertenecen a la zona autenticada; se conservan cerrados inicialmente. No se introduce almacenamiento de privilegios en el navegador. El cambio de la portada se limita a admira.app; otros dominios mantienen su cabecera.
 
 Admirito iOS y Android incluyen **Insta360 · ver el Lab**. Es una vista remota mediante imágenes JPEG actualizadas cada tres segundos, no vídeo continuo ni control de movimiento. Solo consulta mientras el visor está abierto y la aplicación está activa. Ante fallo retira la imagen anterior para no presentarla como reciente. Cerrar detiene nuevas peticiones. Android cierra el visor al pasar a segundo plano.
 
@@ -12,4 +12,4 @@ Configuración y recuperación: bóveda `ADMIRANEXT_LAB_INSTA360_VIEWER`. El sec
 
 ## English
 
-The public admira.app home shows Sign in beside the language selector. It opens the existing authenticated DMZ dashboard. Advanced and Expert remain in the authenticated workspace. Both mobile apps provide a private read-only Insta360 viewer, refreshed with JPEG snapshots every three seconds while visible and active. This is not continuous video. The existing Mac camera producer remains the only capture source; private camera credentials stay server-side and in the vault. The API enforces account/device scope and returns no-cache JPEG bytes only.
+The public admira.app home shows Sign in beside the language selector. It opens the existing authenticated DMZ conversation workspace. Advanced and Expert remain in the authenticated workspace. Both mobile apps provide a private read-only Insta360 viewer, refreshed with JPEG snapshots every three seconds while visible and active. This is not continuous video. The existing Mac camera producer remains the only capture source; private camera credentials stay server-side and in the vault. The API enforces account/device scope and returns no-cache JPEG bytes only.
