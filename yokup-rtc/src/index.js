@@ -1,4 +1,5 @@
 import { handlePlayerIncidents } from './agent-player-incidents.js';
+import { handleLabLighting } from './lab-lighting.js';
 import { handleAgentInvocations } from './agent-invocations.js';
 import { handleAgentListening } from './agent-listening.js';
 import { handleAgentDevices, pairedConversationSession } from './agent-device-pairing.js';
@@ -10090,6 +10091,7 @@ var worker_app = {
       sessionInfo:async (_environment, session) => supervisorSessionInfo(await currentSupervisorAccess(session))
     });
     if (authResponse) return authResponse;
+    if (url.pathname === '/agents/lab-lighting') return handleLabLighting(req, env, {requireAuth:requireConversationAuth,ensureSchema});
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     if (url.pathname === '/agents/player-incidents' || url.pathname.startsWith('/agents/player-incidents/')) return handlePlayerIncidents(req, env, {requireAuth:requireConversationAuth,ensureSchema,createIncident,addEvent,portalAssigned});
     if (url.pathname === '/agents/devices' || url.pathname.startsWith('/agents/devices/')) return handleAgentDevices(req, env, { requireAuth:async (environment,request) => { const session=await requireConversationAuth(environment,request); return session&&!session.conversation_device?session:null; } });

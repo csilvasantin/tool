@@ -39,6 +39,17 @@ enum AgentInvocationRules {
     @Published private(set) var status = ""
     @Published private(set) var answer = ""
     private var api = APIClient()
+    private var lightingTask: Task<Void, Never>?
+    func labLighting(_ mascot: String) {
+        guard account != nil else { return }
+        let previous = lightingTask
+        let client = api
+        lightingTask = Task {
+            await previous?.value
+            do { try await client.labLighting(mascot) }
+            catch { VoiceDiagnostics.record("lab_lighting_unavailable", ["mascot":mascot]) }
+        }
+    }
     private var task: Task<Void, Never>?
     private var account: String?
     private var pending: Pending?
@@ -60,17 +71,19 @@ enum AgentInvocationRules {
         if selected == "admirito" { leave(); return }
         guard ["bugito","supervisor"].contains(selected) else { return }
         target = selected
+        labLighting(selected)
         if let key { UserDefaults.standard.set(selected,forKey:key + ".target") }
         status = "Canal de \(SelfName(selected)) seleccionado."
     }
     private func SelfName(_ value: String) -> String { AgentInvocationRules.names[value] ?? value }
-    func leave() { if let key { UserDefaults.standard.removeObject(forKey:key + ".target") }; task?.cancel(); task = nil; busy = false; target = nil; status = "Has vuelto a Admirito. Las peticiones ya enviadas continúan en la flota." }
+    func leave() { labLighting("admirito"); if let key { UserDefaults.standard.removeObject(forKey:key + ".target") }; task?.cancel(); task = nil; busy = false; target = nil; status = "Has vuelto a Admirito. Las peticiones ya enviadas continúan en la flota." }
     func stopWaiting() {
         task?.cancel(); task = nil; busy = false; pending = nil; save()
         status = "Has dejado de esperar en el iPhone. Esto no cancela una petición ya entregada al agente."
     }
     func send(_ text: String, target selected: String, demo: RemoteDemoRequest? = nil, speak: @escaping (String)->Void) {
         guard !busy, pending == nil, account != nil else { speak("Todavía hay una petición pendiente. Primero comprobaré su respuesta."); resume(speak:speak); return }
+        if demo == nil && ["bugito","supervisor"].contains(selected) { labLighting(selected) }
         if demo == nil { target = selected; if let key { UserDefaults.standard.set(selected,forKey:key + ".target") } }; answer = ""; busy = true; status = demo.map { "Preparando \(RemoteDemoRules.label($0))…" } ?? "Preparando la petición a \(AgentInvocationRules.names[selected] ?? selected)…"
         let owner = account
         task = Task {

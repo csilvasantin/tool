@@ -21,7 +21,7 @@ $('mic').onclick=()=>{if(busy||loading)return;if(recorder?.state==='recording'){
 $('stop').onclick=()=>{stopMedia();status('Voz y micrófono detenidos. La respuesta en curso se guardará en el hilo.','Voice and microphone stopped. Any pending reply will still be saved.');};
 $('voice').onchange=()=>{if(!$('voice').checked)stopMedia();};
 $('language').onclick=()=>{stopMedia();lang=lang==='es'?'en':'es';applyLanguage();};
-document.querySelectorAll('[data-agent]').forEach(b=>b.onclick=()=>{stopMedia();agent=b.dataset.agent;document.querySelectorAll('[data-agent]').forEach(n=>n.setAttribute('aria-pressed',String(n===b)));applyLanguage();});
+document.querySelectorAll('[data-agent]').forEach(b=>b.onclick=()=>{stopMedia();agent=b.dataset.agent;window.AdmiraLabLighting?.select(agent);document.querySelectorAll('[data-agent]').forEach(n=>n.setAttribute('aria-pressed',String(n===b)));applyLanguage();});
 $('new-thread').onclick=()=>create().catch(failure);
 $('delete-thread').onclick=async()=>{if(!thread||busy||loading||!confirm(tr('¿Eliminar esta conversación de tu cuenta?','Delete this conversation from your account?')))return;try{stopMedia();await api('/'+thread,undefined,'DELETE');thread=null;history.replaceState(null,'',location.pathname);renderMessages([]);await list();status('Conversación eliminada.','Conversation deleted.');}catch(e){failure(e);}};
 window.addEventListener('pagehide',stopMedia);

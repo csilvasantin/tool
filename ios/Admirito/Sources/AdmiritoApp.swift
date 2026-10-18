@@ -201,6 +201,8 @@ struct AssistantView: View {
                 if !holding && pet.awaitingCommand && !commandVoice.listening && !commandVoice.starting && !commandVoice.processing { processPetCommand(proxy: proxy) }
             }
             .onChange(of: pet.showing) { _, showing in
+                invokedAgent.bind(assistant.accountID)
+                invokedAgent.labLighting(showing ? AgentInvocationRules.mascot(invokedAgent.target).lowercased() : "normal")
                 if showing { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
             }
             .onChange(of: commandVoice.starting) { _, starting in

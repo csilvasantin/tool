@@ -60,6 +60,10 @@ private enum CredentialStore {
         }
     }
     struct LabIncidentReply: Decodable { let ok: Bool; let id: String; let url: String }
+    func labLighting(_ mascot: String) async throws {
+        struct Result: Decodable { let queued: Bool }
+        let _: Result = try await request("agents/lab-lighting", method:"POST", object:["mascot":mascot,"request_id":UUID().uuidString.lowercased()])
+    }
     func reportPlayerIncident(jpeg: Data, requestID: String, capturedAt: Int64) async throws -> LabIncidentReply {
         try await request("agents/player-incidents",method:"POST",data:jpeg,mime:"image/jpeg",headers:["X-Request-ID":requestID,"X-Captured-At":String(capturedAt)])
     }
