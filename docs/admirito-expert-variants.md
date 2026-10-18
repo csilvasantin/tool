@@ -80,3 +80,14 @@ Actualización instalada por USB y verificada: versión 20261018.12, APK instala
 La prueba actual del iPhone abre la misma vista y sus controles; el resultado inicial seguía conectando. Las capturas físicas y los hashes están en la evidencia privada de Supervisor, referenciada desde la bóveda.
 
 Physical Fold verification: installed .12 matches the public signed APK. Normal Google account selection returns to Insta360 without a blank page; real Lab video and LIVE status confirmed. Reopening Supervisor retains access and live video. Camera was not moved; backend PTZ authorization is not claimed. iPhone opens the same analysis view and controls; initial video still connecting.
+
+
+## Supervisor iPhone · reproducción en directo 20261018.13
+
+El modo Experto de iPhone permite vídeo inline y su inicio sin un segundo gesto. Para la cámara de Live, conserva el origen ManagedMediaSource con duración infinita, activa autoplay y reanuda únicamente el arranque silenciado y visible. El ajuste queda limitado a los hosts de Admira Live y a su reproductor de webcam; conserva el acceso normal del usuario y la regulación original de velocidad.
+
+La comprobación física ya muestra imagen real del Lab y el indicador «EN VIVO» (búfer observado 1,27 s), con dos capturas separadas por cinco segundos. Durante el diagnóstico el flujo llegaba y decodificaba, pero quedaba pausado al inicio; con duración continua y autoplay avanza sin quedar en pausa. La prueba de UI usa una referencia estable a «Webcam en vivo»: ocultar los controles cambia el nombre de su botón y no debe invalidar la búsqueda del reproductor. La instrumentación temporal se retiró del código final. No se mueve PTZ ni se activa el sonido.
+
+iPhone Expert now allows inline autoplay and keeps the Live camera ManagedMediaSource unbounded. Only a visible muted startup can be resumed; normal user authentication and the original stream rate control remain. Physical camera image and LIVE status observed, with two screenshots five seconds apart. UI targeting remains stable when the camera controls are hidden. Temporary media diagnostics are removed from the final source; no PTZ movement or audio activation.
+
+Referencia de configuración: [Apple · reproducción inline](https://developer.apple.com/documentation/webkit/wkwebviewconfiguration/allowsinlinemediaplayback), [W3C · Media Source Extensions](https://www.w3.org/TR/media-source/).

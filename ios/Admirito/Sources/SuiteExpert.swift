@@ -23,6 +23,9 @@ enum AssistantMode: String, CaseIterable {
         let config = WKWebViewConfiguration()
         // Website's own login and cookies. The paired conversation credential is never injected here.
         config.websiteDataStore = .default()
+        // Supervisor starts a muted inline live stream after the Expert command navigates.
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
         if let url = Bundle.main.url(forResource: "SuiteExpertBridge", withExtension: "js"), let script = try? String(contentsOf: url) {
             config.userContentController.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
@@ -40,6 +43,20 @@ enum AssistantMode: String, CaseIterable {
     private func refresh() async {
         guard !busy else { return }
         guard trustedPage else { ready = false; tourRunning = false; tourProgress = ""; return }
+        // ManagedMediaSource must remain unbounded for a live camera, rather than ending at a fragment.
+        // Resume only the visible, muted startup, preserving later user pauses.
+        if ["admira.live", "www.admira.live"].contains(webView.url?.host ?? ""),
+           let window = webView.window,
+           webView.convert(webView.bounds, to: window).intersects(window.bounds) {
+            _ = try? await webView.evaluateJavaScript("""
+                (()=>{if(document.hidden)return;const v=document.querySelector('.webcam-player video-stream video');if(!v)return;
+                const source=v.srcObject;if(source&&source.readyState==='open'&&source.duration!==Infinity){try{source.duration=Infinity}catch{}}
+                v.autoplay=true;
+                if(!v.muted||!v.paused||v.readyState<2||v.currentTime>1)return;
+                const r=v.getBoundingClientRect();if(r.bottom<=0||r.top>=innerHeight||r.right<=0||r.left>=innerWidth)return;
+                v.play().catch(()=>{});})()
+                """)
+        }
         let value = try? await webView.evaluateJavaScript("({ready:Boolean(window.AdmiritoSuiteBridge?.ready()),running:document.body.classList.contains('gt-on')&&Boolean(document.querySelector('.gt-hud')),progress:document.querySelector('.gt-hud .gt-journey')?.textContent||''})") as? [String: Any]
         ready = value?["ready"] as? Bool == true
         let running = value?["running"] as? Bool == true
