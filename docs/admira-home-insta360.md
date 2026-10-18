@@ -13,3 +13,9 @@ Configuración y recuperación: bóveda `ADMIRANEXT_LAB_INSTA360_VIEWER`. El sec
 ## English
 
 The public admira.app home shows Sign in beside the language selector. It opens the existing authenticated DMZ conversation workspace. Advanced and Expert remain in the authenticated workspace. Both mobile apps provide a private read-only Insta360 viewer, refreshed with JPEG snapshots every three seconds while visible and active. This is not continuous video. The existing Mac camera producer remains the only capture source; private camera credentials stay server-side and in the vault. The API enforces account/device scope and returns no-cache JPEG bytes only.
+
+## Comprobaciones de publicación
+
+Portada: Entrar/Sign in visible y adyacente al idioma en 390 y 1440 píxeles; sin controles Avanzado/Experto en la barra pública. Sin sesión, /conversar muestra la verja; sesión oficial autorizada mantiene admira.app y muestra ambos controles cerrados. Cámara: el runtime workerd real devuelve JPEG200 al reutilizar el origen existente. Se usa `redirect: manual` y se rechaza cualquier redirección; `redirect: error` no está implementado en este runtime. Pruebas API: cuatro casos de autorización, alcance, imagen y redirección.
+
+La prueba previa de asignación de establecimientos presentó una colisión intermitente entre identificadores de fixtures creados en el mismo milisegundo. Se separan los instantes del reloj de ese arnés, sin cambiar identificadores ni datos de producción. La validación de asignación de proyecto ya no depende del azar de identificadores.

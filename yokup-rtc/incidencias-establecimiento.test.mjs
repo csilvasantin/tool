@@ -37,8 +37,12 @@ function database() {
 }
 
 function worker(env, extra = {}) {
+  // Project assertions need distinct fixture IDs, independent of execution speed.
+  // Separate fixture instants avoid unrelated random ID collisions in one ms.
+  let clock = Date.now();
+  class FixtureDate extends Date { static now() { return ++clock; } }
   const context = vm.createContext({
-    Date, Number, String, Math, JSON, Array, Set, Map, Error, Promise,
+    Date:FixtureDate, Number, String, Math, JSON, Array, Set, Map, Error, Promise,
     ensureEstablishmentProject, __name: () => {},
     ensureSchema: async () => {},
     carbonRoster: async () => [{name:'Laura R.', zone:'Barcelona', skills:'players'}],
