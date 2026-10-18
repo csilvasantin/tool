@@ -37,3 +37,18 @@ El contrato de variantes no genera incidencias ni contenido de pago por sí solo
 Experto mantiene la vista abierta durante la inactividad; la mascota sigue disponible al invocarla manualmente. Cada navegación retira el resultado de la página anterior y descarta sus respuestas tardías, sin repetir la orden. Android pausa la activación por voz mientras está abierta la consola.
 
 Expert stays visible while idle; the pet remains available when explicitly opened. Navigation clears the previous page's result and ignores its late responses without replaying the command. Android pauses wake recognition while the console is open.
+
+## Comprobación adicional de variantes · 18 octubre
+
+Probado desde Experto con la versión 20261018.10, sin lanzar fallos ni generar contenido:
+
+| Orden | iPhone | Fold |
+|---|---|---|
+| `/admirito arquitecto` | Estudio y Arquitecto con casco visibles | Estudio y Arquitecto con casco visibles |
+| `/admirito bugito` | Bugito rojo visible | Bugito rojo visible |
+| `/admirito supervisor` | Acceso Google completado; vista de análisis y controles de cámara abiertos | Llega a Admira Live, pero Google queda en blanco y no conserva la sesión: pendiente |
+| `/admirito` | Respuesta de verde estándar y mascota verde visibles | Respuesta de verde estándar y mascota verde visibles |
+
+Supervisor en iPhone se comprobó como acceso a la vista de cámara; el reproductor indicaba pausa. No se movió la cámara ni se verificó vídeo en directo en esta prueba. La instrumentación temporal de diagnóstico Android solo mostró el dominio externo; se retiró y se restauró el APK público.
+
+Additional physical checks: Architect, red Bugito and return to standard green passed on both phones. Supervisor opened its analysis/camera controls on iPhone after normal Google sign-in, with playback paused. Fold Supervisor remains pending because the embedded Google page becomes blank and the session is not retained. No PTZ movements, fault injection or content generation. Temporary Android diagnostics were removed and the public APK restored.
