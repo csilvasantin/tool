@@ -52,3 +52,13 @@ Probado desde Experto con la versión 20261018.10, sin lanzar fallos ni generar 
 Supervisor en iPhone se comprobó como acceso a la vista de cámara; el reproductor indicaba pausa. No se movió la cámara ni se verificó vídeo en directo en esta prueba. La instrumentación temporal de diagnóstico Android solo mostró el dominio externo; se retiró y se restauró el APK público.
 
 Additional physical checks: Architect, red Bugito and return to standard green passed on both phones. Supervisor opened its analysis/camera controls on iPhone after normal Google sign-in, with playback paused. Fold Supervisor remains pending because the embedded Google page becomes blank and the session is not retained. No PTZ movements, fault injection or content generation. Temporary Android diagnostics were removed and the public APK restored.
+
+## Comercial · quinto asistente compartido
+
+Comercial se publica en admira.biz para vender campañas a anunciantes: brief, audiencia, ubicaciones del mapa y propuesta descargable con las estimaciones del planificador existente. Se invoca mediante `/comercial` o `/admirito comercial`; `/admirito` cierra su panel y vuelve al verde estándar. No se transporta el brief por URL ni se reserva o publica una campaña.
+
+Entrada: https://www.admira.biz/?asistente=comercial&lang=es. Guía de funcionamiento: https://github.com/csilvasantin/clearchannel-tv/blob/main/docs/comercial.md.
+
+La llamada compartida está probada en navegador público de escritorio/móvil y en el modo Experto del iPhone, con retorno al verde. La comprobación física de Comercial en el Fold queda pendiente de reconectar USB. Esto no resuelve el acceso de Google pendiente de Supervisor en el Fold. No hace falta una nueva instalación nativa: se utiliza el motor compartido publicado.
+
+Commercial is the fifth shared assistant, focused on advertiser campaigns. Desktop/mobile web and the native iPhone Expert command plus standard-green return passed. Physical Fold verification is pending USB reconnection; its separate Supervisor Google issue remains open. Existing native apps use the updated shared engine.
