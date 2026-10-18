@@ -38,3 +38,8 @@ En Cuenta y escuchas → Player en este Fold se abre el canal real de Admira TV 
 El player de laboratorio utiliza `virtual-lab-admirito-fold`, su propio productor y cola; la reproducción comunica su pieza y geometría reales. Lee una copia de la playlist pública Starbucks del laboratorio (`macbookpro16`) sin escribirla ni tocar su emisión. La fuente es una playlist de referencia, no una asignación de inventario de restaurantes. El iPhone build 23 controla esta única ranura de laboratorio. Es un banco de pruebas compartido con control público de laboratorio, no un mecanismo de autorización para pantallas de clientes ni un identificador único provisionado para cada instalación.
 
 Account and listening → Player on this Fold opens the real Admira TV channel with an independent producer and laboratory control queue. It reads the reference Starbucks laboratory playlist without changing the MacBook player. The phone reports its own playback, not the source device's telemetry. This fixed public laboratory slot is not customer-device authorization or unique per-install provisioning. Closing the player returns to the mascot; it does not start at phone boot.
+
+
+Insta360 del Lab: Cuenta → Insta360 · ver el Lab. La vista privada se actualiza cada tres segundos y se detiene al cerrar o salir de la app. Para vincular, pide el código, apruébalo en admira.app con tu cuenta y vuelve a Admirito para terminar. La consulta se pausa durante el navegador; los errores de vinculación se muestran sin voz.
+
+Lab Insta360: Account → Insta360 · view the Lab. Private snapshots refresh every three seconds while foreground. Approve the device code with your own account in the browser, then return to Admirito to finish. Pairing pauses in the background and errors remain silent.
