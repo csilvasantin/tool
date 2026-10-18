@@ -1,0 +1,36 @@
+{
+  "android_release": "20261018.8",
+  "iphone_installed_release_unchanged": "20261018.7",
+  "incident": {
+    "id": "INC-PY5ZWB",
+    "status": "resolved",
+    "recovery_photos": [
+      "https://api.yokup.com/media/fleet/0549292bf11881a4.jpeg",
+      "https://api.yokup.com/media/fleet/2d84b275dec947e8.jpeg"
+    ],
+    "closed_at": 1792321710189,
+    "review": "assisted optical review, not autonomous watchdog"
+  },
+  "optical_review": "assisted by OraculoMacMini acting as Supervisor; not autonomous watchdog detection",
+  "native_mascot_buttons_hue_verified": [
+    "bugito25/bri64",
+    "supervisor75/bri191"
+  ],
+  "incident_and_final_light": "off / bri1, onfalse",
+  "preserved_incidents": [
+    "INC-JO3FHS",
+    "INC-KOBKYX"
+  ],
+  "rgb": "pending compatible ceiling",
+  "ceiling_photos": "private local vault evidence, not published with internal room views",
+  "two_fault_frames": [
+    "fault-1.jpg",
+    "fault-2.jpg"
+  ],
+  "two_recovery_frames": [
+    "recovery-1.jpg",
+    "recovery-2.jpg"
+  ],
+  "build_lint": "passed",
+  "source_device_mutated": false
+}

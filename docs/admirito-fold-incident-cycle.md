@@ -1,0 +1,17 @@
+# Ciclo real del Fold / Physical Fold incident cycle
+
+El18 de octubre se probó el player dedicado `virtual-lab-admirito-fold`, separado del selector de playlists. Android20261018.8 conecta los botones de mascotas y el cambio de agente conversacional al endpoint autorizado de iluminación. El Lab fuerza explícitamente modo local para evitar heredar el modo sincronizado de otro player.
+
+Bugito fue seleccionado con el botón nativo: puente Hue confirmó25% (`bri64`). `fault-popup` recibió ACK ejecutado y la Insta360 mostró «Actualización pendiente» tapando el vídeo en dos capturas. El player comunicó overlay25%. Se registró **INC-PY5ZWB · popup sobre el player del Fold**, con ambas fotos y recurso propio de esta prueba.
+
+Supervisor realizó revisión óptica asistida por OraculoMacMini en esta sesión; no se atribuye la detección a un proceso autónomo del vigilante. La apertura del ticket activó incidencia/apagado. Se comprobaron visualmente plafón encendido25%, apagado y encendido75%, con lecturas Hue64/off/191. El encuadre del plafón se calibró durante la prueba y se repitió Bugito25 para obtener una foto completa; esa foto es una relectura posterior a la apertura, no la foto del instante inicial. Las vistas completas del techo se conservan como evidencia privada por incluir el interior del Lab.
+
+`fault-clear` recibió ACK ejecutado. El botón nativo Supervisor también confirmó75%. Dos fotos de recuperación sin popup, dos muestras recientes sin fallo y reproducción activa se registraron en el ticket. Después se cerró mediante la ruta canónica autenticada de estado y se releyó **resolved**. El player queda reproduciendo, silenciado.
+
+El techo termina apagado porque permanecen abiertas **INC-JO3FHS · ausencia anterior de emisión del Fold** e **INC-KOBKYX · pantalla integrada del MBP16**. No se cerraron para obtener100%. RGB sigue pendiente de hardware compatible. La lectura del puente y la revisión óptica son pruebas distintas; la cámara no cuantifica por sí sola el porcentaje.
+
+## English
+
+The dedicated physical Fold Lab player was tested independently from the configurable selector. Native Android mascot selection now sends authorized lighting events; the Lab explicitly starts in local mode. Bugito’s popup was acknowledged, observed twice through Insta360 and recorded as a real ticket. Supervisor optical review was assisted by OraculoMacMini during this session, not attributed to an autonomous watchdog. Hue readbacks confirmed25%, off and75%, with separate optical ceiling checks. After acknowledged fault-clear, two actual recovery photos and recent healthy playback observations were recorded before canonical resolution. Existing incidents remain open, so final lighting correctly stays off. RGB remains pending. Full ceiling images are retained privately.
+
+[Structured verification](evidence/admirito-fold-cycle-2026-10-18/verification.json). [Incident](https://www.admira.app/ticket?id=INC-PY5ZWB).

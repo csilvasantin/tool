@@ -57,3 +57,9 @@ La prueba nativa posterior sí completó los botones reales del iPhone: Admirito
 El popup real del Fold se observó con la Insta360. La creación de una nueva incidencia con foto y el ciclo completo de recuperación quedan aplazados por prioridad de Carlos al acceso DMZ y al visor remoto. Se solicitó retirar el popup de prueba; las incidencias anteriores se conservan. RGB sigue pendiente de instalar techo compatible. Android conserva pendiente su conector nativo de iluminación.
 
 English: native iPhone mascot selection passed with real bridge readbacks and Carlos's direct confirmation. The full new incident/photo/recovery cycle is postponed while implementing the requested DMZ entry and remote camera viewer. Existing incidents remain untouched; RGB hardware and native Android lighting remain pending.
+
+## Actualización Android y ciclo físico / Android and physical-cycle update
+
+Android20261018.8 conecta la selección nativa de mascotas al endpoint autorizado Hue; Bugito25 y Supervisor75 pasaron mediante botones reales. El [ciclo del Fold](admirito-fold-incident-cycle.md) se completó con popup, ticket real, dos fotos de fallo y recuperación, cierre canónico y lecturas/fotos del techo. La revisión óptica fue asistida por OraculoMacMini en esta sesión. Las notas anteriores sobre Android y ciclo aplazados describen el estado previo a esta actualización. RGB continúa pendiente.
+
+Android20261018.8 now sends native mascot lighting events. Real Bugito25/Supervisor75 buttons and the Fold incident/recovery cycle passed with assisted optical review, a real resolved ticket and Hue readbacks. Earlier Android/cycle pending notes are historical. RGB hardware remains pending.

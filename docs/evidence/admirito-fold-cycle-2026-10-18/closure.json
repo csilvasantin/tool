@@ -1,0 +1,10 @@
+{
+  "id": "INC-PY5ZWB",
+  "status": "resolved",
+  "recovery_photos": [
+    "https://api.yokup.com/media/fleet/0549292bf11881a4.jpeg",
+    "https://api.yokup.com/media/fleet/2d84b275dec947e8.jpeg"
+  ],
+  "closed_at": 1792321710189,
+  "review": "assisted optical review, not autonomous watchdog"
+}

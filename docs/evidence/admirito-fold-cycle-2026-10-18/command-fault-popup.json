@@ -1,0 +1,25 @@
+{
+  "receipt": {
+    "ok": true,
+    "id": "virtual-lab-admirito-fold",
+    "cid": 1792321471,
+    "cmd": "fault-popup",
+    "ts": 1792321470,
+    "action": "57e4c157-363d-45ee-bffa-f7409ee1a728",
+    "screen": "virtual-lab-admirito-fold"
+  },
+  "ack": {
+    "ok": true,
+    "seen": true,
+    "ack": {
+      "id": "virtual-lab-admirito-fold",
+      "cid": 1792321471,
+      "action": "57e4c157-363d-45ee-bffa-f7409ee1a728",
+      "cmd": "fault-popup",
+      "queuedAt": 1792321470,
+      "status": "executed",
+      "screen": "virtual-lab-admirito-fold",
+      "appliedAt": 1792321471
+    }
+  }
+}

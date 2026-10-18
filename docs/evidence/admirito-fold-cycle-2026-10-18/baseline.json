@@ -1,0 +1,78 @@
+{
+  "ok": true,
+  "screen": "virtual-lab-admirito-fold",
+  "item": {
+    "id": "default:1792096678502-koolc8",
+    "url": "https://api.admira.store/stock/asset/1792096678502-koolc8",
+    "type": "video",
+    "ar": 0.5625,
+    "title": "Pasea. Saborea. Inspírate. · Paseo de Gracia 103 · IA",
+    "dur": 12,
+    "startedAt": 1792321390753,
+    "ts": 1792321390771,
+    "aud": null,
+    "audio": {
+      "muted": true,
+      "volume": 100,
+      "level": 0,
+      "analyzed": false
+    },
+    "sinc": {
+      "on": 0,
+      "modo": "local"
+    }
+  },
+  "device": {
+    "display": {
+      "width": 2256,
+      "height": 2505,
+      "cssWidth": 752,
+      "cssHeight": 835,
+      "viewportWidth": 752,
+      "viewportHeight": 834,
+      "devicePixelRatio": 3,
+      "colorDepth": 24,
+      "orientation": "portrait-primary",
+      "rotation": 0,
+      "fit": "fill",
+      "paintedRotation": 0,
+      "painted": "vertical",
+      "canvas": {
+        "w": 752,
+        "h": 835
+      },
+      "overlay": 0,
+      "visible": 100,
+      "chromeTop": 0,
+      "playbackPaused": false
+    },
+    "system": {
+      "os": "Android",
+      "osVersion": "17",
+      "platform": "Android",
+      "language": "es-ES",
+      "timezone": "Europe/Madrid"
+    },
+    "software": {
+      "player": "Player virtual · navegador",
+      "webRelease": "v.17.10.2026.r5.23:19",
+      "engine": "Chromium 155.0.8059.43",
+      "userAgent": "Mozilla/5.0 (Linux; Android 17; SM-F976B Build/CP2A.260605.016; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/155.0.8059.43 Safari/537.36 AdmiritoFoldPlayer/20261018.7"
+    },
+    "storage": {
+      "usage": 29496084,
+      "quota": 10766914324,
+      "persisted": false
+    },
+    "network": {
+      "online": true,
+      "effectiveType": "4g",
+      "saveData": false
+    }
+  },
+  "health": null,
+  "standby": false,
+  "ip": "79.157.245.192",
+  "lastSeen": 1792321391013,
+  "producer": "p-ee34ad3e-cdc8-48ad-88c1-9a3b420702a5"
+}
