@@ -32,13 +32,13 @@ class Controller:
         self.auth_at = 0
         self.last_revision = None
     def request(self, url, data=None, method=None, opener=None):
-        req = urllib.request.Request(url, data=None if data is None else json.dumps(data).encode(), headers={'Content-Type':'application/json','User-Agent':'AdmiraNeXT-Lab-Hue/1.0'}, method=method)
+        req = urllib.request.Request(url, data=None if data is None else json.dumps(data).encode(), headers={'Content-Type':'application/json','User-Agent':'Mozilla/5.0 (AdmiraNeXT Lab Hue)'}, method=method)
         with (opener or urllib.request.build_opener()).open(req, timeout=15) as r: return json.load(r)
     def desired(self):
         if not self.opener or time.time()-self.auth_at > 1800:
             self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             token = vault('ADMIRA_AGENT_LOGIN_TOKEN')
-            req = urllib.request.Request('https://api.admira.biz/auth/agente',data=b'{}',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','X-Agente':'OraculoMacMini Lab Hue'})
+            req = urllib.request.Request('https://api.admira.biz/auth/agente',data=b'{}',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','X-Agente':'OraculoMacMini Lab Hue','User-Agent':'Mozilla/5.0 (AdmiraNeXT Lab Hue)'})
             with self.opener.open(req,timeout=20) as r:
                 if not json.load(r).get('ok'): raise RuntimeError('agent_login_failed')
             self.auth_at=time.time()
