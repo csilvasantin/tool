@@ -1,0 +1,24 @@
+{
+  "checked_at": 1792310379594,
+  "anonymous_status": 401,
+  "wrong_origin_status": 403,
+  "frames": [
+    {
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 84810,
+      "sha256": "23d1bb2f8e95f41f5fbd8d9131f0f7dd857d238ebc7e0cff83c29f6799292354",
+      "received_at": 1792310374558,
+      "source": "macmini-insta360"
+    },
+    {
+      "status": 200,
+      "mime": "image/jpeg",
+      "bytes": 85376,
+      "sha256": "edbdee2da234345c34fc9b217313b54615400e5a2532873054af9665eb81ffab",
+      "received_at": 1792310379594,
+      "source": "macmini-insta360"
+    }
+  ],
+  "distinct_frames": true
+}

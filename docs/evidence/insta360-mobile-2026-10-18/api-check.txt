@@ -1,0 +1,5 @@
+anonymous denied 401
+authorized frame 1 84810
+authorized frame 2 85376
+wrong origin denied 403
+distinct frames True

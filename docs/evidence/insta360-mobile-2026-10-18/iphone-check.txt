@@ -1,0 +1,5 @@
+Test Case '-[AdmiritoUSBControl.PhoneControlTests testRemoteInsta360Viewer]' started.
+INSTA360_NATIVE_FRAME_VISIBLE
+INSTA360_NATIVE_VIEWER_CLOSED
+Test Case '-[AdmiritoUSBControl.PhoneControlTests testRemoteInsta360Viewer]' passed (18.647 seconds).
+** TEST SUCCEEDED **

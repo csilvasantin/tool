@@ -1,0 +1,11 @@
+{
+  "version": "20261018.3",
+  "installed_apk_matches_release": true,
+  "sha256": "6a61e168d5c9edf99c4d65181c98c2986fe3f4627a811195265a81418b2d1a6c",
+  "account_approval": "Carlos human browser session; real Google login and native device approval form",
+  "native_paired": true,
+  "frame_status": "Insta360 conectada · 10:29:45",
+  "left_open_for_carlos": true,
+  "background_pair_polling": "paused while browser is foreground; resumed in existing native activity",
+  "pairing_error_audio": "removed from start/poll and background request recovery"
+}

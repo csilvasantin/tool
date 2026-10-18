@@ -1,0 +1,5 @@
+HOME_LIVE 390 /conversar ykLangPill
+HOME_EN Sign in
+HOME_LIVE 1440 /conversar ykLangPill
+HOME_EN Sign in
+DMZ_LIVE www.admira.app /conversar true
