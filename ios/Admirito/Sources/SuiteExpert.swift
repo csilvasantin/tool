@@ -127,7 +127,7 @@ struct SuiteExpertView: View {
                 if dictation.listening { ProgressView(value: dictation.level).accessibilityLabel("Nivel del micrófono").accessibilityIdentifier("suiteMicrophoneLevel") }
             }
             HStack {
-                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); console.send() }.buttonStyle(.borderedProminent).disabled(console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing).accessibilityIdentifier("suiteExecute")
+                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil); console.send() }.buttonStyle(.borderedProminent).disabled(console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing).accessibilityIdentifier("suiteExecute")
                 Button("Ayuda") { console.send("/help") }.disabled(console.busy)
             }
             ScrollView(.horizontal) { HStack {
