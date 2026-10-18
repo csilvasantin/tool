@@ -11,3 +11,11 @@ La regresión de captación y cierre de teclado está en `ios/Admirito/QA/Commer
 ## English
 
 Expert commands open the same Commercial application and shared command engine on both phones. Release 20261018.11 dismisses the native iPhone keyboard when Execute is pressed. Physical acceptance prepares an advertiser campaign draft using six explicitly selected catalogue locations, and a merchant recruitment brief with two screens. Existing authentication, demonstration provenance and availability qualifications remain in place. Recruitment continues in the existing merchant portal; these checks use fictional data and create no customer registrations or published campaigns.
+
+## Resultado físico · 18 octubre 2026
+
+Campaña y captación completadas en los dos teléfonos con 20261018.11 instalado. El iPhone queda mostrando la propuesta con la consola limpia; el Fold muestra su propuesta. La campaña incorpora seis ubicaciones y conserva sus avisos de demostración. La ficha de captación contiene dos pantallas.
+
+El APK compilado, el instalado en el Fold y el descargado del enlace público coinciden por SHA-256. Compilación iOS firmada, Android release y lint, y 1674 pruebas del sitio correctas. [Verificación estructurada](evidence/admirito-comercial-mobile-2026-10-18/verification.json). Las capturas completas de los teléfonos quedan privadas en la bóveda.
+
+Physical result: both campaign and merchant drafts passed on the physical iPhone and Fold, running 20261018.11. The iPhone keyboard dismissal and cleared console passed. Public, built and installed Android APK hashes match. Full phone screenshots remain private in the vault.

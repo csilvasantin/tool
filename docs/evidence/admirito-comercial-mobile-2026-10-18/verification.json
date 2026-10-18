@@ -1,0 +1,61 @@
+{
+  "verified_at": "2026-10-18T18:13:35.991378+00:00",
+  "release": {
+    "date": "2026-10-18",
+    "revision": 11,
+    "version": "20261018.11",
+    "iosBuild": 36,
+    "androidVersionCode": 14
+  },
+  "native_fix_commit": "b2fbefc",
+  "results": {
+    "iphone": {
+      "campaign": true,
+      "merchant": true,
+      "keyboard_dismissed": true,
+      "final_visible": "campaign draft, console cleared"
+    },
+    "fold": {
+      "campaign": true,
+      "merchant": true,
+      "final_visible": "campaign draft"
+    }
+  },
+  "campaign": {
+    "budget_eur": 500,
+    "selected_locations": 6,
+    "circuit": "Xtanco Nacional",
+    "status": "draft",
+    "provenance": "catalogue demonstration qualifiers retained",
+    "iphone_selection": "/circuito cliente=estancos in native Expert"
+  },
+  "merchant": {
+    "screens": 2,
+    "status": "draft",
+    "continuation": "https://admira.app/retailer"
+  },
+  "apk_sha256": "3817e8c808c8fd760465e529b33fdefb1d472b4f9294eb764b90199f3630e3dc",
+  "apk_local_installed_public_match": true,
+  "app_public_release": {
+    "version": "v.18.10.2026.r1.20:07",
+    "deployedAt": "2026-10-18T18:07:36.659Z",
+    "deployer": "OraculoMini",
+    "machine": "MacMini",
+    "signature": "OraculoMini · MacMini",
+    "git": "b2fbefc",
+    "gitShort": "b2fbefc",
+    "gitFull": "b2fbefc97cf32c5cc29939bf3c718d7b16af4cfc",
+    "dirty": false,
+    "novedades": [
+      "Admirito 20261018.11: Comercial en el modo Experto para preparar campañas y captar comercios, locales y pantallas.",
+      "El iPhone cierra el teclado al ejecutar una orden para dejar disponible el formulario web. APK Android actualizado y firmado con la misma identidad."
+    ]
+  },
+  "checks": {
+    "ios_signed_build": true,
+    "android_release_and_lint": true,
+    "web_tests_passed": 1674
+  },
+  "physical_evidence": "private vault ADMIRITO_COMERCIAL.mobile_verification",
+  "scope": "Fictional test data, no customer registration or campaign publication"
+}
