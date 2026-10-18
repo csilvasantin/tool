@@ -1,0 +1,42 @@
+[
+  {
+    "state": "bugito",
+    "intensity": 25,
+    "mode": "intensity",
+    "bridge_verified": true,
+    "optically_verified": false,
+    "at": 1792308198765,
+    "capture_at": 1792308200940,
+    "image": "bugito.png"
+  },
+  {
+    "state": "supervisor",
+    "intensity": 75,
+    "mode": "intensity",
+    "bridge_verified": true,
+    "optically_verified": false,
+    "at": 1792308202459,
+    "capture_at": 1792308204658,
+    "image": "supervisor.png"
+  },
+  {
+    "state": "admirito",
+    "intensity": 50,
+    "mode": "intensity",
+    "bridge_verified": true,
+    "optically_verified": false,
+    "at": 1792308206510,
+    "capture_at": 1792308209141,
+    "image": "admirito.png"
+  },
+  {
+    "state": "incident",
+    "intensity": 0,
+    "mode": "intensity",
+    "bridge_verified": true,
+    "optically_verified": false,
+    "at": 1792308210185,
+    "capture_at": 1792308212581,
+    "image": "incident.png"
+  }
+]

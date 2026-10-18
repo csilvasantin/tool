@@ -38,3 +38,20 @@ Para RGB: instalar/vincular una luminaria de techo RGB, comprobar por cámara e 
 ## English
 
 Only the fixed Lab ceiling is controlled. The current white-only pendant uses intensity; future RGB is implemented but remains disabled pending a colour-capable ceiling target and optical verification. Actual canonical Lab tickets and authenticated mascot selections determine the desired state. Last event wins, while closing one incident cannot restore normal if another is open. Local actuator reads credentials/configuration from the fleet vault, enforces explicit target IDs and capabilities, serializes changes, validates Hue responses and readback, and never treats acknowledgement as optical proof. Native Android lighting has not been updated in this release.
+
+## Verificación publicada · 18 octubre
+
+- API: `v.18.10.2026.r1.09:15`, worker `5ebf7414-25f3-47c5-adf4-ff75b8aa7867` · control de iluminación autorizado. Web: `v.18.10.2026.r2.09:18`, sello limpio confirmado. iPhone: instalada versión `20261018.1`, build 26.
+- Servidor: 1407 pruebas correctas, una omitida; web: 1673 correctas; actuador: tres pruebas de porcentajes, rechazo RGB y ausencia de escrituras sobre destino inalcanzable.
+- Navegador público autenticado por la entrada oficial: selección real de Bugito 25, Supervisor 75 y Admirito 50; cero errores de página. Actuador permanente: aplicación y lectura de retorno en 4,7 / 3,8 / 3,6 segundos. Volver a normal: apagada en 3,6 segundos porque el Lab mantiene dos incidencias canónicas abiertas. No se modificaron ni cerraron para fabricar una prueba.
+- Secuencia óptica revisada: los cuatro recortes siguientes son fotos recientes del plafón con la Insta360 existente. Hue confirma los porcentajes; la cámara confirma los cambios visibles, sin convertir luminancia automática en medida absoluta de porcentaje.
+
+| Bugito 25 % | Supervisor 75 % | Admirito 50 % | Incidencia apagada |
+| --- | --- | --- | --- |
+| ![25 %](evidence/lab-hue-2026-10-18/bugito.png) | ![75 %](evidence/lab-hue-2026-10-18/supervisor.png) | ![50 %](evidence/lab-hue-2026-10-18/admirito.png) | ![Apagada](evidence/lab-hue-2026-10-18/incident.png) |
+
+Las marcas de hora y las lecturas se conservan en [observaciones saneadas](evidence/lab-hue-2026-10-18/observations.json). La referencia al 100 % y la identificación por atenuación/restauración están en la evidencia inicial de AdmiraBot enlazada arriba. Se restauraron posición de cámara y ejecución del detector tras la verificación. No se inició otro productor de cámara.
+
+La compilación y la instalación iPhone se completaron. El intento de prueba de botones con XCTest no pudo activar el modo de automatización de iOS (`Timed out while enabling automation mode`). No se presenta ese intento como prueba física nativa completada. Queda pendiente su aceptación desde los botones del iPhone. RGB y Android nativo conservan los límites indicados anteriormente.
+
+English: web selections, authenticated event propagation, bridge readback and four current optical captures passed. iOS was built and installed; XCTest could not enable iOS automation mode, so native button acceptance remains pending. RGB ceiling hardware and optical RGB validation remain pending.
