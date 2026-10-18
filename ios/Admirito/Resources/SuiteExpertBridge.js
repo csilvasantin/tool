@@ -1,9 +1,9 @@
 // Transport only. Grammar, aliases, authorization and execution stay in the published suite engine.
 (function () {
   'use strict';
-  const trusted = () => location.protocol === 'https:' && ['www.admira.biz', 'admira.biz'].includes(location.hostname);
+  const trusted = () => location.protocol === 'https:' && ["admira.biz", "www.admira.biz", "admira.live", "www.admira.live", "admira.studio", "www.admira.studio", "admira.store", "www.admira.store", "admira.tv", "www.admira.tv", "admira.app", "www.admira.app", "admiranext.com", "www.admiranext.com", "yokup.com", "www.yokup.com", "pixeria.com", "www.pixeria.com", "xpaceos.com", "www.xpaceos.com"].includes(location.hostname);
   const requests = new Map();
-  const ready = () => trusted() && !!window.AdmiraExperto && typeof window.AdmiraExperto.exec === 'function' && window.AdmiraExperto.has('tour');
+  const ready = () => trusted() && !!window.AdmiraExperto && typeof window.AdmiraExperto.exec === 'function' && window.AdmiraExperto.has('admirito') && window.AdmiraExperto.has('help');
   window.AdmiritoSuiteBridge = {
     ready,
     async execute(command, requestID) {
@@ -11,6 +11,7 @@
       if (requests.has(requestID)) return requests.get(requestID);
       const pending = (async () => {
         const engine = window.AdmiraExperto;
+        if (engine.admiritoReady) await engine.admiritoReady;
         engine.open();
         let log = document.querySelector('.ax-cli-out');
         if (!log) {

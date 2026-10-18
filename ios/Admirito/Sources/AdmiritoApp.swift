@@ -122,7 +122,7 @@ struct AssistantView: View {
                                 }
                             }
                         }
-                        SuiteExpertView(console: suite, dictation: commandVoice).disabled(assistant.listening || assistant.starting || assistant.replying).id("suiteCommands") }
+                        SuiteExpertView(console: suite, dictation: commandVoice).disabled(assistant.listening || assistant.starting).id("suiteCommands") }
                         else { listeningControls; RestDiaryView(diary: diary); conversation; notes }
                     }
                     else { pairing }

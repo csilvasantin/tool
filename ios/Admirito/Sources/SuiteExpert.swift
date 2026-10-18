@@ -34,7 +34,7 @@ enum AssistantMode: String, CaseIterable {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in Task { @MainActor in await self?.refresh() } }
     }
     func stopObserving() { timer?.invalidate(); timer = nil }
-    private var trustedPage: Bool { webView.url?.scheme == "https" && ["www.admira.biz", "admira.biz"].contains(webView.url?.host ?? "") }
+    private var trustedPage: Bool { webView.url?.scheme == "https" && ["admira.biz", "www.admira.biz", "admira.live", "www.admira.live", "admira.studio", "www.admira.studio", "admira.store", "www.admira.store", "admira.tv", "www.admira.tv", "admira.app", "www.admira.app", "admiranext.com", "www.admiranext.com", "yokup.com", "www.yokup.com", "pixeria.com", "www.pixeria.com", "xpaceos.com", "www.xpaceos.com"].contains(webView.url?.host ?? "") }
     private func refresh() async {
         guard !busy else { return }
         guard trustedPage else { ready = false; tourRunning = false; tourProgress = ""; return }
@@ -53,14 +53,14 @@ enum AssistantMode: String, CaseIterable {
             catch { output = error.localizedDescription; status = output; completion?(output) }
             return
         }
-        guard trustedPage, ready, !busy, !text.isEmpty, text.count <= 2000 else { completion?("El modo Experto no está disponible. No he enviado la orden."); return }
+        guard trustedPage, !busy, !text.isEmpty, text.count <= 2000 else { completion?("El modo Experto no está disponible. No he enviado la orden."); return }
         VoiceDiagnostics.record("suite_send", ["publicTour": String(text.hasPrefix("/tour "))])
         busy = true; command = text; let requestID = UUID().uuidString
         Task {
             defer { busy = false }
             do {
                 // Arguments are data, never JavaScript interpolation. No native parser or automatic replay.
-                let result = try await webView.callAsyncJavaScript("return await window.AdmiritoSuiteBridge.execute(command, requestID)", arguments: ["command": text, "requestID": requestID], in: nil, contentWorld: .page) as? [String: Any]
+                let result = try await webView.callAsyncJavaScript("if (!window.AdmiritoSuiteBridge || !window.AdmiritoSuiteBridge.ready()) return {state:'not_ready',ok:false,output:'El modo Experto todavía no está listo. No se ha enviado la orden.'}; return await window.AdmiritoSuiteBridge.execute(command, requestID)", arguments: ["command": text, "requestID": requestID], in: nil, contentWorld: .page) as? [String: Any]
                 output = result?["output"] as? String ?? "Consulta el resultado en el mapa y en la consola web."
                 status = result?["state"] as? String == "not_ready" ? "El modo Experto aún no está listo. No se ha enviado la orden." : "Orden entregada al modo Experto. Comprueba su respuesta y el recorrido."
                 if result?["state"] as? String == "not_ready" { completion?("El modo Experto aún no está listo. No he enviado la orden.") }
@@ -111,8 +111,8 @@ struct SuiteExpertView: View {
                 if dictation.listening { ProgressView(value: dictation.level).accessibilityLabel("Nivel del micrófono").accessibilityIdentifier("suiteMicrophoneLevel") }
             }
             HStack {
-                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); console.send() }.buttonStyle(.borderedProminent).disabled((!console.ready && !console.command.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("/player")) || console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing)
-                Button("Ayuda") { console.send("/help") }.disabled(!console.ready || console.busy)
+                Button(console.busy ? "Enviando…" : "Ejecutar") { dictation.cancel(); console.send() }.buttonStyle(.borderedProminent).disabled(console.busy || console.command.isEmpty || dictation.listening || dictation.starting || dictation.processing).accessibilityIdentifier("suiteExecute")
+                Button("Ayuda") { console.send("/help") }.disabled(console.busy)
             }
             ScrollView(.horizontal) { HStack {
                 Button("Starbucks México") { console.send("/tour alsea mexico") }
@@ -121,7 +121,7 @@ struct SuiteExpertView: View {
                 Button("Parar tour") { console.send("/parar") }
             }.buttonStyle(.bordered).disabled(!console.ready || console.busy || dictation.listening || dictation.starting || dictation.processing) }
             Text(console.status).font(.caption).accessibilityIdentifier("suiteStatus")
-            if !console.output.isEmpty { DisclosureGroup("Respuesta del modo Experto") { Text(console.output).font(.system(.caption, design: .monospaced)).textSelection(.enabled) } }
+            if !console.output.isEmpty { ScrollView { Text(console.output).font(.system(.caption, design: .monospaced)).textSelection(.enabled).accessibilityIdentifier("suiteOutput") }.frame(maxHeight: 180) }
             if console.tourRunning { Text("Tour en curso · " + console.tourProgress).font(.caption).accessibilityIdentifier("suiteTourProgress") }
             SuiteExpertSurface(console: console).frame(height: verticalSizeClass == .compact ? max(240, min(360, UIScreen.main.bounds.height - 110)) : 520).clipShape(RoundedRectangle(cornerRadius: 12)).id("suiteMap")
             Text("Si una acción requiere identificación, entra con tu cuenta de admira.biz en esta vista. Vincular Admirito no concede permisos de control físico.").font(.caption).foregroundStyle(.secondary)
