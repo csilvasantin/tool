@@ -8,7 +8,7 @@ const frame = readFileSync(new URL('./yk-frame.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('./yk-frame.css', import.meta.url), 'utf8');
 
 test('only the home page swaps ⌘ for the language pill; other pages keep ⌘', () => {
-  assert.match(frame, /bar\.appendChild\(icoR\);\n    if \(esPortadaYk\(\)\) bar\.appendChild\(pastillaIdioma\(\)\);\n    else bar\.appendChild\(icoB\);/);
+  assert.match(frame, /bar\.appendChild\(icoR\);\s+if \(esPortadaYk\(\)\) bar\.appendChild\(pastillaIdioma\(\)\);\s+else bar\.appendChild\(icoB\);/);
   const fn = frame.slice(frame.indexOf('function esPortadaYk()'), frame.indexOf('function pastillaIdioma()'));
   assert.match(fn, /window\.top !== window\.self\) return false/);
   assert.match(fn, /\(embed\|ax_demo\)=/, 'embeds and the demo walkthrough keep Expert');
@@ -24,4 +24,10 @@ test('the pill is a same-box .yk-ico with the compact zoom, not a panel toggle n
   assert.match(fn, /window\.AdmiraSetLanguage\(destino\)/);
   assert.match(fn, /window\.YkIdioma\.aplicar\(destino\)/);
   assert.match(css, /\.yk-ico-lang\{ box-sizing: border-box; width: 35px; padding: 0; justify-content: center;/);
+});
+
+test('admira.app home places the protected DMZ entry immediately beside language',()=>{
+ assert.match(frame,/login\.href = "\/conversar"/);
+ assert.match(frame,/bar\.appendChild\(login\);\s+bar\.appendChild\(pastillaIdioma\(\)\)/);
+ assert.match(frame,/login\.textContent = localEn\(\) \? "Sign in" : "Entrar"/);
 });

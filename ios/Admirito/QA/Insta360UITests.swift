@@ -16,7 +16,7 @@ final class LabCameraTests: XCTestCase {
         print("INSTA360_NATIVE_FRAME_VISIBLE");fflush(stdout)
         Thread.sleep(forTimeInterval:7)
         XCTAssertTrue(app.images["labCameraFrame"].exists)
-        app.buttons["Cerrar"].tap()
+        app.navigationBars["Insta360 · Lab"].buttons["Cerrar"].tap()
         XCTAssertFalse(app.images["labCameraFrame"].exists)
         print("INSTA360_NATIVE_VIEWER_CLOSED");fflush(stdout)
     }
