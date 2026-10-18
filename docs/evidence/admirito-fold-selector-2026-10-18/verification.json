@@ -7,8 +7,26 @@
   "native_contract_tests_passed": 3,
   "build_lint": "passed",
   "native_expert_and_catalog_opened": true,
-  "physical_playback": "pending: Carlos uses Fold in another application; no further UI interaction until ready",
+  "physical_playback": {
+    "status": "passed",
+    "selection": [
+      "starbucks",
+      "alsea-sbux-021",
+      "Starbucks_PaseodeGracia_103_iPad_1"
+    ],
+    "video_seconds_observed": [
+      7,
+      9,
+      10
+    ],
+    "background": "native pause observed; explicit resume tested",
+    "screenshot": "fold-player.png"
+  },
   "source_device_mutation": false,
   "legacy_lab": "Separate button retained; explicit fixed circuit isolates existing Lab identity",
-  "source": "https://github.com/csilvasantin/tool/blob/main/docs/admirito-fold-player.md"
+  "source": "https://github.com/csilvasantin/tool/blob/main/docs/admirito-fold-player.md",
+  "public_download_verified": true,
+  "public_download": "https://www.admira.app/downloads/admirito-android-20261018.6.apk",
+  "web_version": "v.18.10.2026.r5.12:26",
+  "deployed_commit": "d0fb78c7cebee8fd68c243b2b9980d65296416c7"
 }
