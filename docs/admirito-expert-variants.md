@@ -25,6 +25,9 @@ Las respuestas se muestran en pantalla. El conector comprueba los comandos compa
 - 1674 pruebas web de admira.app correctas; cuatro pruebas de puente móvil correctas; Android compila y pasa lint; iOS compila firmado.
 - Chrome real: selección verde idempotente desde Bugito con cargador nuevo y anterior.
 - Consolas web reales: ayuda y verde en Studio; ayuda, Bugito y verde en Store, TV y App, utilizando el acceso normal de Google donde corresponde. Creativo real visto en Studio.
-- Fold: ayuda compartida, Bugito rojo visible y `/default` verde comprobados. Creativo llega al acceso protegido de Studio; necesita sesión web propia. La instalación de la última corrección de navegación Google y los resultados finales de iPhone se registrarán al terminar la comprobación.
+- Fold: ayuda compartida, Bugito rojo visible y `/default` verde comprobados. Creativo llega al acceso protegido de Studio; necesita sesión web propia. La última corrección Google quedó instalada y el APK instalado coincide por SHA-256 con el publicado. Google abrió su identificación normal; la sesión de Studio requiere completarla en el teléfono.
+- iPhone físico: prueba nativa completa correcta, con ayuda, Bugito visible y transición al verde mediante `/admirito` y `/default`. El botón nativo se identifica como `suiteExecute`, sin confundirlo con el botón de la web.
+- Publicación admira.app: `v.18.10.2026.r8.14:13`, commit `f57ef9e` · variantes en vistas móviles, firma `OraculoMini · MacMini`, árbol limpio. Descarga pública e instalación del Fold tienen el mismo SHA-256.
+- La consola web autenticada de Biz no se dio por comprobada: el acceso Google de IAB no completó el popup. Su motor real sí ejecutó las variantes a través de los clientes nativos. Las capturas de teléfonos y sesiones se conservan en privado; la bóveda guarda rutas y hashes, no credenciales de navegador.
 
 El contrato de variantes no genera incidencias ni contenido de pago por sí solo. No se modifica la automatización Hue ni se declara verificado el RGB pendiente.
