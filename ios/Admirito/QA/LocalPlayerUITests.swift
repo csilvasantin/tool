@@ -112,4 +112,37 @@ final class LocalPlayerUITests: XCTestCase {
         }
     }
 
+    @MainActor func testDualPhoneModes() {
+        continueAfterFailure=false
+        let phone=XCUIDevice.shared;phone.orientation = .portrait
+        let app=XCUIApplication(bundleIdentifier:"com.admira.admirito")
+        app.terminate();app.launchArguments=["--admirito-ui-test"];app.launch()
+        if app.buttons["petClose"].waitForExistence(timeout:4) {app.buttons["petClose"].tap()}
+        let suite=app.buttons["AdmiraNeXT"]
+        for _ in 0..<5 {if suite.isHittable {break};app.swipeUp()}
+        XCTAssertTrue(suite.waitForExistence(timeout:10));suite.tap()
+        let field=app.descendants(matching:.any).matching(identifier:"suiteCommand").firstMatch
+        for _ in 0..<6 {if field.exists && field.isHittable {break};app.swipeUp()}
+        XCTAssertTrue(field.waitForExistence(timeout:15));field.tap()
+        if let text=field.value as? String,!text.isEmpty {field.typeText(String(repeating:XCUIKeyboardKey.delete.rawValue,count:text.count))}
+        field.typeText("/player starbucks alsea-sbux-021 Starbucks_PaseodeGracia_103_iPad_1")
+        let execute=app.buttons["Ejecutar"]
+        if !execute.isHittable {app.swipeUp()}
+        XCTAssertTrue(execute.isEnabled);execute.tap()
+        let state=app.staticTexts["localPlayerStatus"]
+        let playing=XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS %@","Reproduciendo en este iPhone"),object:state)
+        XCTAssertEqual(XCTWaiter.wait(for:[playing],timeout:65),.completed)
+        XCTAssertTrue(app.staticTexts["localPlayerContext"].label.contains("Starbucks_PaseodeGracia_103_iPad_1"))
+        let first=state.label;print("IPHONE_LOCAL_PLAYER_FIRST "+first);fflush(stdout)
+        let a=XCTAttachment(screenshot:XCUIScreen.main.screenshot());a.name="iPhone native player - first decoded video";a.lifetime = .keepAlways;add(a)
+        Thread.sleep(forTimeInterval:4)
+        XCTAssertTrue(state.label.contains("Reproduciendo en este iPhone"));XCTAssertNotEqual(first,state.label)
+        print("IPHONE_LOCAL_PLAYER_SECOND "+state.label);fflush(stdout)
+        let b=XCTAttachment(screenshot:XCUIScreen.main.screenshot());b.name="iPhone native player - video clock advanced";b.lifetime = .keepAlways;add(b)
+        app.buttons["localPlayerSync"].tap()
+        let locked=XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS %@","Sincronizado · pieza"),object:state)
+        XCTAssertEqual(XCTWaiter.wait(for:[locked],timeout:65),.completed)
+        for _ in 0..<15 { print("IPHONE_SYNC_SAMPLE "+state.label);fflush(stdout);Thread.sleep(forTimeInterval:2) }
+        let c=XCTAttachment(screenshot:XCUIScreen.main.screenshot());c.name="iPhone synchronized assigned playlist";c.lifetime = .keepAlways;add(c)
+    }
 }

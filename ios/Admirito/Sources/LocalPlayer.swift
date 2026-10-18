@@ -65,6 +65,7 @@ enum LocalPlayerHTTP {
     @Published var status = "Preparando AdmiraPlayer…"
     @Published var playing = false
     @Published var suspended = false
+    @Published var synchronized = false
     let webView: WKWebView
     private var previousIdleTimer = false
     private var closed = false
@@ -82,6 +83,11 @@ enum LocalPlayerHTTP {
         let bridge = """
         (()=>{'use strict';const [source,identity]=\(sourceJSON),original=window.fetch.bind(window);
         window.fetch=async function(input,init){const u=new URL(typeof input==='string'?input:input.url,location.href);
+          if(u.origin==='https://brain.digitalavatar.ai'&&u.pathname==='/control/playlist'&&u.searchParams.get('screen')===identity+'-tema'){
+            const r=await original('/api/playlist?screen='+encodeURIComponent(source),{cache:'no-store'}),d=await r.json();
+            if(!r.ok||!d.ok||!d.draft?.items?.length)throw Error('Assigned sync playlist unavailable');
+            return new Response(JSON.stringify({ok:true,items:d.draft.items.map((i,n)=>({id:'default:'+String(i.stockId||i.id||n),url:i.asset||i.url,type:['video','animation'].includes(i.assetType||i.type)?'video':['audio','music','locucion'].includes(i.assetType||i.type)?'audio':'image',title:i.title,_dur:Number(i.seconds)||10,_default:true}))}),{headers:{'Content-Type':'application/json'}});
+          }
           if(u.origin===location.origin&&u.pathname==='/api/playlist'&&u.searchParams.get('screen')===identity){
             u.searchParams.set('screen',source);const response=await original(u.href,init);
             const data=await response.clone().json();if(!response.ok||data.ok!==true||!data.draft?.items?.length)throw Error('Playlist source unavailable');return response;
@@ -89,7 +95,7 @@ enum LocalPlayerHTTP {
         addEventListener('DOMContentLoaded',()=>{const style=document.createElement('style');style.textContent='#stage{visibility:hidden!important}html.admirito-assigned #stage{visibility:visible!important}';document.head.appendChild(style);
           setInterval(()=>{const assigned=typeof playlist!=='undefined'&&playlist.length>0&&playlist.every(item=>item._default===true);
           document.documentElement.classList.toggle('admirito-assigned',assigned);const media=document.querySelector('#stage video,#stage audio');if(!assigned&&media)media.pause();
-          window.webkit.messageHandlers.localPlayer.postMessage({time:assigned?(media?.currentTime||0):0,ready:assigned?(media?.readyState||0):0,paused:media?.paused??true,image:assigned&&!!document.querySelector('#stage img')});},500);});})();
+          window.webkit.messageHandlers.localPlayer.postMessage({time:assigned?(media?.currentTime||0):0,ready:assigned?(media?.readyState||0):0,paused:media?.paused??true,image:assigned&&!!document.querySelector('#stage img'),sync:typeof syncOn!=='undefined'&&syncOn,clock:typeof SYNC_REMOTE!=='undefined'&&!!SYNC_REMOTE&&_syncOwnPlaylist,index:typeof cur!=='undefined'?cur:-1,target:typeof syncElapsedMs==='function'?syncElapsedMs()/1000:0});},500);});})();
         """
         config.userContentController.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         webView = WKWebView(frame: .zero, configuration: config)
@@ -98,7 +104,7 @@ enum LocalPlayerHTTP {
         webView.navigationDelegate = self; webView.isOpaque = true; webView.backgroundColor = .black
         previousIdleTimer = UIApplication.shared.isIdleTimerDisabled; UIApplication.shared.isIdleTimerDisabled = true
         var url = URLComponents(string: "https://admira.tv/canal")!
-        url.queryItems = ["screen": saved, "circuit": saved, "playerType": "virtual", "clean": "1", "fit": "screen", "muted": "1", "rtb": "0", "name": "Admirito · iPhone"].map { URLQueryItem(name: $0.key, value: $0.value) }
+        url.queryItems = ["screen": saved, "circuit": saved, "playerType": "virtual", "clean": "1", "fit": "screen", "muted": "1", "rtb": "0", "sincro": "0", "mode": "local", "name": "Admirito · iPhone"].map { URLQueryItem(name: $0.key, value: $0.value) }
         webView.load(URLRequest(url: url.url!))
         // A presented SwiftUI cover can retain an active scenePhase; use the actual UIKit event.
         inactivityObserver = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -109,7 +115,18 @@ enum LocalPlayerHTTP {
         guard !closed, !suspended, message.frameInfo.isMainFrame, ["admira.tv", "www.admira.tv"].contains(message.frameInfo.securityOrigin.host), let value = message.body as? [String: Any] else { return }
         let seconds = value["time"] as? Double ?? 0
         playing = (value["ready"] as? Int ?? 0) >= 2 && value["paused"] as? Bool == false && seconds > 0.2
+        if synchronized {
+            let locked = value["sync"] as? Bool == true && value["clock"] as? Bool == true
+            let drift = abs(seconds - (value["target"] as? Double ?? 0))
+            status = playing && locked ? String(format: "Sincronizado · pieza %d · %.1f s · desfase %.2f s", (value["index"] as? Int ?? 0) + 1, seconds, drift) : "Esperando reloj y playlist sincronizada…"
+            return
+        }
         status = playing ? "Reproduciendo en este iPhone · \(Int(seconds)) s" : value["image"] as? Bool == true ? "Imagen de la playlist en pantalla" : "Cargando contenido de la playlist…"
+    }
+    func setSynchronized(_ on: Bool) {
+        guard !closed, !suspended else { return }
+        synchronized = on; status = on ? "Esperando reloj y playlist sincronizada…" : "Preparando reproducción libre…"
+        webView.evaluateJavaScript("_liveMode=true;setAdmiraMode('" + (on ? "sync" : "local") + "')")
     }
     func resume() { guard !closed else { return }; suspended = false; UIApplication.shared.isIdleTimerDisabled = true; webView.evaluateJavaScript("if(typeof setPaused==='function')setPaused(false);document.querySelectorAll('video,audio').forEach(x=>x.play().catch(()=>{}))") }
     func suspend() { suspended = true; playing = false; status = "Player detenido al salir de la aplicación"; webView.evaluateJavaScript("if(typeof setPaused==='function')setPaused(true);document.querySelectorAll('video,audio').forEach(x=>x.pause())"); UIApplication.shared.isIdleTimerDisabled = previousIdleTimer }
@@ -204,6 +221,10 @@ private struct LocalPlayerPlayback: View {
             Text(playlistName).font(.caption).lineLimit(1)
             Text(context).font(.caption2).lineLimit(2).accessibilityIdentifier("localPlayerContext")
             Text(session.status).font(.caption).accessibilityIdentifier("localPlayerStatus")
+            HStack {
+                Button("Por libre") { session.setSynchronized(false) }.accessibilityIdentifier("localPlayerFree")
+                Button("Sincronizado") { session.setSynchronized(true) }.accessibilityIdentifier("localPlayerSync")
+            }.disabled(session.suspended)
             if session.suspended { Button("Reanudar en este iPhone") { session.resume() }.accessibilityIdentifier("localPlayerResume") }
             LocalPlayerSurface(session: session).accessibilityIdentifier("localPlayerSurface")
         }

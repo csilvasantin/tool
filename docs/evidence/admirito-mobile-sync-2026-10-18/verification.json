@@ -1,0 +1,27 @@
+{
+  "release": "20261018.7",
+  "ios_build": 32,
+  "android_version_code": 10,
+  "ios_build_passed": true,
+  "android_build_lint_passed": true,
+  "android_contract_tests": 3,
+  "ios_expert_free_video_seconds": [
+    0,
+    5
+  ],
+  "ios_sync_offsets_seconds": [
+    0.03,
+    0.04,
+    0.42
+  ],
+  "fold_sync_offsets_seconds": [
+    0.04,
+    0.05
+  ],
+  "shared_clock": "https://brain.digitalavatar.ai/sync/state",
+  "source": "ipad-admin-mupi",
+  "selected_iot": "Starbucks_PaseodeGracia_103_iPad_1",
+  "identities": "independent virtual identities; source IoT not mutated",
+  "optical_joint_acceptance": "pending: Fold USB disconnected after native contracts; iPhone playing and Fold main UI seen by live Insta360",
+  "apk_sha256": "15009beca0088be844ec21bce38c856a683ecb4d2f4fea132342ebe1333aa149"
+}
