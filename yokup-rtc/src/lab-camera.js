@@ -21,5 +21,9 @@ export async function handleLabCamera(req,env,{requireAuth,fetcher=fetch}) {
   const frame=await upstream.arrayBuffer();
   if(frame.byteLength<4||frame.byteLength>8*1024*1024||new Uint8Array(frame)[0]!==255||new Uint8Array(frame)[1]!==216)return error('camera_unavailable',503);
   return new Response(frame,{headers:{...headers,'Content-Type':'image/jpeg','X-Camera-Source':'macmini-insta360','X-Frame-Received-At':String(Date.now())}});
- }catch(e){return error(e?.name==='TimeoutError'||e?.name==='AbortError'?'camera_timeout':'camera_transport_unavailable',503);}
+ }catch(e){
+  const detail=String(e?.message||'').replaceAll(source.pathname.split('/')[2],'[redacted]').replace(/https?:\/\/[^\s)]+/g,'[upstream]').slice(0,160);
+  console.warn('lab_camera_transport',String(e?.name||'Error'),detail);
+  return error(e?.name==='TimeoutError'||e?.name==='AbortError'?'camera_timeout':'camera_transport_unavailable',503);
+ }
 }

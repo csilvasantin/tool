@@ -98,7 +98,8 @@ public final class MainActivity extends Activity {
   Dialog dialog=new Dialog(this,android.R.style.Theme_Material_Light_NoActionBar_Fullscreen);
   LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(16,16,16,16);
   Button close=new Button(this);close.setText("Cerrar Insta360");close.setOnClickListener(v->dialog.dismiss());box.addView(close);
-  ImageView image=new ImageView(this);image.setContentDescription("Insta360 · Lab");image.setScaleType(ImageView.ScaleType.FIT_CENTER);box.addView(image,new LinearLayout.LayoutParams(-1,0,1));
+  ImageView image=new ImageView(this);image.setContentDescription("Insta360 · Lab");image.setRotation(180);image.setScaleType(ImageView.ScaleType.FIT_CENTER);box.addView(image,new LinearLayout.LayoutParams(-1,0,1));
+  Button rotate=new Button(this);rotate.setText("Girar imagen");rotate.setOnClickListener(v->image.setRotation(image.getRotation()==0?180:0));box.addView(rotate);
   TextView state=new TextView(this);state.setText("Conectando con la Insta360 del Lab…");box.addView(state);
   TextView info=new TextView(this);info.setText("Vista remota · actualización cada 3 segundos. Se detiene al cerrar o salir de la aplicación.");box.addView(info);
   ExecutorService cameraWorker=Executors.newSingleThreadExecutor();
