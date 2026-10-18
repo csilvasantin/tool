@@ -32,5 +32,12 @@
     "recovery-2.jpg"
   ],
   "build_lint": "passed",
-  "source_device_mutated": false
+  "source_device_mutated": false,
+  "public_apk_verified": true,
+  "installed_apk_hash_matches": true,
+  "apk_sha256": "672c02a5fc0b6acbfec537492dd722e181c67abb7b349f1167d6766d674454ed",
+  "public_apk": "https://www.admira.app/downloads/admirito-android-20261018.8.apk",
+  "code_commit": "667954b",
+  "web_release_metadata": "recorded in vault after clean release verification",
+  "web_tests_passed": 1674
 }

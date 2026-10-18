@@ -1,14 +1,14 @@
 {
-  "captured_at": 1792321720951,
+  "captured_at": 1792321903782,
   "camera": "macmini-insta360",
   "view": "Fold",
   "desired": {
     "site": "admiranext-lab-gran-de-gracia-primera",
-    "state": "incident",
-    "intensity": 0,
-    "rgb": "yellow",
-    "active_incidents": 2,
-    "revision": "62:1792310959709:1792321707309:INC-JO3FHS,INC-KOBKYX",
+    "state": "admirito",
+    "intensity": 50,
+    "rgb": "white",
+    "active_incidents": 1,
+    "revision": "63:1792131251362:1792321793020:INC-KOBKYX",
     "queued": true,
     "physical_verified": false
   },
@@ -16,8 +16,8 @@
     {
       "id": "9",
       "state": {
-        "on": false,
-        "bri": 1,
+        "on": true,
+        "bri": 127,
         "ct": 366,
         "alert": "select",
         "colormode": "ct",
