@@ -62,3 +62,12 @@ Entrada: https://www.admira.biz/?asistente=comercial&lang=es. Guía de funcionam
 La llamada compartida está probada en navegador público de escritorio/móvil y en el modo Experto del iPhone, con retorno al verde. La comprobación física de Comercial en el Fold queda pendiente de reconectar USB. Esto no resuelve el acceso de Google pendiente de Supervisor en el Fold. No hace falta una nueva instalación nativa: se utiliza el motor compartido publicado.
 
 Commercial is the fifth shared assistant, focused on advertiser campaigns. Desktop/mobile web and the native iPhone Expert command plus standard-green return passed. Physical Fold verification is pending USB reconnection; its separate Supervisor Google issue remains open. Existing native apps use the updated shared engine.
+
+
+## Supervisor Android · 20261018.12
+
+Se localizó un bloqueo concreto del retorno de Google: el acceso oficial de Live redirige a `https://fleet.admira.live/api/auth/handoff` para canjear el código de un solo uso, pero el WebView Android rechazaba ese destino. Se permite únicamente HTTPS, puerto normal y esa ruta exacta; no recibe el puente de órdenes. Otros destinos de flota siguen bloqueados.
+
+Pruebas: política de navegación con retornos válidos y rutas, dominios, credenciales y puertos rechazados; compilación Android firmada y lint correctos. La prueba física actual del iPhone abre `/admirito supervisor`, la vista «Gran de Gràcia · Insta360 Link 2» y los controles; el vídeo indica «Conectando o recuperando vídeo», por lo que no se acredita reproducción en directo. La instalación y la prueba física del Fold quedan pendientes: el teléfono no aparece por USB. Esta corrección preparada no cierra todavía la comprobación de Supervisor.
+
+Android now permits only the official Live one-use Google handoff navigation, without granting that host the suite command bridge. Navigation policy checks, signed build and lint pass. Current iPhone UI opens the Insta360 view and controls, but video remains connecting. Fold installation and end-to-end verification remain pending USB reconnection; no live playback is claimed.
