@@ -1,0 +1,14 @@
+{
+  "release": "20261018.6",
+  "versionCode": 9,
+  "signed_same_key_as_previous": true,
+  "installed_apk_matches_build": true,
+  "sha256": "2ee982bcb400dd08a1921afd056b5afab087d48c6574e3fd5a20d7f90de1b0d0",
+  "native_contract_tests_passed": 3,
+  "build_lint": "passed",
+  "native_expert_and_catalog_opened": true,
+  "physical_playback": "pending: Carlos uses Fold in another application; no further UI interaction until ready",
+  "source_device_mutation": false,
+  "legacy_lab": "Separate button retained; explicit fixed circuit isolates existing Lab identity",
+  "source": "https://github.com/csilvasantin/tool/blob/main/docs/admirito-fold-player.md"
+}

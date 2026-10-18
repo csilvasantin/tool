@@ -43,3 +43,7 @@ Account and listening → Player on this Fold opens the real Admira TV channel w
 Insta360 del Lab: Cuenta → Insta360 · ver el Lab. La vista privada se actualiza cada tres segundos y se detiene al cerrar o salir de la app. Para vincular, pide el código, apruébalo en admira.app con tu cuenta y vuelve a Admirito para terminar. La consulta se pausa durante el navegador; los errores de vinculación se muestran sin voz.
 
 Lab Insta360: Account → Insta360 · view the Lab. Private snapshots refresh every three seconds while foreground. Approve the device code with your own account in the browser, then return to Admirito to finish. Pairing pauses in the background and errors remain silent.
+
+## Selector de playlist / Playlist selector
+
+Cuenta y escuchas → Modo Experto → Player en este Fold. Elige proyecto, local e IoT, o usa `/player PROYECTO LOCAL ID_IOT`. El Fold reproduce con identidad propia y no controla el origen. El banco fijo conserva su botón «Player Lab · Bugito y Supervisor». / Choose the public source in Expert; playback uses an independent identity. The existing fixed Lab player has a separate button. [Guía y pruebas / Guide and evidence](../../docs/admirito-fold-player.md).
