@@ -20,3 +20,8 @@ test('fails closed for wrong origins, methods, configuration and upstream respon
  assert.equal((await run(s,f,req(),{LAB_INSTA360_FRAME_URL:'https://evil.example/'})).status,503);assert.equal(count,0);
  assert.equal((await run(s,f)).status,503);
 });
+
+test('redirects are inspected manually for workerd compatibility and never followed',async()=>{
+ const r=await run({email:'csilvasantin@gmail.com'},async(url,options)=>{assert.equal(options.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://other.example/'}})});
+ assert.equal(r.status,503);assert.equal(r.headers.get('Location'),null);
+});

@@ -16,7 +16,7 @@ export async function handleLabCamera(req,env,{requireAuth,fetcher=fetch}) {
  let source;try{source=new URL(env.LAB_INSTA360_FRAME_URL);}catch{return error('camera_not_configured',503);}
  if(source.origin!=='https://macmini.tail48b61c.ts.net'||!/^\/webcam\/[^/]+\/foto\.jpg$/.test(source.pathname)||source.search||source.hash)return error('camera_not_configured',503);
  try {
-  const upstream=await fetcher(source.href,{redirect:'error',headers:{'User-Agent':'Mozilla/5.0 Admirito private Lab viewer'},signal:AbortSignal.timeout(15000)});
+  const upstream=await fetcher(source.href,{redirect:'manual',headers:{'User-Agent':'Mozilla/5.0 Admirito private Lab viewer'},signal:AbortSignal.timeout(15000)});
   if(!upstream.ok||!(upstream.headers.get('content-type')||'').startsWith('image/jpeg'))return error('camera_upstream_'+upstream.status,503);
   const frame=await upstream.arrayBuffer();
   if(frame.byteLength<4||frame.byteLength>8*1024*1024||new Uint8Array(frame)[0]!==255||new Uint8Array(frame)[1]!==216)return error('camera_unavailable',503);
