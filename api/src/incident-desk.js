@@ -1,3 +1,4 @@
+import {verifiedPhotos} from './installer-evidence.js';
 // Yokup Desk (FLT-100938 · FLT-100940 · MorfeoMacMini · 24-sep-2026): despacho dual, relojes,
 // candado de «Resuelta», avisos push reales y base de conocimiento de cierres buenos.
 //
@@ -152,7 +153,9 @@ export async function resolveWithEvidence(env, id, who, body, now = Date.now()) 
   ? await first(env, "SELECT 1 AS x FROM installer_incidents WHERE id=? AND installer_id=? AND status='assigned'", id, who.installerId)
   : await first(env, "SELECT 1 AS x FROM installer_incidents WHERE id=? AND channel='digital' AND installer_id LIKE 'deepagent:%' AND status='assigned'", id);
  if (!owned) throw Object.assign(new Error('Solo se puede cerrar una incidencia asignada a quien la cierra.'), {status: 409});
- const ev = await checkEvidence(env, body.evidence_url);
+ const ev = body.evidence_ids!==undefined && who.installerId
+  ? await verifiedPhotos(env,id,who.installerId,body.evidence_ids,who.evidenceOrigin||'https://data.admira.app')
+  : await checkEvidence(env, body.evidence_url);
  if (!ev.ok) throw Object.assign(new Error(ev.error), {status: 422});
  const r = who.installerId
   ? await run(env, "UPDATE installer_incidents SET status='resolved',resolution=?,resolved_at=?,evidence_url=?,rating_requested_at=? WHERE id=? AND installer_id=? AND status='assigned'", resolution, now, ev.url, now, id, who.installerId)

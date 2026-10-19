@@ -100,3 +100,8 @@ binding = "AI"
 binding = "TICKETS"
 database_name = "yokup-tickets"
 database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
+
+# Private intervention photos. Public access stays disabled on this dedicated bucket.
+[[r2_buckets]]
+binding = "INSTALLER_EVIDENCE"
+bucket_name = "yokup-installer-evidence"

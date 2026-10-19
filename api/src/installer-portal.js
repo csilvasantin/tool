@@ -1,3 +1,4 @@
+import {uploadPhoto,readPhoto,evidenceList} from './installer-evidence.js';
 import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
 import {sendTelegramAlerts,linkTelegramChats,telegramBot} from './installer-telegram.js';
@@ -180,6 +181,32 @@ export async function handleInstaller(request,env,principal) {
    return response(request,{ok:true});
   }
   if(path==='/kb' && method==='GET') return response(request,{items:await kbFor(env,JSON.parse(account.skills))});
+  const photoRead=/^\/evidence\/([\w-]+)$/.exec(path);
+  if(photoRead&&method==='GET'){
+   const photo=await readPhoto(env,photoRead[1],account.id);
+   const headers=new Headers(response(request,{}).headers);headers.set('Content-Type',photo.type);headers.set('Content-Disposition','inline');headers.set('Cross-Origin-Resource-Policy','same-site');
+   return new Response(photo.body,{headers});
+  }
+  const photoUpload=/^\/incidents\/([\w:-]+)\/photos$/.exec(path);
+  if(photoUpload&&method==='POST'){
+   await rateLimit(env,'photo:'+account.id,30,15*60000);
+   return response(request,await uploadPhoto(request,env,photoUpload[1],account.id),201);
+  }
+  const detail=/^\/incidents\/([\w:-]+)$/.exec(path);
+  if(detail&&method==='GET'){
+   const item=await statement(env,`SELECT i.id,i.title,i.reason,i.status,i.installer_id,i.created_at,i.assigned_at,i.resolved_at,i.resolution,
+    d.name AS device_name,d.skill,rd.description,rd.priority,s.name AS site_name,n.notification_id,n.distance_km,
+    CASE WHEN i.installer_id=? THEN d.address END AS address,
+    CASE WHEN i.installer_id=? THEN d.latitude END AS latitude,CASE WHEN i.installer_id=? THEN d.longitude END AS longitude
+    FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id
+    JOIN (SELECT id AS notification_id,incident_id,distance_km FROM installer_notifications WHERE installer_id=?) n ON n.incident_id=i.id
+    LEFT JOIN retailer_incident_details rd ON rd.incident_id=i.id LEFT JOIN retailer_device_links l ON l.device_id=d.id LEFT JOIN retailer_sites s ON s.id=l.site_id
+    WHERE i.id=?`,account.id,account.id,account.id,account.id,detail[1]).first();
+   if(!item)fail(404,'Intervención no encontrada.');
+   const mine=item.installer_id===account.id;delete item.installer_id;
+   const timeline=mine?await rows(env,"SELECT kind,detail,created_at FROM incident_timeline WHERE incident_id=? AND kind IN ('avance','resuelta','aceptada') ORDER BY created_at,id LIMIT 100",item.id):[];
+   return response(request,{incident:{...item,mine},timeline,photos:mine?await evidenceList(env,item.id,account.id,url.origin):[]});
+  }
   const progress=/^\/incidents\/([\w:-]+)\/progress$/.exec(path);
   if(progress && method==='POST') return response(request,await recordProgress(env,progress[1],'installer_id=?',[account.id],(await jsonBody(request)).note));
   const action=/^\/incidents\/([\w:-]+)\/(accept|resolve)$/.exec(path);
@@ -195,7 +222,7 @@ export async function handleInstaller(request,env,principal) {
     await logTimeline(env,id,'aceptada',`${account.name} a ${distanceKm(account,incident).toFixed(1)} km (ronda ${incident.dispatch_round})`);
    } else {
     // Candado de «Resuelta» (FLT-100938): sin evidencia viva (captura o URL https que responde) no se cierra.
-    return response(request,await resolveWithEvidence(env,id,{installerId:account.id},await jsonBody(request)));
+    return response(request,await resolveWithEvidence(env,id,{installerId:account.id,evidenceOrigin:url.origin},await jsonBody(request)));
    }
    return response(request,{ok:true});
   }
