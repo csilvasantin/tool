@@ -86,5 +86,7 @@ $('#browser-alerts').onclick=async()=>{if(!('Notification'in window)){$('#dashbo
 $('#cancel-resolution').onclick=()=>$('#resolution-dialog').close();$('#resolution-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('.primary');button.disabled=true;try{const form=new FormData(e.target);await api('/incidents/'+encodeURIComponent(activeIncident)+'/resolve',{resolution:form.get('resolution'),evidence_url:form.get('evidence_url')});$('#resolution-dialog').close();await refresh();}catch(e){$('#resolution-status').textContent=e.message;}finally{button.disabled=false;}};
 language(lang);initMap();api('/me').then(result=>{user=result.profile;showUser();}).catch(e=>{if(e.status!==401)$('#form-status').textContent=e.message;});
 setInterval(()=>{if(!document.hidden)refresh();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-if(rememberedUser())setMode('login');
+// An explicit sign-up link takes priority over a remembered login.
+if(new URLSearchParams(location.search).get('alta')==='1')setMode('register');
+else if(rememberedUser())setMode('login');
 })();
