@@ -15,7 +15,7 @@ export function worldStyle() {
 export class GlobeRotation {
   constructor({readCenter, writeCenter, requestFrame, cancelFrame, reducedMotion = false}) {
     Object.assign(this, {readCenter, writeCenter, requestFrame, cancelFrame});
-    this.enabled = false;
+    this.enabled = !reducedMotion;
     this.visible = true;
     this.ready = false;
     this.frame = null;
@@ -33,8 +33,8 @@ export class GlobeRotation {
     if (this.previous !== null) {
       const elapsed = Math.min(Math.max(time - this.previous, 0), 100);
       const center = this.readCenter();
-      // 2.4 degrees/second, independent of the screen refresh rate.
-      const lng = ((center.lng + elapsed * .0024 + 180) % 360 + 360) % 360 - 180;
+      // 1.2 degrees/second (one revolution in five minutes), independent of the screen refresh rate.
+      const lng = ((center.lng + elapsed * .0012 + 180) % 360 + 360) % 360 - 180;
       this.writeCenter([lng, center.lat]);
     }
     this.previous = time;
@@ -123,7 +123,7 @@ export function startHomeGlobe() {
   reset.addEventListener('click', () => {
     touched = false;
     map.jumpTo({center: [-20, 18], zoom: homeZoom(), bearing: 0, pitch: 0});
-    rotation.update({enabled: false}); setButton();
+    rotation.update({enabled: !motion.matches}); setButton();
   });
   retry.addEventListener('click', initialise);
   document.addEventListener('visibilitychange', visible);

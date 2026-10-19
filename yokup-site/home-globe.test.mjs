@@ -15,10 +15,10 @@ function rig(reducedMotion = false) {
   return {rotation, pending, writes, center: () => center,
     advance(time) { const entry = pending.entries().next().value; assert.ok(entry, 'animation frame queued'); pending.delete(entry[0]); entry[1](time); }};
 }
-test('starts stationary and rotates only after explicit activation', () => {
-  const r = rig(); assert.equal(r.rotation.enabled, false); assert.equal(r.pending.size, 0);
-  r.rotation.update({ready: true, enabled: true}); r.advance(0); r.advance(100);
-  assert.ok(Math.abs(r.center().lng - (-19.76)) < .00001);
+test('starts rotating automatically once ready', () => {
+  const r = rig(); assert.equal(r.rotation.enabled, true); assert.equal(r.pending.size, 0);
+  r.rotation.update({ready: true}); r.advance(0); r.advance(100);
+  assert.ok(Math.abs(r.center().lng - (-19.88)) < .00001);
   assert.equal(r.center().lat, 18); assert.equal(r.pending.size, 1);
 });
 test('rotation uses elapsed time rather than display refresh rate', () => {
