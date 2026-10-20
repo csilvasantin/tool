@@ -1,0 +1,32 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {setup,call,account} from './test-fixture.mjs';import {handleRetailer} from './src/retailer-portal.js';import {resolveWithEvidence} from './src/incident-desk.js';import {readPhoto} from './src/installer-evidence.js';import {lifecycleState} from './src/device-lifecycle.js';
+test('maintenance closure is atomic, photo verified, scoped and retry safe',async()=>{
+ const {env,db}=setup();let cookie;
+ async function retail(path,body){const r=await handleRetailer(new Request('https://data.yokup.com/api/retailer'+path,{method:body?'POST':'GET',headers:{Origin:'https://www.yokup.com','Content-Type':'application/json',Cookie:cookie||''},body:body?JSON.stringify(body):undefined}),env);cookie=r.headers.get('set-cookie')?.split(';')[0]||cookie;assert(r.ok,await r.clone().text());return r.json();}
+ await retail('/register',{name:'Comercio QA',email:'qa@example.test',password:'isolated-qa-password'});
+ const site=await retail('/sites',{name:'Estanco QA',kind:'tobacco',country:'ES',city:'Barcelona',address:'Calle ficticia 1',latitude:41.3874,longitude:2.1686});
+ const tech=await call(env,'/register',account());const owner=tech.body.profile.id;
+ const dev=await retail('/devices',{site_id:site.id,name:'Pantalla QA',skill:'screen'});
+ db.prepare("INSERT INTO device_lifecycle(device_id,installed_at,maintenance_interval_days,updated_at,updated_by) VALUES(?,?,?,0,'qa')").run(dev.id,'2026-06-01',90);
+ const originalCookie=cookie;
+ await retail('/register',{name:'Otro comercio QA',email:'other@example.test',password:'isolated-qa-password'});
+ const forbidden=await handleRetailer(new Request('https://data.yokup.com/api/retailer/devices/'+dev.id+'/lifecycle',{headers:{Cookie:cookie}}),env);assert.equal(forbidden.status,404);
+ const forbiddenSite=await handleRetailer(new Request('https://data.yokup.com/api/retailer/devices',{method:'POST',headers:{Origin:'https://www.yokup.com',Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({site_id:site.id,name:'Equipo ajeno',skill:'screen'})}),env);assert.equal(forbiddenSite.status,404);cookie=originalCookie;
+ const incident=await retail('/incidents',{device_id:dev.id,title:'Mantenimiento QA',description:'Revisión preventiva aislada',purpose:'maintenance',request_key:crypto.randomUUID()});
+ const duplicate=await retail('/incidents',{device_id:dev.id,title:'No duplicar solicitud',description:'Segundo envío de prueba aislada',purpose:'maintenance',request_key:crypto.randomUUID()});assert.equal(duplicate.id,incident.id);
+ assert.equal((await call(env,'/incidents/'+incident.id+'/accept',{},tech.cookie)).status,200);
+ const now=Date.parse('2026-10-20T12:00:00Z'),body={resolution:'Prueba aislada de mantenimiento completada',evidence_ids:['photo-qa']};
+ await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:owner},body,now));assert.equal(db.prepare('SELECT last_maintenance_at FROM device_lifecycle WHERE device_id=?').get(dev.id).last_maintenance_at,null);
+ const bytes=new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ZkAAAAASUVORK5CYII=','base64'));const sha=Buffer.from(await crypto.subtle.digest('SHA-256',bytes)).toString('hex');env.INSTALLER_EVIDENCE={get:async()=>({arrayBuffer:async()=>bytes.buffer})};
+ db.prepare('INSERT INTO installer_evidence VALUES(?,?,?,?,?,?,?,?)').run('photo-qa',incident.id,owner,'qa-object',sha,'image/png',bytes.length,now);
+ await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:'other'},body,now));
+ await assert.rejects(readPhoto(env,'photo-qa','other'));
+ await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:owner},{resolution:body.resolution,evidence_url:'https://evidencia.test/qa.jpg'},now),e=>e.status===422);
+ const realBucket=env.INSTALLER_EVIDENCE;env.INSTALLER_EVIDENCE={get:async()=>null};await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:owner},body,now));assert.equal(db.prepare('SELECT status FROM installer_incidents WHERE id=?').get(incident.id).status,'assigned');
+ env.INSTALLER_EVIDENCE={get:async()=>({arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer})};await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:owner},body,now));env.INSTALLER_EVIDENCE=realBucket;
+ db.exec("CREATE TRIGGER qa_abort_maintenance BEFORE UPDATE OF last_maintenance_at ON device_lifecycle BEGIN SELECT RAISE(ABORT,'isolated failure'); END;");await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:owner},body,now));assert.equal(db.prepare('SELECT status FROM installer_incidents WHERE id=?').get(incident.id).status,'assigned');db.exec('DROP TRIGGER qa_abort_maintenance');
+ await resolveWithEvidence(env,incident.id,{installerId:owner},body,now);
+ const lc=db.prepare('SELECT * FROM device_lifecycle WHERE device_id=?').get(dev.id);assert.equal(lc.last_maintenance_at,'2026-10-20');assert.equal(lifecycleState(lc,'2026-10-20').maintenance_due_on,'2027-01-18');assert.equal(lifecycleState(lc,'2026-10-20').maintenance_due,false);
+ await assert.rejects(resolveWithEvidence(env,incident.id,{installerId:owner},body,now+86400000));assert.equal(db.prepare("SELECT COUNT(*) n FROM incident_timeline WHERE kind='mantenimiento_registrado'").get().n,1);
+ db.prepare("UPDATE installer_incidents SET purpose='repair',status='assigned',evidence_url=NULL WHERE id=?").run(incident.id);db.prepare('UPDATE device_lifecycle SET last_maintenance_at=NULL WHERE device_id=?').run(dev.id);await resolveWithEvidence(env,incident.id,{installerId:owner},body,now);assert.equal(db.prepare('SELECT last_maintenance_at FROM device_lifecycle WHERE device_id=?').get(dev.id).last_maintenance_at,null);
+});

@@ -150,9 +150,10 @@ export async function resolveWithEvidence(env, id, who, body, now = Date.now()) 
  if (resolution.length < 20 || resolution.length > 2000) throw Object.assign(new Error('Describe la solución y cómo la probaste (20 a 2000 caracteres).'), {status: 400});
  // Primero la propiedad y luego la evidencia: no se sondea ninguna URL de quien no puede cerrar.
  const owned = who.installerId
-  ? await first(env, "SELECT 1 AS x FROM installer_incidents WHERE id=? AND installer_id=? AND status='assigned'", id, who.installerId)
-  : await first(env, "SELECT 1 AS x FROM installer_incidents WHERE id=? AND channel='digital' AND installer_id LIKE 'deepagent:%' AND status='assigned'", id);
+  ? await first(env, "SELECT purpose FROM installer_incidents WHERE id=? AND installer_id=? AND status='assigned'", id, who.installerId)
+  : await first(env, "SELECT purpose FROM installer_incidents WHERE id=? AND channel='digital' AND installer_id LIKE 'deepagent:%' AND status='assigned'", id);
  if (!owned) throw Object.assign(new Error('Solo se puede cerrar una incidencia asignada a quien la cierra.'), {status: 409});
+ if(owned.purpose==='maintenance'&&(!who.installerId||body.evidence_ids===undefined))throw Object.assign(new Error('Cierra el mantenimiento con fotos guardadas y verificadas.'),{status:422});
  const ev = body.evidence_ids!==undefined && who.installerId
   ? await verifiedPhotos(env,id,who.installerId,body.evidence_ids,who.evidenceOrigin||'https://data.admira.app')
   : await checkEvidence(env, body.evidence_url);
