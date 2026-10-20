@@ -1,8 +1,9 @@
 {
   "_como": "Novedades del sello (2-4 líneas, español). Clave = sello exacto (v.DD.MM.AAAA.rN.HH:MM); .default si el sello aún no tiene entrada. El deploy las escribe en /version.json.novedades[] y el cargador común https://www.admiranext.com/assets/sello-novedades.js las enseña al pasar el ratón por el sello.",
   "default": [
-    "Admirito 20261018.13: el modo Experto de iPhone permite el vídeo en la página y su inicio automático silenciado para Supervisor.",
-    "Se conserva la corrección del retorno de Google en Android y el acceso normal de cada usuario."
+    "Instaladores: el cierre se recupera automáticamente al volver la conexión, sin repetir fotos.",
+    "Si caduca la sesión, la misma cuenta retoma la intervención pendiente incluso tras recargar.",
+    "Referencia temporal de 30 minutos, eliminada al salir o cambiar de cuenta; sin guardar texto, fotos ni credenciales."
   ],
   "v.06.10.2026.r5.20:35": [
     "⌘ Experto cerrado por defecto: oculto al entrar; se abre con el ⌘ de arriba a la derecha y se recuerda solo en la pestaña",
