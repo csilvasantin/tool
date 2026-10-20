@@ -44,3 +44,9 @@ Si se pierde la respuesta de `/resolve` y tampoco puede verificarse el estado, e
 La prueba ampliada corta la respuesta después de persistir el cierre y bloquea la consulta posterior. Comprueba que no aparece éxito falso, que al recuperar la conexión se abre la ficha Resuelta sin clics y que permanece una sola foto. También mantiene las pruebas de fallos de subida, sesión, navegación y persistencia.
 
 EN: Uncertain closures use authenticated read-only reconciliation every three seconds and on online/visibility events. Only owner-confirmed resolved state updates the UI; recovery never automatically resubmits a closure or photo. Session changes cancel recovery. The isolated journey drops the committed closure response and blocks reconciliation, then verifies automatic resolved detail and a single persisted photo after connectivity returns.
+
+### Sesión caducada durante la recuperación
+
+`QA_EXPIRE_DURING_CLOSURE=1` ejecuta el mismo recorrido y caduca la sesión después de perder la respuesta de cierre, mientras la lectura de reconciliación sigue bloqueada. Al volver la conexión exige iniciar sesión, oculta los diálogos privados y cancela la recuperación de la sesión anterior. Tras entrar con la misma cuenta, la ficha del servidor conserva estado resuelto, solución y una foto (un solo objeto privado), sin repetir subidas. La variante pasa 100 comprobaciones sin errores de JavaScript en el entorno aislado.
+
+EN: `QA_EXPIRE_DURING_CLOSURE=1` expires the session during uncertain-closure recovery. Reconnection requires sign-in and hides private dialogs. Signing back in restores the actual resolved job and its single persisted photo without another upload; 100 isolated checks pass.

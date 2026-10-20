@@ -37,11 +37,25 @@ await p.waitForFunction(()=>document.querySelector('#resolution-status').textCon
 check(await p.locator('#resolution-dialog').isVisible(),'lost closure response never announces unverified success');
 check((await stats()).incidents.find(j=>j.title==='Pantalla del estanco sin señal').status==='resolved','server saved closure before response was lost');
 check((await stats()).photos.length===1,'lost closure response has one persisted photo');
-await control({failDetail:false});
-// No click, reload or manual resubmission: periodic authenticated reads must recover this closure.
+if(process.env.QA_EXPIRE_DURING_CLOSURE){
+ await control({expire:true,failDetail:false});
+ await p.locator('#onboarding').waitFor({state:'visible',timeout:12000});
+ check((await p.locator('#form-status').innerText()).includes('caducado'),'uncertain closure detects session expiry and requests sign-in');
+ check(await p.locator('#dashboard').isHidden()&&await p.locator('#resolution-dialog').isHidden(),'session expiry hides private workspace and closure dialog');
+ await p.screenshot({path:'/tmp/installer-closure-session-expired.png',fullPage:true});
+ await p.locator('[name=email]').fill(email);await p.locator('[name=password]').fill(password);await submit.click();
+ await p.locator('#dashboard').waitFor({state:'visible'});await p.locator('#filter-resolved').click();
+ await p.locator('.incident').filter({has:p.getByText('Pantalla del estanco sin señal',{exact:true})}).getByRole('button',{name:'Ver intervención'}).click();
+ await p.waitForFunction(()=>document.querySelector('#intervention-body')?.textContent.includes('Resuelta'));
+ check((await p.locator('#intervention-body').innerText()).includes('señal y reproducción verificadas'),'sign-in restores actual server resolution after uncertain closure');
+ check((await stats()).photos.length===1&&(await stats()).persisted.length===1,'sign-in after expired uncertain closure retains one photo and one object');
+ await p.waitForFunction(()=>document.querySelector('#intervention-body img')?.naturalWidth>0);
+ await p.screenshot({path:'/tmp/installer-closure-session-restored.png',fullPage:true});
+}else await control({failDetail:false});
+// Normal recovery needs no click/reload/resubmission; expired sessions require the explicit sign-in above.
 await p.locator('#resolution-dialog').waitFor({state:'hidden',timeout:12000});
 await p.waitForFunction(()=>document.querySelector('#intervention-body')?.textContent.includes('Resuelta'));
-check((await p.locator('#intervention-body').innerText()).includes('Resuelta'),'connection recovery automatically shows confirmed resolved detail');
+check((await p.locator('#intervention-body').innerText()).includes('Resuelta'),process.env.QA_EXPIRE_DURING_CLOSURE?'sign-in shows confirmed resolved detail':'connection recovery automatically shows confirmed resolved detail');
 check((await stats()).photos.length===1,'automatic closure recovery does not upload a duplicate photo');check((await stats()).incidents.find(j=>j.title==='Pantalla del estanco sin señal').status==='resolved','complete signed-up installer journey reaches verified resolution');check(await p.locator('#filter-resolved').getAttribute('aria-selected')==='true','lost closure response reconciles into actual resolved tab');await layout('resolved');await p.locator('#close-intervention').click();await p.locator('#intervention-dialog').waitFor({state:'hidden'});
 await p.locator('.yk-ico-adv').click();await p.locator('#logout').click();await p.locator('#onboarding').waitFor({state:'visible'});check(await p.locator('#dashboard').isHidden(),'logout hides private workspace');if(await p.locator('.yk-ico-adv').getAttribute('aria-expanded')==='true')await p.locator('.yk-ico-adv').click();await p.locator('[name=email]').fill(email);await p.locator('[name=password]').fill('wrong-password');await submit.click();await p.waitForFunction(()=>!document.querySelector('#submit-account').disabled);check(await p.locator('#dashboard').isHidden(),'incorrect login cannot enter workspace');await p.locator('[name=password]').fill(password);await submit.click();await p.locator('#dashboard').waitFor({state:'visible'});await control({failAuth:true});await p.reload();await p.locator('#retry-session').waitFor({state:'visible'});check(await p.locator('#retry-session').isVisible().catch(()=>false),'session connection failure has explicit retry without fake logout');await control({failAuth:false});if(await p.locator('#retry-session').isVisible().catch(()=>false)){await p.locator('#retry-session').click();await p.locator('#dashboard').waitFor({state:'visible'});}else {await p.reload();await p.locator('#dashboard').waitFor({state:'visible'});}
 await control({expire:true});await p.locator('#refresh').click();await p.locator('#onboarding').waitFor({state:'visible'});check(await p.locator('#dashboard').isHidden(),'expired server session removes private data');check((await p.locator('#form-status').innerText()).includes('caducado'),'expired session explains why sign-in is needed');await p.goBack();check(await p.locator('#dashboard').isHidden(),'browser history cannot revive an expired private workspace');check(!errors.length,'zero browser JS errors');console.log(JSON.stringify({failures,errors}));await b.close();if(failures.length)process.exitCode=1;})().catch(e=>{console.error(e);process.exit(1)});
