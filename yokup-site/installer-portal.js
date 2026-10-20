@@ -209,7 +209,7 @@ async function loadInbox(){
   latestStats=stats;latestInbox=notifications;inboxLoaded=true;inboxError='';lastSyncAt=Date.now();
   if(!filterChosen&&initialInbox)activeFilter=filterCounts(notifications).assigned?'assigned':'available';
   $('#reputation').textContent=reputation?.count?`${Number(reputation.average).toFixed(1)} / 5 ★ · ${reputation.count} ${t('valoraciones de comercios','retailer reviews')}`:t('Todavía sin valoraciones de comercios.','No retailer reviews yet.');
-  for(const n of notifications){if(!initialInbox&&!seen.has(n.notification_id)&&!n.read_at&&n.status==='open'&&'Notification'in window&&Notification.permission==='granted')new Notification(t('Intervención cercana','Nearby job'),{body:n.title+' · '+Number(n.distance_km).toFixed(1)+' km',tag:n.notification_id});seen.add(n.notification_id);}initialInbox=false;return true;
+  for(const n of notifications){if(!initialInbox&&!seen.has(n.notification_id)&&!n.read_at&&n.status==='open'&&'Notification'in window&&Notification.permission==='granted')new Notification(t('Intervención cercana','Nearby job'),{body:n.title+' · '+Number(n.distance_km).toFixed(1)+' km',tag:n.notification_id});seen.add(n.notification_id);}initialInbox=false;resumeClosureAfterLogin();return true;
  }catch(e){if(user?.id!==owner)return false;if(e.status===401)signedOut(t('Tu sesión ha caducado. Vuelve a entrar para continuar.','Your session has expired. Sign in to continue.'));else inboxError=e.message;return false;}
  finally{polling=false;if(user&&user.id===owner)render(latestInbox);}
 }
@@ -226,9 +226,11 @@ function showUser(){
  document.dispatchEvent(new CustomEvent('portal-auth',{detail:{kind:'installer',authenticated:true}}));
  if(profileOwner!==user.id){profileOwner=user.id;latestInbox=[];latestStats={unread:null,assigned:null,resolved:null};inboxLoaded=false;inboxError='';lastSyncAt=null;activeFilter='available';filterChosen=false;seen.clear();initialInbox=true;}
  document.body.classList.add('installer-signed-in');$('#onboarding').hidden=true;$('#dashboard').hidden=false;$('#advanced-integrations').hidden=false;$('#logout').hidden=false;$('#login-top').hidden=true;$('.edit-navigation').hidden=true;
- fillProfile();renderProfile();render(latestInbox);refresh();navigation({view:'dashboard'},true);
+ fillProfile();renderProfile();render(latestInbox);refresh();navigation({view:'dashboard'},true);resumeClosureAfterLogin();
 }
 function signedOut(message=''){
+ if(message&&uncertainClosures.size){const [id,owner]=uncertainClosures.entries().next().value;closureResume={id,owner};}
+ else if(!message)closureResume=null;
  document.dispatchEvent(new CustomEvent('portal-auth',{detail:{kind:'installer',authenticated:false}}));user=null;profileOwner=null;latestInbox=[];inboxLoaded=false;inboxError='';lastSyncAt=null;pendingActions.clear();
  clearJobDrafts();$('#intervention-dialog').close();document.body.classList.remove('installer-signed-in');$('#progress-dialog').close();$('#resolution-dialog').close();
  if(marker){marker.remove();marker=null;}if(mapReady){for(const layer of ['zone-line','zone-fill'])if(map.getLayer(layer))map.removeLayer(layer);if(map.getSource('zone'))map.removeSource('zone');map.jumpTo({center:[10,24],zoom:1.2});}
@@ -349,7 +351,27 @@ async function sendPhoto(id,blob){
  catch(e){throw Error(e.name==='AbortError'?t('La subida ha tardado demasiado. La foto sigue aquí; reintenta.','The upload timed out. Your photo is still here; retry.'):e.message);}finally{clearTimeout(timeout);}
 }
 // Uncertain closures are reconciled with authenticated reads only; never resend a write.
-const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer;
+const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer,closureResume=null,resumingClosure=false;
+async function resumeClosureAfterLogin(){
+ const pending=closureResume,owner=user?.id;
+ if(!pending||resumingClosure||!owner)return;
+ if(pending.owner!==owner){closureResume=null;return;}
+ resumingClosure=true;
+ try{
+  const data=await api('/incidents/'+encodeURIComponent(pending.id));
+  if(user?.id!==owner||closureResume!==pending)return;
+  if(!data.incident.mine){closureResume=null;return;}
+  closureResume=null;
+  activeFilter=data.incident.status==='resolved'?'resolved':'assigned';filterChosen=true;render(latestInbox);
+  detailId=pending.id;detailData=data;detailError='';detailLoading=false;jobDraft(pending.id).stored=data.photos;
+  $('#intervention-dialog').showModal();navigation({view:'detail',id:pending.id});renderIntervention();
+ }catch(error){
+  if(user?.id!==owner)return;
+  if(error.status===401)signedOut(t('Tu sesión ha caducado. Vuelve a entrar para continuar.','Your session has expired. Sign in to continue.'));
+  else if(error.status===403||error.status===404)closureResume=null;
+  else $('#dashboard-status').textContent=t('No podemos recuperar la intervención pendiente. Lo intentaremos al volver la conexión.','We cannot restore the pending job. We will retry when connected.');
+ }finally{resumingClosure=false;}
+}
 function scheduleClosureRecovery(){
  clearTimeout(closureRecoveryTimer);
  if(uncertainClosures.size)closureRecoveryTimer=setTimeout(recoverClosures,3000);
@@ -385,8 +407,8 @@ async function recoverClosures(){
  }
  scheduleClosureRecovery();
 }
-window.addEventListener('online',recoverClosures);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)recoverClosures();});
+window.addEventListener('online',()=>{recoverClosures();resumeClosureAfterLogin();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){recoverClosures();resumeClosureAfterLogin();}});
 async function submitResolution(e){
  e.preventDefault();const id=activeIncident;if(pendingActions.has(id)||uploadingPhotos.has(id))return;
  const owner=user?.id;let closureAttempted=false;

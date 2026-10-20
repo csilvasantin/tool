@@ -43,9 +43,13 @@ if(process.env.QA_EXPIRE_DURING_CLOSURE){
  check((await p.locator('#form-status').innerText()).includes('caducado'),'uncertain closure detects session expiry and requests sign-in');
  check(await p.locator('#dashboard').isHidden()&&await p.locator('#resolution-dialog').isHidden(),'session expiry hides private workspace and closure dialog');
  await p.screenshot({path:'/tmp/installer-closure-session-expired.png',fullPage:true});
- await p.locator('[name=email]').fill(email);await p.locator('[name=password]').fill(password);await submit.click();
- await p.locator('#dashboard').waitFor({state:'visible'});await p.locator('#filter-resolved').click();
- await p.locator('.incident').filter({has:p.getByText('Pantalla del estanco sin señal',{exact:true})}).getByRole('button',{name:'Ver intervención'}).click();
+ await p.locator('[name=email]').fill(email);await p.locator('[name=password]').fill('wrong-password');await submit.click();await p.waitForFunction(()=>!document.querySelector('#submit-account').disabled);
+ check(await p.locator('#dashboard').isHidden()&&await p.locator('#intervention-dialog').isHidden(),'failed reauthentication cannot reopen pending private intervention');
+ await p.locator('[name=password]').fill(password);await submit.click();
+ await p.locator('#dashboard').waitFor({state:'visible'});
+ // No filter selection or intervention click: the same account resumes its own pending closure.
+ await p.locator('#intervention-dialog').waitFor({state:'visible'});
+ check(await p.locator('#intervention-title').innerText()==='Pantalla del estanco sin señal','same-account sign-in automatically reopens the pending intervention');
  await p.waitForFunction(()=>document.querySelector('#intervention-body')?.textContent.includes('Resuelta'));
  check((await p.locator('#intervention-body').innerText()).includes('señal y reproducción verificadas'),'sign-in restores actual server resolution after uncertain closure');
  check((await stats()).photos.length===1&&(await stats()).persisted.length===1,'sign-in after expired uncertain closure retains one photo and one object');

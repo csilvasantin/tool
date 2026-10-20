@@ -50,3 +50,11 @@ EN: Uncertain closures use authenticated read-only reconciliation every three se
 `QA_EXPIRE_DURING_CLOSURE=1` ejecuta el mismo recorrido y caduca la sesión después de perder la respuesta de cierre, mientras la lectura de reconciliación sigue bloqueada. Al volver la conexión exige iniciar sesión, oculta los diálogos privados y cancela la recuperación de la sesión anterior. Tras entrar con la misma cuenta, la ficha del servidor conserva estado resuelto, solución y una foto (un solo objeto privado), sin repetir subidas. La variante pasa 100 comprobaciones sin errores de JavaScript en el entorno aislado.
 
 EN: `QA_EXPIRE_DURING_CLOSURE=1` expires the session during uncertain-closure recovery. Reconnection requires sign-in and hides private dialogs. Signing back in restores the actual resolved job and its single persisted photo without another upload; 100 isolated checks pass.
+
+### Reapertura tras volver a entrar
+
+Cuando caduca la sesión durante un cierre incierto se conserva solo la referencia de intervención y propietario en la memoria de esta pestaña. La autenticación correcta de la misma cuenta hace una nueva consulta autorizada de la ficha y la abre directamente con el estado real, la solución y las fotos; no requiere filtrar Resueltas. Un error de contraseña no revela la ficha. Otra cuenta descarta esa referencia; salir voluntariamente también. No se guarda este retorno en almacenamiento local ni se conservan borradores privados tras caducar la sesión. Una recarga completa pierde esta referencia de retorno. Si falla la consulta, se reintenta al volver la conexión, activar la pestaña o actualizarse la bandeja.
+
+La variante de sesión caducada ya no hace clic en Resueltas ni en Ver intervención después de autenticar: exige que la ficha correcta se abra automáticamente y conserva la comprobación de una sola foto privada.
+
+EN: After session expiry during an uncertain closure, only the job/owner reference remains in this tab's memory. Successful same-account authentication rereads the authorized job and opens its real detail automatically. Wrong passwords reveal nothing; different accounts and voluntary logout discard the return reference. Full page reload does not retain this in-memory return reference.
