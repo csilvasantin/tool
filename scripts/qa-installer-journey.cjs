@@ -10,7 +10,7 @@ const check=(condition,label)=>{if(!condition){failures.push(label);console.log(
 const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
 await c.route('https://www.admira.app/**',async r=>{const u=new URL(r.request().url());if(u.pathname==='/api/installer-location'){const result=await fetch(base+'/geocode'+u.search);return r.fulfill({status:result.status,contentType:'application/json',body:await result.text()});}if(process.env.LIVE_ASSETS)return r.continue();const file=path.join(root,u.pathname==='/'?'index.html':u.pathname==='/instalador'?'instalador.html':u.pathname);if(!fs.existsSync(file)||!fs.statSync(file).isFile())return r.continue();let body=fs.readFileSync(file);if(file.endsWith('.html'))body=Buffer.from(body.toString().replace('<head>','<head><script src="/yk-casa.js"></script>'));return r.fulfill({body,contentType:file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':undefined});});
 await c.route(/https:\/\/data\.(?:yokup.com|admira.app)\//,async r=>{const q=r.request(),u=new URL(q.url());if(!u.pathname.startsWith('/api/installer/'))return r.fulfill({status:401,json:{error:'QA unauthorized'}});try{const headers=await q.allHeaders();const response=await fetch(base+u.pathname.replace('/api/installer',''),{method:q.method(),headers:{'Content-Type':headers['content-type']||'application/json',Cookie:headers.cookie||''},body:q.postDataBuffer()||undefined});await r.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});}catch{if(u.pathname.endsWith('/resolve'))await control({failDetail:true});await r.abort('connectionfailed');}});
-const p=await c.newPage();p.setDefaultTimeout(15000);p.on('pageerror',e=>errors.push(e.message));
+const p=await c.newPage();if(process.env.QA_CLOSURE_CLEAR_MODE==='ttl')await p.clock.install({time:new Date()});p.setDefaultTimeout(15000);p.on('pageerror',e=>errors.push(e.message));
 async function layout(stage){for(const language of ['es','en']){await p.evaluate(language=>{document.documentElement.lang=language;document.dispatchEvent(new CustomEvent('admiranext:lang',{detail:{lang:language}}));const select=document.querySelector('#language');if(select){select.value=language;select.dispatchEvent(new Event('change'));}},language);for(const width of [375,390,768]){await p.setViewportSize({width,height:844});const dims=await p.evaluate(()=>({w:innerWidth,s:document.documentElement.scrollWidth}));check(dims.s<=dims.w,stage+' '+language+' fits '+width);}}await p.evaluate(()=>{document.documentElement.lang='es';document.dispatchEvent(new CustomEvent('admiranext:lang',{detail:{lang:'es'}}));const s=document.querySelector('#language');if(s){s.value='es';s.dispatchEvent(new Event('change'));}});await p.setViewportSize({width:390,height:844});await p.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await p.screenshot({path:'/tmp/installer-journey-'+stage+'.png',fullPage:true});}
 await p.goto('https://www.admira.app/');await layout('home');await p.locator('.signup-cta').first().click();await p.locator('[name=country] option[value=ES]').waitFor({state:'attached'});check(new URL(p.url()).searchParams.get('alta')==='1','homepage CTA enters signup');
 await layout('account');const submit=p.locator('#submit-account');await submit.click();check(await p.locator('[data-signup-step="0"]').isVisible(),'empty account blocked');
@@ -37,6 +37,34 @@ await p.waitForFunction(()=>document.querySelector('#resolution-status').textCon
 check(await p.locator('#resolution-dialog').isVisible(),'lost closure response never announces unverified success');
 check((await stats()).incidents.find(j=>j.title==='Pantalla del estanco sin señal').status==='resolved','server saved closure before response was lost');
 check((await stats()).photos.length===1,'lost closure response has one persisted photo');
+if(process.env.QA_CLOSURE_CLEAR_MODE){
+ const key='yk_installer_closure_return_v1',pendingId=(await stats()).incidents.find(j=>j.title==='Pantalla del estanco sin señal').id;
+ check(!!await p.evaluate(key=>sessionStorage.getItem(key),key),'uncertain closure has a return reference before cleanup');
+ if(process.env.QA_CLOSURE_CLEAR_MODE==='ttl'){
+  await control({expire:true,failDetail:false});
+  await p.locator('#onboarding').waitFor({state:'visible',timeout:12000});
+  await p.clock.fastForward(31*60*1000);
+  check(await p.evaluate(key=>sessionStorage.getItem(key)===null,key),'31 simulated browser minutes automatically delete pending return reference');
+  await p.reload();await p.locator('#onboarding').waitFor({state:'visible'});
+  await p.locator('#login-tab').click();
+ }else{
+  // Voluntary logout is tested while the session is still valid and confirmation is unavailable.
+  await p.locator('#cancel-resolution').click();await p.locator('#resolution-dialog').waitFor({state:'hidden'});
+  if(await p.locator('#intervention-dialog').isVisible()){await p.locator('#close-intervention').click();await p.locator('#intervention-dialog').waitFor({state:'hidden'});}
+  await p.locator('.yk-ico-adv').click();await p.locator('#logout').click();await p.locator('#onboarding').waitFor({state:'visible'});
+  check(await p.evaluate(key=>sessionStorage.getItem(key)===null,key),'voluntary logout deletes pending return reference immediately');
+  await control({failDetail:false});
+  if(await p.locator('.yk-ico-adv').getAttribute('aria-expanded')==='true')await p.locator('.yk-ico-adv').click();
+ }
+ const requestedJobs=[];p.on('request',request=>{if(request.url().includes('/incidents/'+pendingId))requestedJobs.push(request.url());});
+ await p.locator('[name=email]').fill(email);await p.locator('[name=password]').fill(password);await submit.click();await p.locator('#dashboard').waitFor({state:'visible'});
+ await p.waitForFunction(()=>document.querySelector('#unread-count').textContent!=='—');await pause(250);
+ check(await p.locator('#intervention-dialog').isHidden()&&await p.locator('#resolution-dialog').isHidden(),'sign-in after return cleanup does not reopen any intervention');
+ check(requestedJobs.length===0,'sign-in after return cleanup never requests the old intervention detail');
+ check(await p.evaluate(key=>sessionStorage.getItem(key)===null,key),'return reference remains absent after sign-in');
+ check((await stats()).photos.length===1&&(await stats()).persisted.length===1,'return cleanup preserves one saved photo without duplicates');
+ check(!errors.length,'zero browser JS errors');await p.screenshot({path:'/tmp/installer-return-'+process.env.QA_CLOSURE_CLEAR_MODE+'.png'});console.log(JSON.stringify({failures,errors}));await b.close();if(failures.length)process.exitCode=1;return;
+}
 if(process.env.QA_EXPIRE_DURING_CLOSURE){
  await control({expire:true,failDetail:false});
  await p.locator('#onboarding').waitFor({state:'visible',timeout:12000});

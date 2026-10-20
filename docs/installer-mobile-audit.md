@@ -66,3 +66,13 @@ Con `QA_EXPIRE_DURING_CLOSURE=1 QA_CLOSURE_RELOAD=1`, la prueba recarga antes de
 EN: Reload regression verifies the minimal return schema and automatic same-account restoration. The other-account variant verifies marker deletion and no request for the previous account's pending detail.
 
 Resultado aislado: 105 comprobaciones en la variante de misma cuenta con recarga y 89 en la de cuenta distinta; ambas terminan con `failures: []`, `errors: []`. Las 1.680 pruebas del sitio pasan.
+
+### Borrado por caducidad y salida voluntaria
+
+El retorno temporal tiene un temporizador que elimina la referencia al vencer los 30 minutos, además de validar la caducidad al leerla o reautenticar. `QA_CLOSURE_CLEAR_MODE=ttl` instala un reloj virtual solo en el navegador de QA, adelanta 31 minutos tras perder la respuesta de cierre y caducar la sesión, verifica el borrado antes de recargar e iniciar sesión, y exige que no se abra ni se consulte el detalle anterior. No modifica la hora del sistema ni del backend.
+
+`QA_CLOSURE_CLEAR_MODE=logout` conserva una referencia pendiente con sesión válida, pulsa Salir desde la UI y exige su borrado inmediato. Al entrar otra vez con la misma cuenta, ningún diálogo de intervención se abre ni se solicita ese detalle. Ambas variantes conservan una sola foto privada del trabajo realmente resuelto.
+
+EN: A browser timer now removes expired return references without requiring navigation. The TTL regression uses Playwright's virtual browser clock (31-minute fast-forward); system and backend clocks remain unchanged. The logout regression uses the actual UI. Both verify no automatic job detail opening/request after signing back in and one persisted photo.
+
+Resultado: ambas variantes pasan 86 comprobaciones cada una, con cero fallos y cero errores JavaScript. Se comprueba una referencia presente antes de la limpieza, borrado efectivo, ausencia posterior al login, cero solicitudes automáticas del detalle anterior y una sola foto persistida.

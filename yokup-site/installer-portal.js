@@ -357,12 +357,17 @@ function readClosureReturn(){
   sessionStorage.removeItem(CLOSURE_RETURN_KEY);
  }catch{}return null;
 }
-const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer,closureResume=readClosureReturn(),resumingClosure=false;
+const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer,closureReturnTimer,closureResume=readClosureReturn(),resumingClosure=false;
 async function closureOwnerTag(owner){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('installer-closure:'+owner))),b=>b.toString(16).padStart(2,'0')).join('');}
-function forgetClosureReturn(){closureResume=null;try{sessionStorage.removeItem(CLOSURE_RETURN_KEY);}catch{}}
-async function rememberClosureReturn(id,owner){
- try{const ownerTag=await closureOwnerTag(owner);if(user?.id!==owner)return;closureResume={id,ownerTag,expires:Date.now()+CLOSURE_RETURN_TTL};try{sessionStorage.setItem(CLOSURE_RETURN_KEY,JSON.stringify(closureResume));}catch{}}catch{}
+function forgetClosureReturn(){clearTimeout(closureReturnTimer);closureResume=null;try{sessionStorage.removeItem(CLOSURE_RETURN_KEY);}catch{}}
+function armClosureReturnExpiry(){
+ clearTimeout(closureReturnTimer);
+ if(closureResume)closureReturnTimer=setTimeout(()=>{if(closureResume?.expires<=Date.now())forgetClosureReturn();else armClosureReturnExpiry();},Math.max(0,closureResume.expires-Date.now()));
 }
+async function rememberClosureReturn(id,owner){
+ try{const ownerTag=await closureOwnerTag(owner);if(user?.id!==owner)return;closureResume={id,ownerTag,expires:Date.now()+CLOSURE_RETURN_TTL};try{sessionStorage.setItem(CLOSURE_RETURN_KEY,JSON.stringify(closureResume));}catch{}armClosureReturnExpiry();}catch{}
+}
+armClosureReturnExpiry();
 async function resumeClosureAfterLogin(){
  const pending=closureResume,owner=user?.id;
  if(!pending||resumingClosure||!owner)return;
