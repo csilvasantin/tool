@@ -41,6 +41,6 @@ http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://127.0.0
  if(journey&&response.ok&&['/register','/login','/logout'].includes(url.pathname)){cookie=response.headers.get('set-cookie')?.split(';')[0]||cookie;if(url.pathname==='/register')await mf.dispatchFetch(origin+'/test/dispatch');}
  if(dropClose&&url.pathname.endsWith('/resolve')&&response.ok){dropClose=false;res.destroy();return;}
  if(dropUpload&&url.pathname.endsWith('/photos')&&response.ok){dropUpload=false;res.destroy();return;}
- res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
- }catch(e){console.error(e.message);res.writeHead(500);res.end(JSON.stringify({error:'Isolated backend failure'}));}}).listen(8901,'127.0.0.1',()=>console.log('READY isolated workerd + D1 + private disk-persisted R2, port 8901; storage '+storage));
+ const responseBody=Buffer.from(await response.arrayBuffer());res.writeHead(response.status,Object.fromEntries(response.headers));res.end(responseBody);
+ }catch(e){console.error(e.message);if(res.headersSent){res.destroy();return;}res.writeHead(500);res.end(JSON.stringify({error:'Isolated backend failure'}));}}).listen(8901,'127.0.0.1',()=>console.log('READY isolated workerd + D1 + private disk-persisted R2, port 8901; storage '+storage));
 process.on('SIGTERM',async()=>{await mf.dispose();process.exit();});

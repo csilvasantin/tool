@@ -229,8 +229,7 @@ function showUser(){
  fillProfile();renderProfile();render(latestInbox);refresh();navigation({view:'dashboard'},true);resumeClosureAfterLogin();
 }
 function signedOut(message=''){
- if(message&&uncertainClosures.size){const [id,owner]=uncertainClosures.entries().next().value;closureResume={id,owner};}
- else if(!message)closureResume=null;
+ if(!message)forgetClosureReturn();
  document.dispatchEvent(new CustomEvent('portal-auth',{detail:{kind:'installer',authenticated:false}}));user=null;profileOwner=null;latestInbox=[];inboxLoaded=false;inboxError='';lastSyncAt=null;pendingActions.clear();
  clearJobDrafts();$('#intervention-dialog').close();document.body.classList.remove('installer-signed-in');$('#progress-dialog').close();$('#resolution-dialog').close();
  if(marker){marker.remove();marker=null;}if(mapReady){for(const layer of ['zone-line','zone-fill'])if(map.getLayer(layer))map.removeLayer(layer);if(map.getSource('zone'))map.removeSource('zone');map.jumpTo({center:[10,24],zoom:1.2});}
@@ -351,24 +350,37 @@ async function sendPhoto(id,blob){
  catch(e){throw Error(e.name==='AbortError'?t('La subida ha tardado demasiado. La foto sigue aquí; reintenta.','The upload timed out. Your photo is still here; retry.'):e.message);}finally{clearTimeout(timeout);}
 }
 // Uncertain closures are reconciled with authenticated reads only; never resend a write.
-const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer,closureResume=null,resumingClosure=false;
+const CLOSURE_RETURN_KEY='yk_installer_closure_return_v1',CLOSURE_RETURN_TTL=30*60*1000;
+function readClosureReturn(){
+ try{const value=JSON.parse(sessionStorage.getItem(CLOSURE_RETURN_KEY)||'null'),now=Date.now();
+  if(value&&Object.keys(value).sort().join(',')==='expires,id,ownerTag'&&typeof value.id==='string'&&/^[\w:-]{1,128}$/.test(value.id)&&/^[a-f0-9]{64}$/.test(value.ownerTag)&&Number.isFinite(value.expires)&&value.expires>now&&value.expires<=now+CLOSURE_RETURN_TTL)return value;
+  sessionStorage.removeItem(CLOSURE_RETURN_KEY);
+ }catch{}return null;
+}
+const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer,closureResume=readClosureReturn(),resumingClosure=false;
+async function closureOwnerTag(owner){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('installer-closure:'+owner))),b=>b.toString(16).padStart(2,'0')).join('');}
+function forgetClosureReturn(){closureResume=null;try{sessionStorage.removeItem(CLOSURE_RETURN_KEY);}catch{}}
+async function rememberClosureReturn(id,owner){
+ try{const ownerTag=await closureOwnerTag(owner);if(user?.id!==owner)return;closureResume={id,ownerTag,expires:Date.now()+CLOSURE_RETURN_TTL};try{sessionStorage.setItem(CLOSURE_RETURN_KEY,JSON.stringify(closureResume));}catch{}}catch{}
+}
 async function resumeClosureAfterLogin(){
  const pending=closureResume,owner=user?.id;
  if(!pending||resumingClosure||!owner)return;
- if(pending.owner!==owner){closureResume=null;return;}
  resumingClosure=true;
  try{
+  if(pending.expires<=Date.now()||pending.ownerTag!==await closureOwnerTag(owner)){forgetClosureReturn();return;}
+  if(user?.id!==owner||closureResume!==pending)return;
   const data=await api('/incidents/'+encodeURIComponent(pending.id));
   if(user?.id!==owner||closureResume!==pending)return;
-  if(!data.incident.mine){closureResume=null;return;}
-  closureResume=null;
+  if(!data.incident.mine){forgetClosureReturn();return;}
+  forgetClosureReturn();
   activeFilter=data.incident.status==='resolved'?'resolved':'assigned';filterChosen=true;render(latestInbox);
   detailId=pending.id;detailData=data;detailError='';detailLoading=false;jobDraft(pending.id).stored=data.photos;
   $('#intervention-dialog').showModal();navigation({view:'detail',id:pending.id});renderIntervention();
  }catch(error){
   if(user?.id!==owner)return;
   if(error.status===401)signedOut(t('Tu sesión ha caducado. Vuelve a entrar para continuar.','Your session has expired. Sign in to continue.'));
-  else if(error.status===403||error.status===404)closureResume=null;
+  else if(error.status===403||error.status===404)forgetClosureReturn();
   else $('#dashboard-status').textContent=t('No podemos recuperar la intervención pendiente. Lo intentaremos al volver la conexión.','We cannot restore the pending job. We will retry when connected.');
  }finally{resumingClosure=false;}
 }
@@ -378,7 +390,7 @@ function scheduleClosureRecovery(){
 }
 async function confirmRecoveredClosure(id,data,owner){
  if(user?.id!==owner||!data.incident.mine||data.incident.status!=='resolved')return false;
- uncertainClosures.delete(id);jobDraft(id).stored=data.photos;
+ uncertainClosures.delete(id);if(closureResume?.id===id)forgetClosureReturn();jobDraft(id).stored=data.photos;
  if(await refresh()){activeFilter='resolved';filterChosen=true;render(latestInbox);}
  if(user?.id!==owner)return true;
  $('#dashboard-status').classList.remove('status-error');$('#dashboard-status').textContent=t('El servidor confirma que la intervención está resuelta.','The server confirms this job is resolved.');
@@ -400,7 +412,7 @@ async function recoverClosures(){
    if(user?.id!==owner||uncertainClosures.get(id)!==owner)continue;
    if(await confirmRecoveredClosure(id,data,owner))continue;
    // The server is reachable but has not confirmed a closure. Preserve the draft for a manual retry.
-   uncertainClosures.delete(id);
+   uncertainClosures.delete(id);if(closureResume?.id===id)forgetClosureReturn();
    if(activeIncident===id&&$('#resolution-dialog').open)$('#resolution-status').textContent=t('El servidor no confirma el cierre. Texto y fotos conservados; puedes reintentar.','The server has not confirmed closure. Text and photos retained; you can retry.');
   }catch(error){if(error.status===401&&user?.id===owner)signedOut(t('Tu sesión ha caducado. Vuelve a entrar para continuar.','Your session has expired. Sign in to continue.'));}
   finally{recoveringClosures.delete(id);}
@@ -424,12 +436,13 @@ async function submitResolution(e){
   $('#photo-status').textContent=d.stored.length?t('Fotos guardadas. Comprobando el cierre…','Photos saved. Confirming closure…'):'';
   const body={resolution:d.resolution,...(d.stored.length?{evidence_ids:d.stored.map(p=>p.id)}:{evidence_url:d.evidence_url})};
   uploadingPhotos.delete(id);
-  closureAttempted=true;
+  closureAttempted=true;await rememberClosureReturn(id,owner);
   const r=await mutateIncident(id,()=>api('/incidents/'+encodeURIComponent(id)+'/resolve',body),t('Solución y evidencia guardadas. Intervención resuelta.','Solution and evidence saved. Job resolved.'),'resolved');
-  if(r.ok){closeJobDialog('resolution-dialog');await reloadIntervention();}
+  if(r.ok){if(closureResume?.id===id)forgetClosureReturn();closeJobDialog('resolution-dialog');await reloadIntervention();}
   else{
    // A lost response is not proof of either success or failure. Ask the owning server.
    let data;try{data=await api('/incidents/'+encodeURIComponent(id));}catch{}
+   if(data&&(!data.incident.mine||data.incident.status!=='resolved')){if(closureResume?.id===id)forgetClosureReturn();closureAttempted=false;}
    if(!data||!await confirmRecoveredClosure(id,data,owner))throw Error(r.error);
   }
  }catch(error){if(closureAttempted&&user?.id===owner){uncertainClosures.set(id,owner);scheduleClosureRecovery();}
@@ -500,7 +513,8 @@ async function checkSession(){
 $('#retry-session').onclick=checkSession;checkSession();
 setInterval(()=>{if(!document.hidden)refresh();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 // An explicit sign-up link takes priority over a remembered login.
-if(new URLSearchParams(location.search).get('alta')==='1')setMode('register');
+if(closureResume)setMode('login');
+else if(new URLSearchParams(location.search).get('alta')==='1')setMode('register');
 else if(rememberedUser())setMode('login');
 wizardNavigation(true);
 })();

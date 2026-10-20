@@ -43,6 +43,27 @@ if(process.env.QA_EXPIRE_DURING_CLOSURE){
  check((await p.locator('#form-status').innerText()).includes('caducado'),'uncertain closure detects session expiry and requests sign-in');
  check(await p.locator('#dashboard').isHidden()&&await p.locator('#resolution-dialog').isHidden(),'session expiry hides private workspace and closure dialog');
  await p.screenshot({path:'/tmp/installer-closure-session-expired.png',fullPage:true});
+ if(process.env.QA_CLOSURE_RELOAD){
+  const marker=await p.evaluate(()=>JSON.parse(sessionStorage.getItem('yk_installer_closure_return_v1')));
+  check(marker&&Object.keys(marker).sort().join(',')==='expires,id,ownerTag'&&/^[a-f0-9]{64}$/.test(marker.ownerTag),'reload return stores only opaque reference, account fingerprint and expiry');
+  check(!JSON.stringify(marker).includes(email)&&!JSON.stringify(marker).includes(password)&&!JSON.stringify(marker).includes('Barcelona'),'reload marker contains no credentials or private job content');
+  await p.reload();await p.locator('#onboarding').waitFor({state:'visible'});
+  check(await p.locator('#login-tab').getAttribute('aria-selected')==='true','pending closure survives reload and requests sign-in');
+ }
+ if(process.env.QA_CLOSURE_OTHER_ACCOUNT){
+  const otherEmail='other-resume-'+Date.now()+'@example.test';
+  const registered=await fetch(base+'/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Other QA account',email:otherEmail,password,country:'ES',city:'Barcelona',latitude:41.3874,longitude:2.1686,skills:['screen'],radius_km:65})});
+  check(registered.ok,'different account exists only in isolated backend');
+  const pendingId=(await stats()).incidents.find(j=>j.title==='Pantalla del estanco sin señal').id,requestedJobs=[];
+  p.on('request',request=>{if(request.url().includes('/incidents/'+pendingId))requestedJobs.push(request.url());});
+  await p.locator('[name=email]').fill(otherEmail);await p.locator('[name=password]').fill(password);await submit.click();
+  await p.locator('#dashboard').waitFor({state:'visible'});await p.waitForFunction(()=>!sessionStorage.getItem('yk_installer_closure_return_v1'));
+  check(await p.locator('#intervention-dialog').isHidden(),'another account never opens the previous account pending job');
+  check(requestedJobs.length===0,'another account does not request the previous account pending detail');
+  check((await stats()).photos.length===1,'switching accounts does not duplicate the photo');
+  check(!errors.length,'zero browser JS errors');console.log(JSON.stringify({failures,errors}));await b.close();if(failures.length)process.exitCode=1;return;
+ }
+
  await p.locator('[name=email]').fill(email);await p.locator('[name=password]').fill('wrong-password');await submit.click();await p.waitForFunction(()=>!document.querySelector('#submit-account').disabled);
  check(await p.locator('#dashboard').isHidden()&&await p.locator('#intervention-dialog').isHidden(),'failed reauthentication cannot reopen pending private intervention');
  await p.locator('[name=password]').fill(password);await submit.click();
