@@ -280,7 +280,7 @@ $('#browser-alerts').onclick=async()=>{$('#dashboard-status').classList.remove('
 const jobDrafts=new Map(),uploadingPhotos=new Set(),photoCache=new Map();
 let detailId=null,detailData=null,detailError='',detailLoading=false,detailSequence=0;
 function jobDraft(id){if(!jobDrafts.has(id))jobDrafts.set(id,{note:'',resolution:'',evidence_url:'',local:[],stored:[]});return jobDrafts.get(id);}
-function clearJobDrafts(){for(const value of photoCache.values())if(value.url)URL.revokeObjectURL(value.url);photoCache.clear();for(const d of jobDrafts.values())for(const p of [...d.local,...d.stored])if(p.preview)URL.revokeObjectURL(p.preview);jobDrafts.clear();detailSequence++;detailId=null;detailData=null;}
+function clearJobDrafts(){uncertainClosures.clear();clearTimeout(closureRecoveryTimer);for(const value of photoCache.values())if(value.url)URL.revokeObjectURL(value.url);photoCache.clear();for(const d of jobDrafts.values())for(const p of [...d.local,...d.stored])if(p.preview)URL.revokeObjectURL(p.preview);jobDrafts.clear();detailSequence++;detailId=null;detailData=null;}
 function jobStatus(i){return i.status==='resolved'?t('Resuelta','Resolved'):i.mine&&i.status==='assigned'?t('En curso · asignada a ti','In progress · assigned to you'):i.status==='open'?t('Disponible','Available'):t('Asignada a otro profesional','Assigned to another professional');}
 async function openIntervention(id){detailId=id;detailData=null;detailError='';$('#intervention-dialog').showModal();$('#intervention-dialog').scrollTop=0;navigation({view:'detail',id});await reloadIntervention();}
 async function reloadIntervention(){
@@ -348,29 +348,70 @@ async function sendPhoto(id,blob){
  try{const response=await fetch(API+'/incidents/'+encodeURIComponent(id)+'/photos',{method:'POST',credentials:'include',headers:{'Content-Type':blob.type},body:blob,signal:controller.signal});const data=await response.json();if(!response.ok||!data.photo?.id)throw Error(data.error||t('Subida sin confirmar. Reintenta.','Upload unconfirmed. Retry.'));return data.photo;}
  catch(e){throw Error(e.name==='AbortError'?t('La subida ha tardado demasiado. La foto sigue aquí; reintenta.','The upload timed out. Your photo is still here; retry.'):e.message);}finally{clearTimeout(timeout);}
 }
+// Uncertain closures are reconciled with authenticated reads only; never resend a write.
+const uncertainClosures=new Map(),recoveringClosures=new Set();let closureRecoveryTimer;
+function scheduleClosureRecovery(){
+ clearTimeout(closureRecoveryTimer);
+ if(uncertainClosures.size)closureRecoveryTimer=setTimeout(recoverClosures,3000);
+}
+async function confirmRecoveredClosure(id,data,owner){
+ if(user?.id!==owner||!data.incident.mine||data.incident.status!=='resolved')return false;
+ uncertainClosures.delete(id);jobDraft(id).stored=data.photos;
+ if(await refresh()){activeFilter='resolved';filterChosen=true;render(latestInbox);}
+ if(user?.id!==owner)return true;
+ $('#dashboard-status').classList.remove('status-error');$('#dashboard-status').textContent=t('El servidor confirma que la intervención está resuelta.','The server confirms this job is resolved.');
+ if(activeIncident===id&&$('#resolution-dialog').open){
+  $('#resolution-dialog').close();detailId=id;detailData=data;detailError='';detailLoading=false;
+  if(!$('#intervention-dialog').open)$('#intervention-dialog').showModal();
+  navigation({view:'detail',id},true);renderIntervention();
+ }
+ if(detailId===id)await reloadIntervention();
+ scheduleClosureRecovery();return true;
+}
+async function recoverClosures(){
+ for(const [id,owner] of uncertainClosures){
+  if(user?.id!==owner){uncertainClosures.delete(id);continue;}
+  if(recoveringClosures.has(id)||uploadingPhotos.has(id)||pendingActions.has(id))continue;
+  recoveringClosures.add(id);
+  try{
+   const data=await api('/incidents/'+encodeURIComponent(id));
+   if(user?.id!==owner||uncertainClosures.get(id)!==owner)continue;
+   if(await confirmRecoveredClosure(id,data,owner))continue;
+   // The server is reachable but has not confirmed a closure. Preserve the draft for a manual retry.
+   uncertainClosures.delete(id);
+   if(activeIncident===id&&$('#resolution-dialog').open)$('#resolution-status').textContent=t('El servidor no confirma el cierre. Texto y fotos conservados; puedes reintentar.','The server has not confirmed closure. Text and photos retained; you can retry.');
+  }catch(error){if(error.status===401&&user?.id===owner)signedOut(t('Tu sesión ha caducado. Vuelve a entrar para continuar.','Your session has expired. Sign in to continue.'));}
+  finally{recoveringClosures.delete(id);}
+ }
+ scheduleClosureRecovery();
+}
+window.addEventListener('online',recoverClosures);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)recoverClosures();});
 async function submitResolution(e){
  e.preventDefault();const id=activeIncident;if(pendingActions.has(id)||uploadingPhotos.has(id))return;
+ const owner=user?.id;let closureAttempted=false;
  const d=jobDraft(id),dialog=$('#resolution-dialog');d.resolution=e.target.elements.resolution.value;d.evidence_url=e.target.elements.evidence_url.value;
  if(inboxError){$('#resolution-status').textContent=t('Actualiza la bandeja antes de cerrar. Tus datos siguen aquí.','Refresh the inbox before closing. Your data is still here.');return;}
  dialogBusy(dialog,true);uploadingPhotos.add(id);render(latestInbox);$('#resolution-status').textContent='';
  try{
   // Refresh server ownership and restore previously uploaded photos before a retry.
-  const data=await api('/incidents/'+encodeURIComponent(id));if(!data.incident.mine||data.incident.status!=='assigned')throw Error(t('Actualiza la ficha: el trabajo ya no está en curso a tu nombre.','Refresh the job: it is no longer in progress under your name.'));
+  const data=await api('/incidents/'+encodeURIComponent(id));if(uncertainClosures.has(id)&&await confirmRecoveredClosure(id,data,owner))return;if(!data.incident.mine||data.incident.status!=='assigned')throw Error(t('Actualiza la ficha: el trabajo ya no está en curso a tu nombre.','Refresh the job: it is no longer in progress under your name.'));
   d.stored=data.photos;
   if(!d.local.length&&!d.stored.length&&!d.evidence_url)throw Error(t('Añade una foto del trabajo terminado.','Add a photo of the completed work.'));
   for(let index=0;index<d.local.length;index++){const p=d.local[index];if(p.id&&d.stored.some(s=>s.id===p.id))continue;$('#photo-status').textContent=t('Subiendo foto ','Uploading photo ')+(index+1)+t(' de ',' of ')+d.local.length+'…';p.blob=p.blob||await preparePhoto(p.file);const photo=await sendPhoto(id,p.blob);p.id=photo.id;if(!d.stored.some(s=>s.id===p.id))d.stored.push(photo);renderPhotoDraft();}
   $('#photo-status').textContent=d.stored.length?t('Fotos guardadas. Comprobando el cierre…','Photos saved. Confirming closure…'):'';
   const body={resolution:d.resolution,...(d.stored.length?{evidence_ids:d.stored.map(p=>p.id)}:{evidence_url:d.evidence_url})};
   uploadingPhotos.delete(id);
+  closureAttempted=true;
   const r=await mutateIncident(id,()=>api('/incidents/'+encodeURIComponent(id)+'/resolve',body),t('Solución y evidencia guardadas. Intervención resuelta.','Solution and evidence saved. Job resolved.'),'resolved');
   if(r.ok){closeJobDialog('resolution-dialog');await reloadIntervention();}
   else{
    // A lost response is not proof of either success or failure. Ask the owning server.
-   let confirmed=false;try{const check=await api('/incidents/'+encodeURIComponent(id));confirmed=check.incident.mine&&check.incident.status==='resolved';}catch{}
-   if(confirmed){if(await refresh()){activeFilter='resolved';filterChosen=true;render(latestInbox);}$('#dashboard-status').classList.remove('status-error');$('#dashboard-status').textContent=t('El servidor confirma que la intervención está resuelta. Revisa la solución guardada.','The server confirms this job is resolved. Review the recorded solution.');closeJobDialog('resolution-dialog');await reloadIntervention();}
-   else throw Error(r.error);
+   let data;try{data=await api('/incidents/'+encodeURIComponent(id));}catch{}
+   if(!data||!await confirmRecoveredClosure(id,data,owner))throw Error(r.error);
   }
- }catch(error){$('#resolution-status').textContent=error.message+' '+t('Texto y fotos conservados. Reintenta cuando tengas conexión.','Text and photos retained. Retry when connected.');$('#photo-status').textContent=t('Cierre sin confirmar.','Closure unconfirmed.');$('#resolution-status').scrollIntoView({block:'nearest'});}
+ }catch(error){if(closureAttempted&&user?.id===owner){uncertainClosures.set(id,owner);scheduleClosureRecovery();}
+ $('#resolution-status').textContent=error.message+' '+t('Texto y fotos conservados. Reintenta cuando tengas conexión.','Text and photos retained. Retry when connected.');$('#photo-status').textContent=t('Cierre sin confirmar.','Closure unconfirmed.');$('#resolution-status').scrollIntoView({block:'nearest'});}
  finally{uploadingPhotos.delete(id);dialogBusy(dialog,false);renderPhotoDraft();if(user)render(latestInbox);}
 }
 // History contains view identifiers only. Drafts remain in this document's memory.
