@@ -76,4 +76,6 @@
 /asistencia.html                https://www.admira.live/asistencia                     301
 /ayuda                          /help                                                  301
 /ayuda/                         /help/                                                 301
+/retailer/incidencia   /retailer-incidencia.html   200
+/retailer/incidencia/  /retailer-incidencia.html   200
 /*                /index.html   200

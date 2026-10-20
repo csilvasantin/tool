@@ -22,3 +22,9 @@ test('login returns only to relative commerce routes, never to another origin or
  for(const bad of ['https://evil.example/retailer/x','//evil.example/retailer/x','/\\evil.example','/\t/evil.example/retailer/x','javascript:alert(1)','/retailer','/retailer/','/instalador/x','/retailer/../instalador','/retailerx/y',''])assert.equal(nextTarget('?next='+encodeURIComponent(bad)),null,bad);
  assert.equal(nextTarget(''),null);
 });
+
+test('la ficha de intervención tiene ruta antes del fallback de portada',()=>{
+ const routes=readFileSync(new URL('./_redirects',import.meta.url),'utf8');
+ assert.match(routes,/^\/retailer\/incidencia\s+\/retailer-incidencia\.html\s+200$/m);
+ assert.ok(routes.indexOf('/retailer/incidencia ' )<routes.indexOf('/*                /index.html'));
+});
