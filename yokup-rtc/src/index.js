@@ -1,4 +1,5 @@
 import { handleLabCamera } from './lab-camera.js';
+import { handleSupervisorDemo } from './supervisor-demo.js';
 import { handlePlayerIncidents } from './agent-player-incidents.js';
 import { handleLabLighting } from './lab-lighting.js';
 import { handleAgentInvocations } from './agent-invocations.js';
@@ -10166,6 +10167,9 @@ var worker_app = {
     if (url.pathname.startsWith("/media/") && req.method === "GET") {
       if (!env.MEDIA) return json({ error: "sin bucket MEDIA" }, 500);
       const key = decodeURIComponent(url.pathname.slice("/media/".length));
+      // Supervisor demo evidence is private and only served through its
+      // authenticated route. A bucket key is never a public access grant.
+      if (key.startsWith("supervisor-demo/")) return json({ error:"not found" }, 404);
       const obj = await env.MEDIA.get(key);
       if (!obj) return json({ error: "not found" }, 404);
       const h = new Headers(CORS);
@@ -12090,6 +12094,9 @@ var worker_app = {
       if (!session) return json({ error:"unauthorized" }, 401);
       try {
         const access = await currentSupervisorAccess(session);
+        if (url.pathname.startsWith('/supervisor/demo/')) return handleSupervisorDemo(req, env, {
+          session, access, json, ensureSchema, createIncident, portalAssigned
+        });
         if (url.pathname === "/supervisor/itil") return handleSupervisorItil(req, env, { session, access, json });
         if (["/supervisor/devices","/supervisor/connections","/supervisor/command"].includes(url.pathname)) return handleSupervisorDevices(req, env, { session, access, json });
         const admiraMcpCall = createAdmiraMcpClient({

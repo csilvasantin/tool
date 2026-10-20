@@ -2080,6 +2080,12 @@
       var demo = value.match(/^\/demo(?:\s+(.*))?$/i);
       if (!demo) return;
       var arg = String(demo[1] || "").trim().toLowerCase();
+      if (arg === "incidencia" && window.SupervisorDemo) {
+        ev.preventDefault(); ev.stopImmediatePropagation(); input.value = "";
+        LOCAL_CLI.print("› " + value, "yk-lcli-in");
+        LOCAL_CLI.print(window.SupervisorDemo.open());
+        return;
+      }
       if (arg !== "idioma" && arg !== "language") return;
       ev.preventDefault();
       ev.stopImmediatePropagation();

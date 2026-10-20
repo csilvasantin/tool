@@ -148,6 +148,34 @@
     </aside>
   </section>
 
+  <section class="sv-card sv-demo" id="supervisorDemo" aria-labelledby="demoHeading">
+    <p class="sv-overline">Supervisor · /demo incidencia</p>
+    <h2 id="demoHeading">Del aviso al parte</h2>
+    <p>Admirito comunica el fallo. Supervisor retira el popup, revisa la recuperación y documenta el cierre con capturas antes y después.</p>
+    <div class="sv-demo-actions"><button id="demoOpen" type="button">Demo incidencia</button><button id="demoRefresh" type="button">Actualizar avisos</button></div>
+    <p id="demoStatus" role="status" aria-live="polite">Esperando la sesión de Supervisor…</p>
+    <div id="demoList" class="sv-demo-list" aria-label="Incidencias recibidas"></div>
+    <article id="demoDetail" hidden>
+      <h3 id="demoTitle"></h3><p id="demoDescription"></p><p id="demoFacts"></p><p id="demoElapsed"></p>
+      <div class="sv-demo-media">
+        <figure><figcaption>Antes · aviso de Admirito</figcaption><img id="demoBefore" alt="Captura del fallo comunicado" hidden><p role="status"></p></figure>
+        <figure><figcaption>Después · recuperación revisada</figcaption><img id="demoAfter" alt="Captura de recuperación guardada" hidden><p role="status"></p></figure>
+      </div>
+      <div class="sv-demo-actions"><button id="demoClear" type="button" disabled>Retirar este popup</button><button id="demoReceipt" type="button" disabled>Comprobar recibo</button><a id="demoTicket" href="/incidencias">Abrir ticket canónico →</a></div>
+      <form id="demoRecovery">
+        <label>Causa<textarea id="demoCause" maxlength="1000" required></textarea></label>
+        <label>Acción realizada<textarea id="demoAction" maxlength="1000" required></textarea></label>
+        <label>Captura posterior · JPEG o PNG, hasta 4 MB<input id="demoPhoto" type="file" accept="image/jpeg,image/png"></label>
+        <img id="demoLocalPreview" alt="Vista previa de la captura pendiente" hidden>
+        <label>Hora real de la captura posterior<input id="demoCaptured" type="datetime-local" step="1" required></label>
+        <label class="sv-demo-check"><input id="demoReviewed" type="checkbox" required><span>He revisado la captura posterior: el popup ya no tapa el contenido. Esta revisión es del operador.</span></label>
+        <button id="demoClose" type="submit" disabled>Guardar evidencia y cerrar</button>
+      </form>
+      <p id="demoDelivery" role="status"></p><button id="demoReport" type="button" disabled>Enviar parte al Telegram privado de Carlos</button>
+      <p>La entrega se confirma con los identificadores de Telegram. La lectura de Carlos se comprueba aparte.</p>
+    </article>
+  </section>
+
   <section class="sv-kpis" aria-label="Estado del puesto">
     <article><span>Pantallas visibles</span><strong id="visibleKpi">—</strong><small id="expectedKpi">de 1 esperada</small></article>
     <article><span>Emitiendo</span><strong id="activeKpi">—</strong><small>contenido detectado</small></article>
@@ -189,6 +217,8 @@
 </main>
 
 <script type="module" src="/yk-soluciones.js?v=r1"></script>
+<link rel="stylesheet" href="/yk-supervisor-demo.css?v=1">
+<script type="module" src="/yk-supervisor-demo.js?v=1"></script>
 <script type="module" src="/yk-supervisor-itil.js?v=1"></script>
 <script src="/yk-foto-marca.js?v=1"></script>
 <script type="module" src="/yk-supervisor.js?v=r8"></script>
