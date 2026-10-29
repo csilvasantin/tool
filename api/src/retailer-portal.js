@@ -1,4 +1,5 @@
 import {publishOwnedSite} from './retailer-map-catalog.js';
+import {handleEcommerce} from './ecommerce.js';
 import {siteImports,circuitSiteImports} from './retailer-site-imports.js';
 import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
@@ -121,6 +122,7 @@ export async function handleRetailer(request,env,principal){
    if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')fail(403,'Los tokens de agentes se gestionan desde la propia cuenta, no en modo «Ver como».');
    if(access.role==='viewer'&&method!=='GET'&&path!=='/logout')fail(403,'Tienes acceso de solo lectura a esta cuenta.');
   }
+  if(path.startsWith('/ecommerce/'))return await handleEcommerce(request,env,{kind:'retailer',account,access},path);
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'retailer',account,path);
   if(path==='/me'&&method==='GET')return response(request,{profile:publicAccount(account),access:{role:access.role,delegated:access.delegated,actor_email:access.actor_email||null,can_edit:access.role!=='viewer'}});
   if(path==='/logout'&&method==='POST'){await statement(env,'DELETE FROM retailer_sessions WHERE token_hash=?',await hash(cookieToken(request))).run();return response(request,{ok:true},200,`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);}

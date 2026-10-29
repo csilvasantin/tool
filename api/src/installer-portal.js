@@ -4,6 +4,7 @@ import {demoLogin} from './demo-accounts.js';
 import {sendTelegramAlerts,linkTelegramChats,telegramBot} from './installer-telegram.js';
 import {installerViewAs,viewAsCookie} from './portal-view-as.js';
 import {channelOf,effectiveRadius,MAX_RADIUS_KM,sweepDesk,resolveWithEvidence,recordProgress,kbFor,sendPushAlerts,validPushEndpoint,logTimeline} from './incident-desk.js';
+import {handleEcommerce} from './ecommerce.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 // admira.biz es el espejo de yokup.com (2-oct-2026): sus portales (comercio, instalador,
 // superusuario) hablan con este worker desde data.admira.biz. Sin estos orígenes el
@@ -145,6 +146,7 @@ export async function handleInstaller(request,env,principal) {
    if(path.startsWith('/push/'))fail(403,'Los avisos push se activan desde la cuenta del instalador, no en modo «Abrir como instalador».');
    if(path==='/logout'&&method==='POST')return response(request,{ok:true,view_as:false},200,viewAsCookie('',0));
   }
+  if(path.startsWith('/ecommerce/'))return await handleEcommerce(request,env,{kind:'installer',account,access},path);
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'installer',account,path);
   if(path==='/logout' && method==='POST') {
    const token=request.headers.get('cookie').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'=')).slice(COOKIE.length+1);

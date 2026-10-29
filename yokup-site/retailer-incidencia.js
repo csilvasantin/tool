@@ -17,6 +17,7 @@ const stateOf=i=>i.status==='open'?'Buscando técnico':i.status==='assigned'?'T�
 const STEPS={reported:['Comunicada','Recibida'],assigned:['Técnico asignado','Buscando técnico cercano'],resolved:['Resuelta','Reparación pendiente'],rated:['Valorada','Tu opinión completa el servicio']};
 
 function renderFollow(i){
+ $('#ecommerce-link').href='/ecommerce?role=retailer&incident='+encodeURIComponent(i.id);
  document.title='Yokup · '+i.title;$('#heading-follow').hidden=$('#lede-follow').hidden=false;$('#heading-new').hidden=$('#lede-new').hidden=true;
  $('#f-state').textContent=stateOf(i);$('#f-state').dataset.state=i.status==='resolved'?(i.rated_at?(i.satisfied?'ok':'review'):'rate'):i.status;
  $('#f-priority').hidden=i.priority!=='urgent';$('#f-origin').hidden=!i.source;$('#f-origin').textContent=i.source?'Desde '+originName(i.source):'';badge(i.source?'Abierta desde '+originName(i.source):'');
