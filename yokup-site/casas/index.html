@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>admira.tv · Kiosko CASAS</title>
+<style>
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,sans-serif;overflow:hidden}
+#canal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6vmin;opacity:0;transition:opacity 1s}
+.slide.on{opacity:1}
+.slide h1{font-size:clamp(28px,9vmin,96px);letter-spacing:.08em;margin:0}
+.slide p{font-size:clamp(16px,4vmin,40px);max-width:22ch;opacity:.9}
+.s1{background:linear-gradient(135deg,#111,#3a2a1a)}.s2{background:linear-gradient(135deg,#1a1a2e,#000)}.s3{background:linear-gradient(135deg,#2b1d0e,#111)}
+#cta{position:fixed;left:50%;bottom:calc(6vmin + env(safe-area-inset-bottom));transform:translateX(-50%);background:#fff;color:#000;border-radius:999px;padding:2.2vmin 5vmin;font-size:clamp(18px,4.5vmin,44px);font-weight:700;animation:pulse 2s infinite;pointer-events:none}
+@keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
+#marca{position:fixed;top:calc(2vmin + env(safe-area-inset-top));right:3vmin;font-size:12px;opacity:.6}
+#web{position:fixed;inset:0;display:none;background:#fff}
+#web iframe{border:0;width:100%;height:100%}
+#barra{position:fixed;top:calc(1vmin + env(safe-area-inset-top));left:1vmin;z-index:9;display:none;gap:8px;align-items:center}
+#barra button{font-size:18px;padding:10px 16px;border-radius:999px;border:0;background:#000;color:#fff;box-shadow:0 2px 8px #0006}
+#cuenta{background:#000a;color:#fff;padding:6px 10px;border-radius:8px;font-size:14px}
+#aviso{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:#111;text-align:center;padding:8vmin}
+#aviso button{font-size:20px;padding:14px 24px;border-radius:999px;border:0;margin:8px}
+</style></head><body>
+<div id="canal">
+ <div class="slide s1 on"><h1>CASAS</h1><p>Zapatería online familiar con más de 100 años de experiencia</p></div>
+ <div class="slide s2"><h1>CASAS</h1><p>Zapatos cómodos de primeras marcas para mujer, hombre y niños</p></div>
+ <div class="slide s3"><h1>CASAS</h1><p>Envío gratis a partir de 59€</p></div>
+</div>
+<div id="cta">Toca para comprar</div>
+<div id="marca">admira.tv · modo kiosko</div>
+<div id="web"><iframe id="ifr" title="CASAS" allow="fullscreen"></iframe></div>
+<div id="aviso"><p id="avisoTxt"></p><div><button id="abrir">Abrir la tienda</button><button id="volverA">Volver al canal</button></div></div>
+<div id="barra"><button id="volver">✕ Volver al canal</button><span id="cuenta"></span></div>
+<script>
+// Textos del canal: copiados de la meta description de casasclub.com/es (29-oct-2026). Nada inventado.
+const Q=new URLSearchParams(location.search);
+const URL_TIENDA=Q.get('url')||'https://www.casasclub.com/es';
+const INACT=(+Q.get('inactividad')||60)*1000;
+// casasclub.com envía dos CSP frame-ancestors (una con *.admira.com, otra con 'self' y editor.magicfront.ai):
+// el navegador exige las dos, así que hoy nadie puede incrustarla. Por defecto se abre como ventana propia.
+const MODO=Q.get('modo')||'ventana'; // 'ventana' | 'iframe'
+let estado='canal',timer=null,hasta=0,win=null;
+const $=id=>document.getElementById(id);
+let i=0;const sl=[...document.querySelectorAll('.slide')];
+setInterval(()=>{if(estado!=='canal')return;sl[i].classList.remove('on');i=(i+1)%sl.length;sl[i].classList.add('on')},6000);
+function rearmar(){hasta=Date.now()+INACT;clearTimeout(timer);timer=setTimeout(volver,INACT)}
+setInterval(()=>{if(estado!=='canal')$('cuenta').textContent='Vuelve al canal en '+Math.max(0,Math.ceil((hasta-Date.now())/1000))+' s'},500);
+function mostrar(id,on){$(id).style.display=on?(id==='barra'?'flex':(id==='aviso'?'flex':'block')):'none'}
+function abrirTienda(){
+ if(MODO==='iframe'){estado='web';$('ifr').src=URL_TIENDA;mostrar('web',1);mostrar('barra',1);rearmar();return}
+ win=window.open(URL_TIENDA,'casas');
+ estado='ventana';mostrar('aviso',1);mostrar('barra',1);
+ $('avisoTxt').textContent=win?'La tienda CASAS está abierta en otra ventana. Si no la ves, pulsa «Abrir la tienda».':'El navegador ha bloqueado la ventana. Pulsa «Abrir la tienda».';
+ rearmar();
+}
+function volver(){
+ clearTimeout(timer);estado='canal';
+ try{win&&win.close()}catch(e){} win=null;
+ $('ifr').src='about:blank';mostrar('web',0);mostrar('barra',0);mostrar('aviso',0);
+}
+document.getElementById('canal').addEventListener('pointerdown',()=>{if(estado==='canal')abrirTienda()});
+$('abrir').onclick=()=>{win=window.open(URL_TIENDA,'casas');rearmar()};
+$('volver').onclick=$('volverA').onclick=volver;
+// Actividad dentro de la página del kiosko (en iframe solo vemos toques sobre la barra; la nativa ve todos).
+['pointerdown','keydown'].forEach(e=>addEventListener(e,()=>{if(estado!=='canal')rearmar()},true));
+window.addEventListener('focus',()=>{if(estado==='ventana')rearmar()});
+</script></body></html>
