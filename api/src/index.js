@@ -1,3 +1,4 @@
+import {handleStripeWebhook} from './ecommerce-payments.js';
 import {handleCallsMcp} from './calls-mcp.js';
 import {handleCalls,syncCalls} from './calls.js';
 import {handleAccess,sweepPortalAccess} from './portal-access.js';
@@ -89,6 +90,7 @@ export default {
 async function routeRequest(request, env, ctx) {
   {
     const early = new URL(request.url);
+    if(early.pathname==='/api/ecommerce/stripe/webhook')return handleStripeWebhook(request,env);
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && await lecturaWriteForbidden(request, env)) {
       return json(request, {error:'Clave de solo lectura.'}, 403);
     }

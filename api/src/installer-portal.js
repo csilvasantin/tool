@@ -11,7 +11,7 @@ import {handleEcommerce} from './ecommerce.js';
 // preflight sale sin Access-Control-Allow-Origin y el navegador muestra «Failed to fetch».
 // Intercambio de dominios (Carlos, 4-oct-2026): admira.app pasará a ser la casa de Yokup
 // y hablará con este worker desde data.admira.app; admira.biz se mantiene durante la transición.
-const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'https://www.admira.biz', 'https://admira.biz', 'https://www.admira.app', 'https://admira.app', 'http://localhost:8788', 'http://127.0.0.1:8788']);
+const ORIGINS = new Set(['https://admira.shop', 'https://www.admira.shop', 'https://www.yokup.com', 'https://yokup.com', 'https://www.admira.biz', 'https://admira.biz', 'https://www.admira.app', 'https://admira.app', 'http://localhost:8788', 'http://127.0.0.1:8788']);
 const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
 const COOKIE = '__Host-yk_installer';
 const encoder = new TextEncoder();

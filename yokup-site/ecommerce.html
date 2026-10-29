@@ -5,9 +5,9 @@
 <title>Ecommerce · Catálogo profesional | admira.app</title>
 <meta name="description" content="Catálogo Elipsys en Admira: monitores, televisores, LED, audio, soportes y videoconferencia, conectados con mantenimiento.">
 <meta name="robots" content="noindex"><meta name="theme-color" content="#f5f7f2">
-<link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/ecommerce.css?v=20261029-elipsys-1">
-<link rel="stylesheet" href="/yk-frame.css?v=r35"><script defer src="/ecommerce.js?v=20261029-elipsys-1"></script>
-<link rel="stylesheet" href="/ecommerce-catalogue.css?v=20261029-elipsys-1"><script type="module" src="/ecommerce-catalogue.mjs?v=20261029-elipsys-1"></script>
+<link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/ecommerce.css?v=20261029-shop-payments-1">
+<link rel="stylesheet" href="/yk-frame.css?v=r35"><script defer src="/ecommerce.js?v=20261029-shop-payments-1"></script>
+<link rel="stylesheet" href="/ecommerce-catalogue.css?v=20261029-shop-payments-1"><script type="module" src="/ecommerce-catalogue.mjs?v=20261029-shop-payments-1"></script>
 </head>
 <body data-yk-title="ECOMMERCE">
 <header class="topbar" data-yk-replace><a class="brand" href="/">admira<span>●</span><small>APP</small></a><nav aria-label="Navegación" data-yk-slot="left" data-yk-links><a href="/retailer">Mi comercio</a><a href="/instalador">Mantenimiento</a><a href="/ecommerce" aria-current="page">Ecommerce</a></nav><span id="account-label" data-yk-slot="right">Material para cada intervención</span></header>
@@ -32,6 +32,7 @@
  </section>
  <section class="assurance"><span>Incidencia vinculada</span><span>Aprobación registrada</span><span>Seguimiento compartido</span></section>
 </main>
+<dialog id="shop-login" aria-labelledby="shop-login-title"><div class="dialog-head"><h2 id="shop-login-title">Entra con tu cuenta Admira</h2><button id="shop-login-close" class="close" aria-label="Cerrar acceso">×</button></div><form id="shop-login-form" class="detail-section"><label>Portal<select id="shop-login-role"><option value="retailer">Comercio</option><option value="installer">Mantenimiento</option></select></label><label>Correo electrónico<input id="shop-login-email" type="email" autocomplete="username" required></label><label>Contraseña<input id="shop-login-password" type="password" autocomplete="current-password" required maxlength="128"></label><button id="shop-login-submit" class="primary">Entrar</button><p id="shop-login-status" role="status"></p><p class="fine-print">Si accedes con Google o como administrador, gestiona tus solicitudes desde <a href="https://admira.app/ecommerce">Admira App</a>.</p></form></dialog>
 <dialog id="product-detail" aria-labelledby="product-detail-title"><div class="dialog-head"><div><p class="eyebrow">CATÁLOGO ELIPSYS</p><h2 id="product-detail-title">Ficha de producto</h2></div><button id="product-close" class="close" aria-label="Cerrar ficha">×</button></div><div id="product-detail-body"></div><button id="product-add" class="primary">Añadir a mi selección +</button></dialog>
 <dialog id="selection-drawer" aria-labelledby="selection-title"><div class="dialog-head"><div><p class="eyebrow">PREPARA TU SOLICITUD</p><h2 id="selection-title">Tu selección</h2><p id="selection-total" class="muted"></p></div><button id="selection-close" class="close" aria-label="Cerrar selección">×</button></div><div id="selection-lines"></div><div class="selection-summary"><strong>Presupuesto pendiente</strong><p>Precio, disponibilidad y transporte se confirman antes de aprobar. Añadir productos no realiza una compra.</p><button id="selection-continue" class="primary" disabled>Vincular a una incidencia →</button></div></dialog>
 <dialog id="request-detail" aria-labelledby="detail-title"><div class="dialog-head"><div><p class="eyebrow">SEGUIMIENTO DE MATERIAL</p><h2 id="detail-title">Solicitud</h2></div><button id="close-detail" class="close" aria-label="Cerrar detalle">×</button></div><div id="detail-body"></div><p id="detail-status" class="form-message" role="status"></p></dialog>

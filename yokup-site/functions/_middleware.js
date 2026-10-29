@@ -1,3 +1,4 @@
+import {isShop,shopRoute} from './_shared/ecommerce-shop.mjs';
 import { casaDe, esEspejo, marcaDeCasa, enlaceDeCasa } from './_shared/casas.mjs';
 import { mudanzaANegocio } from './_shared/mudanza.mjs';
 import { atajoDePagina } from './_shared/espejo-puertas.mjs';
@@ -17,6 +18,7 @@ async function selloDe(context, url) {
 }
 
 export async function onRequest(context) {
+  const shop=shopRoute(context.request);if(shop)return shop;
   // Flota → admira.live, /ayuda → /help, y 404 de /llms.txt /robots.txt /.well-known.
   // Va antes del asset: una Function gana a _redirects, y sin esto el catch-all
   // servía la portada con un 200. No incluye /auth ni los portales.
@@ -28,6 +30,11 @@ export async function onRequest(context) {
   if (mudanza) return mudanza;
   const response = await context.next();
   const url = new URL(context.request.url);
+  if(isShop(url.hostname)&&String(response.headers.get('content-type')||'').includes('text/html'))return new HTMLRewriter()
+    .on('title',{element(e){e.setInnerContent('Ecommerce · Admira Shop');}})
+    .on('link[rel="canonical"]',{element(e){e.setAttribute('href','https://admira.shop/ecommerce');}})
+    .on('.brand small',{element(e){e.setInnerContent('SHOP');}})
+    .on('script[src^="/yk-frame.js"]',{element(e){e.remove();}}).transform(response);
   if (!esEspejo(url.hostname)) return response;
   const casa = casaDe(url.hostname);
   if (!String(response.headers.get('content-type') || '').includes('text/html')) return response;
