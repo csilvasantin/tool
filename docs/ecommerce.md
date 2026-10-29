@@ -64,3 +64,34 @@ El cambio necesita **migración 0027, API y web**. Orden de despliegue:
 Si se retira la función, quitar sus enlaces/handlers conservando las tablas e historial; no borrar solicitudes.
 
 Pruebas nuevas: `node --test api/ecommerce.test.mjs yokup-site/ecommerce.test.mjs yokup-site/ecommerce-catalogue.test.mjs`. Incluyen referencia real importada → solicitud → consulta por el comercio, con especificaciones conservadas y precio pendiente. Se ejecutan con SQLite en memoria y cuentas sintéticas; no escriben producción. Las suites existentes de portales, evidencias, autenticación y gate cubren las integraciones afectadas. La comprobación visual y la validación autenticada en producción requieren un entorno de preview/despliegue disponible; no se sustituyen por pruebas estáticas.
+
+
+## Admira Shop y Stripe (preparación, pendiente de activación)
+
+La misma página y el mismo catálogo se sirven en `admira.app/ecommerce` y, cuando se conecte el dominio, en `admira.shop/ecommerce`. No se mantiene otra copia del catálogo. En Shop, `/` lleva a `/ecommerce`; los portales operativos siguen en Admira App.
+
+Shop usa `/ecommerce-api/{retailer|installer}` como proxy del mismo backend. Solo permite las rutas de acceso, contexto, solicitudes y pago necesarias; conserva cookies HttpOnly, Secure y SameSite=Strict en el propio dominio. No copia cookies entre App y Shop. El acceso por correo/contraseña conserva la selección de productos. Google y el acceso delegado de administradores permanecen en App en esta primera versión.
+
+### Contrato de cobro
+
+1. La solicitud conserva los precios pendientes hasta registrar un presupuesto real.
+2. Un superusuario de Admira, autenticado con procedencia `superuser`, verifica el presupuesto. Un presupuesto introducido por el comprador no habilita cobros por sí solo.
+3. El titular o administrador del comercio aprueba el importe y abre Stripe Checkout con tarjeta. El servidor usa el total verificado, incluidos impuestos y transporte; ignora importes y URLs de retorno del navegador.
+4. Una sesión persistente e idempotente bloquea cambios incompatibles y evita pagos duplicados. Un fallo de red conserva la misma operación. Solo se abre otra sesión tras confirmar su expiración con Stripe.
+5. El webhook firmado confirma el pago y deja registro auditable. Volver desde Stripe no cambia el estado de pago. Importe, moneda, modo, sesión y referencias deben coincidir.
+6. Cobrar no encarga material a Elipsys, no genera un envío y no cierra la incidencia. La referencia del pedido y el enlace de seguimiento se registran en el flujo existente. Los pagos de prueba no permiten avanzar al pedido.
+
+### Activación
+
+El código preparado no equivale a una pasarela operativa. Faltan cuenta comercial activa de Stripe, configuración segura de secretos y conexión de DNS de Shop.
+
+- Aplicar `api/migrations/0028_ecommerce_payments.sql` antes del Worker actualizado. Conservar las tablas y el flujo anterior.
+- Configurar como secretos de servidor `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`. No incluirlos en Git, páginas, logs ni conversaciones.
+- Configurar `ECOMMERCE_PAYMENT_MODE=test` para pruebas o `live` para cobros reales. El tipo de clave debe coincidir y ambos secretos son obligatorios. La nueva cuenta Stripe y su titularidad bancaria se activan por su titular.
+- Crear en Stripe el endpoint `https://data.admira.app/api/ecommerce/stripe/webhook`, con eventos `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded` y `checkout.session.async_payment_failed`. Usar el secreto de ese endpoint y del mismo modo.
+- Verificar en sandbox un pago, cancelación, reintento, evento repetido, firma inválida y retorno antes del webhook. Los tests locales usan dobles de Stripe y no demuestran un cobro real.
+- Publicar API y Pages, conservando el runtime de Functions. Añadir `admira.shop` y opcionalmente `www.admira.shop` como dominios de Pages. Para el dominio raíz en Pages debe conectarse su zona a Cloudflare; verificar primero todos los registros de GoDaddy y conservar los de correo antes de cualquier cambio de servidores de nombres.
+- Comprobar HTTPS, catálogo, acceso y un presupuesto verificado desde ambos dominios. Activar `live` solo con cuenta habilitada y webhook verificado. No realizar un cargo real como prueba sin autorización específica.
+
+Las operaciones que quedan en `creating` tras un resultado incierto no se eliminan ni se recrean: deben conciliarse en Stripe con su clave idempotente. Después de 23 horas el sistema bloquea el reintento automático para evitar que Stripe cree otro cobro tras caducar la retención de idempotencia.
+Los reembolsos se gestionan en Stripe; esta versión no inicia reembolsos ni sincroniza disputas. El estado «pago confirmado» acredita el cobro original y no representa un saldo neto tras devoluciones.

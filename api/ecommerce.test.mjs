@@ -12,7 +12,7 @@ async function api(env,kind,path,body,cookie,origin='https://www.admira.app',pri
  return {status:r.status,body:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};
 }
 async function fixture(){
- const {env,db}=setup();db.exec(readFileSync(new URL('./migrations/0027_ecommerce.sql',import.meta.url),'utf8'));
+ const {env,db}=setup();for(const file of ['0027_ecommerce.sql','0028_ecommerce_payments.sql'])db.exec(readFileSync(new URL('./migrations/'+file,import.meta.url),'utf8'));
  const shop=await api(env,'retailer','/register',{name:'Comercio de prueba',email:crypto.randomUUID()+'@example.test',password:'retailer-test-password'});
  const site=await api(env,'retailer','/sites',{name:'Local de prueba',kind:'other',country:'ES',city:'Barcelona',address:'Dirección de prueba 123',latitude:41.3874,longitude:2.1686},shop.cookie);
  const device=await api(env,'retailer','/devices',{site_id:site.body.id,name:'Pantalla del local',skill:'screen'},shop.cookie);

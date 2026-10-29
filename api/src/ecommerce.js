@@ -1,3 +1,4 @@
+import {paymentConfig,merchant,activePayment,startCheckout} from './ecommerce-payments.js';
 import {statement,rows,hash,jsonBody,fail,response,rateLimit} from './installer-portal.js';
 
 // Categories are specifications for a purchase request, not products with invented stock or prices.
@@ -37,7 +38,7 @@ async function context(env,id,who){
  FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id WHERE i.id=? AND ${condition}`,id,who.account.id).first();
  if(!i)fail(404,'Incidencia no encontrada o sin comercio vinculado.');return i;
 }
-async function detail(env,id,who){const p=await purchase(env,id,who);return {request:present(p),can_approve:buyer(who),events:await rows(env,'SELECT action,actor_name,note,created_at,version FROM ecommerce_events WHERE request_id=? ORDER BY version',id)};}
+async function detail(env,id,who){const p=await purchase(env,id,who),pay=await activePayment(env,id);return {request:present(p),can_approve:buyer(who),can_verify_quote:merchant(who),payment:{...paymentConfig(env),status:pay?.status||'unpaid',mode:pay?.mode||paymentConfig(env).mode},events:await rows(env,'SELECT action,actor_name,note,created_at,version FROM ecommerce_events WHERE request_id=? ORDER BY version',id)};}
 async function create(env,b,who){
  if(!b||typeof b!=='object'||Array.isArray(b))fail(400,'Solicitud no válida.');
  if(who.kind==='retailer'&&!buyer(who))fail(403,'Solo el titular o administrador puede solicitar compras.');
@@ -70,14 +71,21 @@ async function change(env,id,b,who){
  if(p.version!==version)fail(409,'La solicitud ha cambiado. Actualiza antes de continuar.');
  if(who.access?.role==='viewer')fail(403,'Acceso de solo lectura.');
  if(!buyer(who)&&!['received','installed','cancelled'].includes(action))fail(403,'La aprobación y el pedido corresponden al titular o administrador del comercio.');
+ const payment=await activePayment(env,id);
+ if(payment&&(payment.status!=='paid'||payment.mode!=='live'||action==='cancelled'))fail(409,'Hay una operación de pago en curso o ya cobrada. Revisa el pago antes de cambiar el pedido.');
  let fields={status:p.status},eventNote=note;
- if(action==='quote'){
+ if(action==='verify_quote'){
+  if(!merchant(who))fail(403,'Solo un superusuario de Admira puede verificar el cobro.');
+  if(!['requested','approved'].includes(p.status)||p.total_cents==null||p.total_cents<50||!p.supplier||!p.quote_reference)fail(409,'Completa el presupuesto antes de verificarlo.');
+  fields.merchant_verified_by=who.access.actor_email;fields.merchant_verified_at=Date.now();eventNote='Admira verifica el presupuesto para su cobro.';
+ }else if(action==='quote'){
   if(p.status!=='requested')fail(409,'Solo se puede presupuestar una solicitud pendiente.');
   const items=JSON.parse(p.items);
   if(!Array.isArray(b.prices_cents)||b.prices_cents.length!==items.length)fail(400,'Indica el precio de cada artículo.');
   items.forEach((item,n)=>item.unit_price_cents=integer(b.prices_cents[n],0,100000000));
   const shipping_cents=integer(b.shipping_cents??0,0,100000000),tax_cents=integer(b.tax_cents??0,0,100000000),total_cents=items.reduce((s,i)=>s+i.quantity*i.unit_price_cents,shipping_cents+tax_cents);
   fields={...fields,items:JSON.stringify(items),shipping_cents,tax_cents,total_cents,supplier:str(b.supplier,2,200),quote_reference:str(b.quote_reference,2,200),quote_url:link(b.quote_url)};
+  fields.merchant_verified_by=merchant(who)?who.access.actor_email:null;fields.merchant_verified_at=merchant(who)?Date.now():null;
   eventNote=`Presupuesto ${fields.quote_reference}: ${(total_cents/100).toFixed(2)} EUR (impuestos y envío incluidos).`+(note?' '+note:'');
  }else{
   const transitions={approved:['requested'],ordered:['approved'],received:['ordered'],installed:['received'],rejected:['requested'],cancelled:['requested','approved']};
@@ -97,7 +105,7 @@ async function change(env,id,b,who){
  }
  const now=Date.now(),cols=Object.keys(fields);
  const changed=await env.DB.batch([
-  statement(env,`UPDATE ecommerce_requests SET ${cols.map(c=>c+'=?').join(',')},version=version+1,last_action=?,updated_at=? WHERE id=? AND version=? AND id IN (SELECT p.id${JOINS} WHERE ${scope(who)})`,...cols.map(c=>fields[c]),request_key,now,id,version,who.account.id),
+  statement(env,`UPDATE ecommerce_requests SET ${cols.map(c=>c+'=?').join(',')},version=version+1,last_action=?,updated_at=? WHERE id=? AND version=? AND id IN (SELECT p.id${JOINS} WHERE ${scope(who)}) AND NOT EXISTS(SELECT 1 FROM ecommerce_payments ep WHERE ep.request_id=ecommerce_requests.id AND (ep.status IN ('creating','pending') OR (ep.status='paid' AND (ep.mode='test' OR ?='cancelled'))))`,...cols.map(c=>fields[c]),request_key,now,id,version,who.account.id,action),
   statement(env,`INSERT OR IGNORE INTO ecommerce_events SELECT ?,id,?,?,?,?,?,?,?,?,version FROM ecommerce_requests WHERE id=? AND version=? AND last_action=?`,crypto.randomUUID(),request_key,payload_hash,action,who.kind,who.account.id,actor(who),eventNote,now,id,version+1,request_key)
  ]);
  if(!changed[0].meta.changes)fail(409,'Otra persona ha actualizado esta solicitud. Recarga para ver el resultado.');
@@ -116,6 +124,8 @@ export async function handleEcommerce(request,env,who,path){
   return response(request,{requests:list.slice(0,50).map(present),next_offset:list.length>50?offset+50:null,can_approve:buyer(who)});
  }
  if(path==='/ecommerce/requests'&&method==='POST'){await rateLimit(env,'ecommerce:create:'+who.kind+':'+who.account.id,30,3600000);return response(request,...await create(env,await jsonBody(request),who));}
+ const checkout=/^\/ecommerce\/requests\/(BUY-[a-f0-9-]{36})\/checkout$/.exec(path);
+ if(checkout&&method==='POST'){await rateLimit(env,'ecommerce:pay:'+who.account.id,20,60000);return response(request,await startCheckout(env,await purchase(env,checkout[1],who),who,await jsonBody(request),request.headers.get('origin')));}
  const match=/^\/ecommerce\/requests\/(BUY-[a-f0-9-]{36})$/.exec(path);
  if(match&&method==='GET')return response(request,await detail(env,match[1],who));
  if(match&&method==='POST'){await rateLimit(env,'ecommerce:change:'+who.kind+':'+who.account.id,120,3600000);return response(request,await change(env,match[1],await jsonBody(request),who));}
