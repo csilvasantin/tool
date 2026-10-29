@@ -28,7 +28,7 @@ const mutate=(f,p,action,extra={},kind='retailer',cookie=f.shop.cookie)=>api(f.e
 async function quote(f,p){return mutate(f,p,'quote',{prices_cents:[12345],shipping_cents:500,tax_cents:5290,supplier:'Proveedor de prueba',quote_reference:'TEST-QUOTE',quote_url:'https://example.test/quote'});}
 
 test('an imported Elipsys reference survives creation and retrieval with no assumed price',async()=>{
- const f=await fixture(),data=JSON.parse(readFileSync(new URL('../yokup-site/data/ecommerce-elipsys.json',import.meta.url),'utf8'));
+ const f=await fixture(),data=JSON.parse(readFileSync(new URL('../yokup-site/ecommerce-elipsys.json',import.meta.url),'utf8'));
  const product=data.products.find(p=>p.sku==='QM55C'),line=materialLine(product,2);
  const created=await api(f.env,'installer','/ecommerce/requests',{...f.body,items:[line]},f.tech.cookie);
  assert.equal(created.status,201,JSON.stringify(created.body));

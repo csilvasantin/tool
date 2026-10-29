@@ -15,7 +15,7 @@ Snapshot del 29 de octubre de 2026, 19:49 UTC, de `https://clientes.elipsys.es/`
 | Soportes | 358 |
 | Videoconferencia | 30 |
 
-`yokup-site/data/ecommerce-elipsys.json` conserva fecha, páginas de origen, referencia, marca, nombre, atributos técnicos e imagen. Duplicados por SKU se unifican y se conservan sus familias. Los nombres que sólo indicaban la marca se completan con tipo, referencia y atributos presentes en origen. No se importan cuentas, precios ni existencias: en origen requieren registro. La interfaz indica **Bajo presupuesto** y disponibilidad pendiente.
+`yokup-site/ecommerce-elipsys.json` conserva fecha, páginas de origen, referencia, marca, nombre, atributos técnicos e imagen. Duplicados por SKU se unifican y se conservan sus familias. Los nombres que sólo indicaban la marca se completan con tipo, referencia y atributos presentes en origen. No se importan cuentas, precios ni existencias: en origen requieren registro. La interfaz indica **Bajo presupuesto** y disponibilidad pendiente.
 
 El catálogo permite buscar por referencia, marca y características; filtrar por familia, marca, tamaño y funcionamiento; consultar una ficha; y preparar una selección. Las imágenes se cargan directamente del dominio público del proveedor, con `no-referrer` y alternativa si fallan. Los enlaces externos sólo llevan el SKU, nunca datos de la incidencia. El snapshot no se actualiza automáticamente.
 
@@ -58,7 +58,7 @@ El cambio necesita **migración 0027, API y web**. Orden de despliegue:
 
 1. Aplicar `api/migrations/0027_ecommerce.sql` a `yokup-db` por el procedimiento autorizado. Es aditiva y no modifica las tablas existentes.
 2. Desplegar `yokup-api` con los handlers actualizados. La web de App usa `data.admira.app`, conservando cookies del mismo sitio.
-3. Publicar los assets de `yokup-site` y las rutas limpias por el flujo existente de App. El build incluye HTML, CSS, JS, MJS y `data/ecommerce-elipsys.json`. El gate contiene el mismo enrutamiento para sus dominios; no sustituir el deploy de App por el de Biz.
+3. Publicar los assets de `yokup-site` y las rutas limpias por el flujo existente de App. El build incluye HTML, CSS, JS, MJS y `ecommerce-elipsys.json`. El gate contiene el mismo enrutamiento para sus dominios; no sustituir el deploy de App por el de Biz.
 4. Con cuentas de prueba autorizadas: técnico asignado → solicitud → presupuesto y aprobación del comercio → registro de pedido de prueba → recepción → instalación. Verificar aislamiento entre comercios, reintentos, móvil y que la incidencia no se cierre. No realizar compras reales para probar.
 
 Si se retira la función, quitar sus enlaces/handlers conservando las tablas e historial; no borrar solicitudes.

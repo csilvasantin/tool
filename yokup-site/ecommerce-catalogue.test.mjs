@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {families,filterProducts,cleanSelection,materialLine,sourceLink,safeImage} from './ecommerce-catalogue-model.mjs';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const data=JSON.parse(read('./data/ecommerce-elipsys.json')),products=data.products;
+const data=JSON.parse(read('./ecommerce-elipsys.json')),products=data.products;
 test('import contains 968 unique real references, six categories and 24 captured public pages',()=>{
  assert.equal(products.length,968);assert.equal(new Set(products.map(p=>p.id)).size,968);assert.equal(new Set(products.map(p=>p.sku.toLowerCase())).size,968);assert.equal(data.pages.length,24);assert.equal(data.importedRows,1056);
  for(const f of families)assert.ok(products.some(p=>p.categories.includes(f.id)),f.id);

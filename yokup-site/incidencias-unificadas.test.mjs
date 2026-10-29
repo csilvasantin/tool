@@ -45,5 +45,5 @@ test("la ficha /ticket enlaza el portal y la del portal enseña el ticket de Yok
   assert.match(ticket, /esc\(t\.portal\.site_name\|\|t\.portal\.incident_id\)/);
   const js = read("retailer-incidencia.js");
   assert.match(js, /\$\('#f-ref'\)\.textContent='Referencia: '\+i\.id\+\(i\.yokup_ticket\?' · Ticket de Yokup: '\+i\.yokup_ticket:''\);/);
-  assert.ok(read("retailer-incidencia.html").includes('/retailer-incidencia.js?v=2"'));
+  assert.ok(read("retailer-incidencia.html").includes('/retailer-incidencia.js?v=20261029-ecommerce-1"'));
 });
