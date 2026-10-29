@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ecommerce · Material para mantenimiento | admira.app</title>
+<meta name="description" content="Solicita, aprueba y sigue el material de cada intervención de mantenimiento.">
+<meta name="robots" content="noindex"><meta name="theme-color" content="#f5f7f2">
+<link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/ecommerce.css?v=20261029-1">
+<link rel="stylesheet" href="/yk-frame.css?v=r35"><script defer src="/ecommerce.js?v=20261029-1"></script>
+</head>
+<body data-yk-title="ECOMMERCE">
+<header class="topbar" data-yk-replace><a class="brand" href="/">admira<span>●</span><small>APP</small></a><nav aria-label="Navegación" data-yk-slot="left" data-yk-links><a href="/retailer">Mi comercio</a><a href="/instalador">Mantenimiento</a><a href="/ecommerce" aria-current="page">Ecommerce</a></nav><span id="account-label" data-yk-slot="right">Material para cada intervención</span></header>
+<main>
+ <section class="hero"><div><p class="eyebrow"><span class="dot"></span>MANTENIMIENTO · COMPRAS</p><h1>Lo que falta.<br><em>Donde hace falta.</em></h1><p class="lede">Del diagnóstico al repuesto instalado. Todo el material, su aprobación y su seguimiento, conectados a la incidencia.</p></div><div class="flow-card"><span class="mini-label">UN SOLO RECORRIDO</span><ol><li><b>01</b><span>Detectar y solicitar</span></li><li><b>02</b><span>Presupuestar y aprobar</span></li><li><b>03</b><span>Recibir e instalar</span></li></ol><p>La compra acompaña a la reparación.<br>La comprobación técnica completa el trabajo.</p></div></section>
+ <p id="status" class="notice" role="status" aria-live="polite">Comprobando tu sesión…</p>
+ <section id="access" class="access-card" hidden><div><p class="eyebrow">TU EQUIPO. TU COMERCIO.</p><h2>Entra para gestionar el material.</h2><p>Los técnicos solicitan repuestos para sus intervenciones. El comercio revisa presupuestos y autoriza las compras.</p></div><div class="access-actions"><a id="installer-login" class="primary" href="/instalador">Soy de mantenimiento ↗</a><a id="retailer-login" class="secondary" href="/retailer">Gestiono el comercio ↗</a><button id="retry-session" class="text-button">Ya he entrado · comprobar sesión</button></div></section>
+ <section id="workspace" hidden>
+  <div class="workspace-head"><div><p class="eyebrow">CENTRO DE COMPRAS</p><h2>Material y solicitudes</h2></div><div class="workspace-controls"><a id="switch-role" class="text-button" href="/ecommerce?role=retailer">Cambiar de portal</a><button id="refresh" class="secondary">Actualizar ↻</button></div></div>
+  <div class="tabs" role="tablist" aria-label="Área de compras"><button id="tab-new" role="tab" aria-selected="true" aria-controls="new-panel">Solicitar material</button><button id="tab-orders" role="tab" aria-selected="false" aria-controls="orders-panel" tabindex="-1">Seguimiento de solicitudes</button></div>
+  <section id="new-panel" role="tabpanel" aria-labelledby="tab-new">
+   <div class="context-card"><div class="context-top"><span class="step-number">1</span><div><h3>La incidencia de origen</h3><p>El comercio y el destino se completan desde la intervención.</p></div></div><label>Intervención<select id="incident-select"><option value="">Selecciona una incidencia…</option></select></label><p id="incident-context" class="muted"></p><a id="incident-back" class="text-link" hidden>Ver incidencia ↗</a></div>
+   <div class="catalog-layout"><section class="catalog"><div class="section-title"><span class="step-number">2</span><div><h3>Elige el material</h3><p>Especifica el modelo compatible. El precio se confirma con presupuesto.</p></div></div><div id="categories" class="categories"></div></section>
+   <form id="request-form" class="request-card"><div class="section-title"><span class="step-number">3</span><div><h3>Tu solicitud</h3><p id="cart-count">Todavía sin artículos</p></div></div><div id="cart" class="cart"><p class="empty-copy">Añade una categoría para indicar qué necesitas.</p></div><label>Motivo de la compra<textarea id="reason" required minlength="10" maxlength="2000" rows="3" placeholder="Qué has detectado y por qué es necesario sustituirlo."></textarea></label><div class="form-grid"><label>Prioridad<select id="priority"><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><label>Indicaciones de entrega<textarea id="delivery-notes" maxlength="1000" rows="2" placeholder="Horario, persona de recepción o indicaciones para acceder."></textarea></label><p class="fine-print">Se envía al comercio para revisar y presupuestar. No se cobra ni se encarga material al enviar la solicitud.</p><button class="primary" id="submit-request" disabled>Enviar solicitud →</button><p id="request-status" class="form-message" role="status" aria-live="polite"></p></form></div>
+  </section>
+  <section id="orders-panel" role="tabpanel" aria-labelledby="tab-orders" hidden><div class="list-toolbar"><label>Estado<select id="status-filter"><option value="">Todos</option><option value="requested">Pendiente de aprobación</option><option value="approved">Aprobada</option><option value="ordered">Pedida</option><option value="received">Recibida</option><option value="installed">Instalada</option><option value="rejected">Rechazada</option><option value="cancelled">Cancelada</option></select></label><label><input type="checkbox" id="only-incident"> Solo esta incidencia</label><span id="list-count" class="muted"></span></div><div id="requests" class="requests"></div><button id="load-more" class="secondary" hidden>Ver más solicitudes</button></section>
+ </section>
+ <section class="assurance"><span>Incidencia vinculada</span><span>Aprobación registrada</span><span>Seguimiento compartido</span></section>
+</main>
+<dialog id="request-detail" aria-labelledby="detail-title"><div class="dialog-head"><div><p class="eyebrow">SEGUIMIENTO DE MATERIAL</p><h2 id="detail-title">Solicitud</h2></div><button id="close-detail" class="close" aria-label="Cerrar detalle">×</button></div><div id="detail-body"></div><p id="detail-status" class="form-message" role="status"></p></dialog>
+<footer><a class="brand" href="/">admira<span>●</span><small>APP</small></a><p>El equipo, el comercio y cada pieza. Conectados.</p><a href="/help">Ayuda ↗</a></footer>
+<script src="/yk-frame.js?v=20261029-ecommerce-1"></script>
+</body></html>

@@ -222,11 +222,14 @@ async function mutateIncident(id,request,success,filterAfter){
 }
 function dialogBusy(dialog,busy){dialog.setAttribute('aria-busy',String(busy));dialog.querySelectorAll('button').forEach(b=>b.disabled=busy);dialog.querySelectorAll('input,textarea').forEach(el=>{if(el.type==='file')el.disabled=busy;else el.readOnly=busy;});}
 
+function ecommerceReturnTarget(){try{const raw=new URLSearchParams(location.search).get('next');if(!raw||!raw.startsWith('/')||raw.startsWith('//')||raw.includes('\\'))return null;const u=new URL(raw,location.origin);return u.origin===location.origin&&/^\/ecommerce\/?$/.test(u.pathname)?u.pathname+u.search:null;}catch{return null;}}
+let incomingMaterialIncident=new URLSearchParams(location.search).get('incident');
 function showUser(){
+ const materialReturn=ecommerceReturnTarget();if(materialReturn){location.replace(materialReturn);return;}
  document.dispatchEvent(new CustomEvent('portal-auth',{detail:{kind:'installer',authenticated:true}}));
  if(profileOwner!==user.id){profileOwner=user.id;latestInbox=[];latestStats={unread:null,assigned:null,resolved:null};inboxLoaded=false;inboxError='';lastSyncAt=null;activeFilter='available';filterChosen=false;seen.clear();initialInbox=true;}
  document.body.classList.add('installer-signed-in');$('#onboarding').hidden=true;$('#dashboard').hidden=false;$('#advanced-integrations').hidden=false;$('#logout').hidden=false;$('#login-top').hidden=true;$('.edit-navigation').hidden=true;
- fillProfile();renderProfile();render(latestInbox);refresh();navigation({view:'dashboard'},true);resumeClosureAfterLogin();
+ fillProfile();renderProfile();render(latestInbox);refresh().then(()=>{const id=incomingMaterialIncident;incomingMaterialIncident=null;if(id&&latestInbox.some(i=>i.id===id&&i.mine))openIntervention(id);});navigation({view:'dashboard'},true);resumeClosureAfterLogin();
 }
 function signedOut(message=''){
  if(!message)forgetClosureReturn();
@@ -310,6 +313,7 @@ function renderIntervention(){
  const blocked=detailLoading||!!detailError||!!inboxError||pendingActions.has(i.id)||uploadingPhotos.has(i.id)||!current||changed;
  const button=(label,cls,action)=>{const b=node('button',label,cls);b.type='button';b.disabled=blocked;b.onclick=action;actions.append(b);return b;};
  if(i.status==='open'){const b=button(t('Aceptar intervención →','Accept job →'),'primary',async()=>{const r=await mutateIncident(i.id,()=>api('/incidents/'+encodeURIComponent(i.id)+'/accept',{}),t('Intervención aceptada.','Job accepted.'),'assigned');if(r.ok)await reloadIntervention();});b.disabled=blocked||!user?.available;}
+ if(i.mine){const material=node('a',t(i.status==='assigned'?'Solicitar material':'Ver material solicitado',i.status==='assigned'?'Request supplies':'View supply requests'),'secondary');material.href='/ecommerce?role=installer&incident='+encodeURIComponent(i.id);actions.append(material);}
  if(i.mine&&i.status==='assigned'){button(t('Comunicar avance','Post progress'),'secondary',()=>openProgress(i));button(t('Cerrar con fotos','Close with photos'),'primary',()=>openResolution(i));}
  actions.append(retry);
 }
