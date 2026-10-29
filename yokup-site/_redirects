@@ -1,5 +1,5 @@
-/ecommerce         /ecommerce.html    200
-/ecommerce/        /ecommerce.html    200
+# /ecommerce uses Pages' native clean-HTML routing. Rewriting it to the
+# .html asset returns a 308 to /ecommerce and creates a redirect loop.
 /agentica         /dashboard    301
 /agentica.html    /dashboard    301
 # Las dos puertas de la regla 24, ANTES del catch-all. Sin estas cuatro líneas el

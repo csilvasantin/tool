@@ -35,5 +35,5 @@ test('all portal entry points link material to the incident',()=>{
  assert.match(read('installer-portal.js'),/\/ecommerce\?role=installer&incident='\+encodeURIComponent\(i.id\)/);
  assert.match(read('retailer-incidencia.js'),/\/ecommerce\?role=retailer&incident='\+encodeURIComponent\(i.id\)/);
  assert.match(read('retailer-incidencia.html'),/id="ecommerce-link"/);
- assert.match(read('_redirects'),/^\/ecommerce\/\s+\/ecommerce.html\s+200$/m);
+ assert.doesNotMatch(read('_redirects'),/^\/ecommerce\/?\s+\/ecommerce\.html\s+200$/m);
 });
