@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {setup,call,account} from './test-fixture.mjs';
 import {handleRetailer} from './src/retailer-portal.js';
 import {handleInstaller} from './src/installer-portal.js';
+import {materialLine} from '../yokup-site/ecommerce-catalogue-model.mjs';
 
 async function api(env,kind,path,body,cookie,origin='https://www.admira.app',principal){
  const req=new Request('https://data.admira.app/api/'+kind+path,{method:body?'POST':'GET',headers:{Origin:origin,'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},body:body?JSON.stringify(body):undefined});
@@ -25,6 +26,16 @@ async function fixture(){
 }
 const mutate=(f,p,action,extra={},kind='retailer',cookie=f.shop.cookie)=>api(f.env,kind,'/ecommerce/requests/'+p.id,{action,version:p.version,request_key:crypto.randomUUID(),...extra},cookie);
 async function quote(f,p){return mutate(f,p,'quote',{prices_cents:[12345],shipping_cents:500,tax_cents:5290,supplier:'Proveedor de prueba',quote_reference:'TEST-QUOTE',quote_url:'https://example.test/quote'});}
+
+test('an imported Elipsys reference survives creation and retrieval with no assumed price',async()=>{
+ const f=await fixture(),data=JSON.parse(readFileSync(new URL('../yokup-site/data/ecommerce-elipsys.json',import.meta.url),'utf8'));
+ const product=data.products.find(p=>p.sku==='QM55C'),line=materialLine(product,2);
+ const created=await api(f.env,'installer','/ecommerce/requests',{...f.body,items:[line]},f.tech.cookie);
+ assert.equal(created.status,201,JSON.stringify(created.body));
+ const fetched=await api(f.env,'retailer','/ecommerce/requests/'+created.body.request.id,undefined,f.shop.cookie);
+ const item=fetched.body.request.items[0];assert.equal(item.category,'screen');assert.equal(item.quantity,2);assert.equal(item.name,line.name);assert.equal(item.specification,line.specification);
+ assert.match(item.specification,/SKU: QM55C/);assert.match(item.specification,/https:\/\/clientes\.elipsys\.es\/\?s=QM55C/);assert.equal(item.unit_price_cents,null);assert.equal(fetched.body.request.total_cents,null);
+});
 
 test('assigned technician creates one durable request tied to the server-owned incident and site',async()=>{
  const f=await fixture(),r=await f.create();assert.equal(r.status,201,JSON.stringify(r.body));
