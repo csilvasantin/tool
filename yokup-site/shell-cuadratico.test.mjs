@@ -25,6 +25,7 @@ const gate = readFileSync(new URL("../yokup-site-gate/src/index.js", import.meta
 // Páginas sin el marco, cada una con su motivo (revisadas una a una, 1-oct-2026).
 export const SHELL_EXCEPTIONS = {
   "conversar-display.html": "Interfaz de Meta Display a 600dp: sin marco de escritorio; solo datos con sesión de conversación aprobada por código y revocable.",
+  "casas/index.html": "Modo kiosko a pantalla completa (canal admira.tv y web de Casas al tocar): sin marco de escritorio.",
   "trackandfield.html": "Juego a pantalla completa; excluido también del sellado del deploy por contrato.",
   "alta-punto.html": "Inalcanzable: el guardián sirve /retailer.html en /alta-punto (alta antigua del punto).",
   "alta-instalador.html": "Inalcanzable: el guardián sirve /instalador.html en /alta-instalador.",
