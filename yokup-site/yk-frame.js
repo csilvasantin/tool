@@ -1847,7 +1847,7 @@
   // Ver docs/marca-blanca-yokup.md.
   var MB_SESSION_KEY = "mb:marca";
   var MARCA_VERB = /^\/?(?:marca|brand|marcablanca)$/i;
-  var BRAND_SEED = ["admira", "lumbre", "brumelle", "frescaria"];
+  var BRAND_SEED = ["admira", "netflix", "lumbre", "brumelle", "frescaria"];
   function wantsBrand(search, storage) {
     var q = null;
     try { q = new URLSearchParams(search || "").get("marca"); } catch (e) {}
@@ -1911,6 +1911,8 @@
     write(t("Aplicando la marca " + p.id + "…", "Applying the " + p.id + " brand…"));
     return M.activar(p.id).then(function (res) {
       if (res.ok) { write(t("Marca " + res.nombre + " (" + res.id + ") activa" + tag(res) + ". Se mantiene al navegar en esta pestaña; /marca off vuelve a Admira.", res.nombre + " (" + res.id + ") brand on" + tag(res) + ". It stays while you browse in this tab; /marca off returns to Admira.")); return {ok:true}; }
+      if (res.reason === "cancelled") { write(t("Cambio de marca cancelado por una orden posterior.", "Brand change cancelled by a later command.")); return {ok:false}; }
+      if (p.id === "netflix") { write(t("No se pudieron cargar los estilos de Netflix. Vuelve a intentarlo; /brand off restaura Admira.", "Netflix styles could not be loaded. Try again; /brand off restores Admira.")); return {ok:false}; }
       if (res.reason === "unknown") {
         write(t("La marca «" + p.id + "» no está en el catálogo de admiranext.com. No se ha aplicado nada.", "The brand “" + p.id + "” is not in the admiranext.com catalogue. Nothing was applied.") + "\n" +
           t("Disponibles: ", "Available: ") + list(M.conocidas()) + t(". Para crearla: /marca <web de la marca>.", ". To create it: /marca <brand website>."));
@@ -1972,6 +1974,8 @@
     L.push(t("  /demo idioma — enseña que el cuerpo de la portada cambia de idioma", "  /demo idioma — shows that the homepage body changes language"));
     L.push(t("  /marca [marca] — Marca blanca del catálogo de admiranext.com/marcablanca: /marca <id> viste la web con esa marca, /marca off vuelve a Admira, /marca sola dice cuál está activa y lista las disponibles, /marca <web> abre el analizador en otra pestaña. Alias: /brand.",
       "  /marca [brand] — White label from the admiranext.com/marcablanca catalogue: /marca <id> dresses the site in that brand, /marca off returns to Admira, /marca alone shows the active one and lists them, /marca <website> opens the analyser in a new tab. Alias: /brand."));
+    L.push(t("  /brand Netflix — activa el aspecto Netflix incluido en la aplicación. /brand off o /brand admira restaura la vista habitual. Solo se recuerda en esta pestaña.",
+      "  /brand Netflix — enables the bundled Netflix look. /brand off or /brand admira restores the default view. Remembered only in this tab."));
     PAGE_VERB_DEFS.forEach(function (def) {
       L.push("  /" + def.id + (def.aliases && def.aliases.length ? " (/" + def.aliases.join(", /") + ")" : "") + " — " + (en ? (def.en || def.es || "") : (def.es || def.en || "")));
     });
@@ -2033,7 +2037,7 @@
     LOCAL_CLI.print("Motor de comandos cargando. Inténtalo de nuevo.");
   }
   function connectSuiteCommands(engine) {
-    engine.registerAdapter({id:'app',verbs:[{name:'marca',alias:['brand','marcablanca'],desc:['Marca blanca','White label'],run:function(args){return cargarMarca().then(function(M){return runMarca(args.join(' '),M,localEn(),LOCAL_CLI.print);});}}]});
+    engine.registerAdapter({id:'app',verbs:[{name:'marca',alias:['brand','marcablanca'],desc:['Marca blanca · /brand Netflix activa Netflix; /brand off vuelve a Admira','White label · /brand Netflix enables Netflix; /brand off returns to Admira'],run:function(args){return cargarMarca().then(function(M){return runMarca(args.join(' '),M,localEn(),LOCAL_CLI.print);});}}]});
     PAGE_VERB_DEFS.forEach(function(def){registerSuiteVerb(engine,def);});
   }
   function registerSuiteVerb(engine,def) {
@@ -2062,7 +2066,7 @@
     var form = el("form", "yk-lcli-form"); form.setAttribute("autocomplete", "off");
     var prompt = el("span", "yk-lcli-prompt", "›"); prompt.setAttribute("aria-hidden", "true");
     var input = document.createElement("input");
-    input.type = "text"; input.className = "yk-lcli-input"; input.placeholder = "/help · /marca starbucks";
+    input.type = "text"; input.className = "yk-lcli-input"; input.placeholder = "/help · /brand Netflix";
     input.setAttribute("aria-label", "Orden de la consola local"); input.spellcheck = false; input.setAttribute("autocapitalize", "off");
     var run = el("button", "yk-lcli-run", "Ejecutar"); run.type = "submit";
     form.appendChild(prompt); form.appendChild(input); form.appendChild(run);
