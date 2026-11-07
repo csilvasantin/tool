@@ -4,6 +4,8 @@ Yokup (yokup.com, la pata «Yokup mantiene») puede vestirse con la marca de un 
 
 Estado: implementado en la rama `morfeo/shell-marca-yokup` (pendiente de push y despliegue por el coordinador).
 
+Extensión de noviembre de 2026: [Netflix en admira.app](admira-netflix.md), preset local activable con `/brand Netflix`, sin dependencia del catálogo remoto y con vuelta atrás mediante `/brand off`.
+
 ## Cómo se activa
 
 | Cómo | Efecto |

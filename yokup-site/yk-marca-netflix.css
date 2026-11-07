@@ -1,0 +1,56 @@
+/* Netflix: opt-in only. Scoped separately from the shared catalogue bridge.
+   Red fills use #e50914; smaller red text uses a lighter accessible token.
+   No font download, filter, content replacement, or change to page layout/data. */
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body {
+  --white:var(--mb-superficie);--radius:6px;
+  background:#141414;color:#fff;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(h1,h2,h3) {font-weight:800}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] .yk-bar {
+  background:#080808;border-bottom:2px solid #e50914;box-shadow:0 8px 28px #0006;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] .mb-bar-logo {height:25px;max-width:120px}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] .yk-bar .yk-logo {letter-spacing:0;font-size:9px}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] .yk-bar .yk-nav a.on {box-shadow:inset 0 -2px 0 #e50914}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .hero {background:radial-gradient(ellipse at 10% 0%,#e5091412,transparent 65%)}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(h1 em,.hero h1 span,.training-hero h1 span) {color:#fff}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .hero .eyebrow {color:#ff5962}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.primary:not(.yk-frame *),.btn.primary,button.primary,a.primary,.yk-local-cli .yk-lcli-run) {
+  background:#e50914;border-color:#e50914;color:#fff;border-radius:4px;box-shadow:none;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.primary:not(.yk-frame *),.btn.primary,button.primary,a.primary,.yk-local-cli .yk-lcli-run):hover {
+  background:#c11119;border-color:#c11119;color:#fff;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .signup-cta span {background:transparent;color:#fff}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.secondary,.globe-toolbar button,.remove) {
+  background:#303030;border-color:#666;color:#fff;border-radius:4px;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.secondary,.globe-toolbar button,.remove):hover {background:#414141;color:#fff}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.hero-benefits li::before,.offer-icon) {background:#2a1a1b;color:#ff5962;border-radius:4px}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.offer-grid article,.access-card,.category,.request-card,.request-row,.connection-card) {
+  background:#181818;border-color:#454545;border-radius:6px;box-shadow:0 8px 24px #0003;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.category,.request-row):hover {background:#232323;border-color:#777}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.flow-card,.join-section) {
+  background:linear-gradient(125deg,#2b1014,#181818 60%);border:1px solid #673038;border-radius:6px;color:#fff;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.join-section h2,.flow-card h2) {color:#fff}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.join-section p,.flow-card p,.mini-label,.offer-tag) {color:#b3b3b3}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.join-section .eyebrow,.flow-card li b) {color:#ff5962}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.globe-message,.globe-loading,.globe-error,.context-card,.notice) {
+  background:#181818;border-color:#454545;color:#b3b3b3;border-radius:6px;
+}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body #home-globe {background:#141414}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .globe-loading::before {background:radial-gradient(circle at 35% 35%,#383838,#181818);border-color:#454545}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .error-orbit {color:#b3b3b3}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .globe-toolbar {border-color:#454545}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(input,select,textarea) {background:#232323;color:#fff;border-color:#666;border-radius:4px}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(input,textarea)::placeholder {color:#b3b3b3}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.request-card .step-number,.step-number) {background:#303030;color:#ff5962}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .badge {background:#303030;color:#fff}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .form-message {color:#f5c76b}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :focus-visible {outline:2px solid #fff;outline-offset:3px}
+@media (max-width:680px) {
+  html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] .mb-bar-logo {height:20px;max-width:84px}
+  html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] .yk-bar .yk-logo {font-size:8px;padding-left:6px}
+}

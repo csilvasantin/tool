@@ -9,7 +9,8 @@
 //
 // Sin marca activa (ni ?marca=<id> ni marca recordada en la pestaña, o ?marca=admira/off)
 // este fichero no hace nada más: no inserta estilos ni pide nada a admiranext.com.
-// Con marca, primero comprueba que existe en el catálogo (/marcablanca/api/marcas/<id>,
+// Netflix es un preset local incluido en el despliegue. Para las demás marcas,
+// primero comprueba que existen en el catálogo (/marcablanca/api/marcas/<id>,
 // 8 s como mucho) y solo entonces carga marcablanca.css + marcablanca.js (plataforma
 // «yokup», sin arranque automático) y yk-marca.css (los ajustes propios de Yokup) y la
 // aplica. Si algo falla, Yokup se queda como estaba. Ver docs/marca-blanca-yokup.md.
@@ -23,8 +24,21 @@
   const ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
   const OFF = ['off', 'admira', 'ninguna', 'ninguno', 'none', 'default', 'apagar', 'quitar', 'reset'];
   const MODES = ['marca', 'nativo', 'claro', 'oscuro', 'auto'];
+  // Preset incluido en la aplicación: /brand Netflix funciona sin el catálogo remoto.
+  // Nunca se carga ni se aplica en una visita sin marca.
+  const NETFLIX = Object.freeze({id: 'netflix', nombre: 'Netflix', variables: Object.freeze({
+    '--mb-fondo': '#141414', '--mb-superficie': '#181818', '--mb-superficie-alt': '#232323',
+    '--mb-texto': '#ffffff', '--mb-texto-suave': '#b3b3b3', '--mb-borde': '#454545',
+    '--mb-primario': '#ff5962', '--mb-primario-texto': '#141414', '--mb-secundario': '#ffffff',
+    '--mb-acento': '#ff5962', '--mb-acento-texto': '#141414', '--mb-netflix-red': '#e50914',
+    '--mb-ok': '#65d78b', '--mb-error': '#ff8087', '--mb-aviso': '#f5c76b', '--mb-info': '#80baff',
+    '--mb-fuente-texto': 'Arial, Helvetica, sans-serif', '--mb-fuente-titulos': 'Arial, Helvetica, sans-serif',
+    '--mb-fuente-etiquetas': 'Arial, Helvetica, sans-serif', '--mb-fuente-mono': 'ui-monospace, monospace',
+    '--mb-titulos-tracking': '-.035em', '--mb-radio-sm': '4px', '--mb-radio-boton': '4px',
+  })});
   const SEED = [
     {id: 'admira', nombre: 'Admira', ejemplo: false},
+    {id: 'netflix', nombre: 'Netflix', ejemplo: false},
     {id: 'lumbre', nombre: 'Lumbre Café', ejemplo: true},
     {id: 'brumelle', nombre: 'BRUMELLE', ejemplo: true},
     {id: 'frescaria', nombre: 'Frescaria Supermercados', ejemplo: true},
@@ -168,7 +182,7 @@
     };
   }
 
-  const api = {BASE, PLATAFORMA, SESSION_KEY, MODE_KEY, SEED, OFF, ID_RE, TIMEOUT, fold, isOff, decide, decideMode, looksLikeUrl, normalizeUrl, analyzerUrl, brandUrl, parseArg, parseColor, contrast, pick, shellTokens};
+  const api = {BASE, PLATAFORMA, SESSION_KEY, MODE_KEY, SEED, OFF, ID_RE, TIMEOUT, NETFLIX, fold, isOff, decide, decideMode, looksLikeUrl, normalizeUrl, analyzerUrl, brandUrl, parseArg, parseColor, contrast, pick, shellTokens};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document === 'undefined' || root.AdmiraMarca) return;
 
@@ -179,6 +193,9 @@
   const LOCAL_CSS = (() => {
     try { const u = new URL('yk-marca.css', script.src); u.search = new URL(script.src).search; return u.href; } catch (_) { return '/yk-marca.css'; }
   })();
+  const localBase = new URL(LOCAL_CSS, location.href);
+  const netflixAsset = file => new URL(file, localBase).href;
+  const NETFLIX_CSS = (() => { const u = new URL('yk-marca-netflix.css', localBase); u.search = localBase.search; return u.href; })();
   const session = (() => { try { return root.sessionStorage; } catch (_) { return null; } })();
   const store = {
     get: k => { try { return session && session.getItem(k); } catch (_) { return null; } },
@@ -193,9 +210,13 @@
   let loaderPromise = null, cssPromise = null, catalogPromise = null;
   let snapshot = null;         // favicon y theme-color originales
   let titleObserver = null, chromeObserver = null, chromeQueued = false;
+  let activationVersion = 0, activationQueue = Promise.resolve();
+  const styleLinks = new Map();
 
   function timeout(promise, ms, label) {
-    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(label + ': sin respuesta')), ms))]);
+    let timer;
+    return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label + ': sin respuesta')), ms); })])
+      .finally(() => clearTimeout(timer));
   }
   const getJson = url => fetch(url, {credentials: 'omit'}).then(r => {
     if (!r.ok) throw Object.assign(new Error(String(r.status)), {status: r.status});
@@ -219,13 +240,17 @@
 
   // 2 · Solo con la marca comprobada: estilos (común + propios) y el cargador común.
   function addLink(href) {
-    return new Promise((resolve, reject) => {
+    if (styleLinks.has(href)) return styleLinks.get(href);
+    const pending = new Promise((resolve, reject) => {
       const link = doc.createElement('link');
       link.rel = 'stylesheet'; link.href = href; link.setAttribute('data-admira-marca', '');
       link.onload = () => resolve(link);
       link.onerror = () => { link.remove(); reject(new Error('no se pudo cargar ' + href)); };
       doc.head.append(link);
     });
+    styleLinks.set(href, pending);
+    pending.catch(() => { if (styleLinks.get(href) === pending) styleLinks.delete(href); });
+    return pending;
   }
   // Si el puente común no llega, los ajustes locales bastan: llevan su propio puente yokup.
   function loadCss() {
@@ -260,6 +285,7 @@
   function removeCss() {
     for (const link of doc.querySelectorAll('link[data-admira-marca]')) link.remove();
     cssPromise = null;
+    styleLinks.clear();
   }
 
   // Catálogo: solo se pide si hay marca o si se usa /marca (nunca en una visita normal).
@@ -271,9 +297,9 @@
             .filter(c => c && ID_RE.test(c.id || ''))
             .map(c => ({id: c.id, nombre: String(c.nombre || c.id), ejemplo: !!c.ejemplo || !!(c.catalogo && c.catalogo.tipo === 'ejemplo'), propuesta: !!(c.catalogo && c.catalogo.propuesta)}));
           if (!list.length) throw new Error('catálogo vacío');
-          known = list;
-          doc.dispatchEvent(new CustomEvent('admira:marcas', {detail: {marcas: list}}));
-          return list;
+          known = [{id: NETFLIX.id, nombre: NETFLIX.nombre, ejemplo: false}, ...list.filter(c => c.id !== NETFLIX.id)];
+          doc.dispatchEvent(new CustomEvent('admira:marcas', {detail: {marcas: known}}));
+          return known.slice();
         });
       catalogPromise.catch(() => { catalogPromise = null; });
     }
@@ -335,7 +361,7 @@
     if (!slot.firstChild) {
       // El cargador pinta los [data-mb-logo] al aplicar; si la barra llega después, el logo se copia.
       const m = root.MarcaBlanca && root.MarcaBlanca.actual && root.MarcaBlanca.actual.marca;
-      const logo = m && m.logo;
+      const logo = current.id === 'netflix' ? {imagen: netflixAsset('brand-assets/netflix-wordmark.svg'), alt: 'Netflix'} : m && m.logo;
       if (logo && logo.imagen && !logo.svg) {
         const img = doc.createElement('img');
         img.src = logo.imagen; img.alt = logo.alt || current.nombre; img.className = 'mb-logo-img'; img.decoding = 'async';
@@ -375,6 +401,9 @@
     snapshot = {
       icons: [...doc.querySelectorAll('link[rel~="icon"]:not([data-mb-favicon])')].map(l => l.cloneNode(true)),
       theme: theme ? theme.getAttribute('content') : null,
+      rootStyle: [...Array(html.style.length)].map((_, i) => html.style[i])
+        .filter(p => p === 'color-scheme' || p.startsWith('--mb-') || p.startsWith('--mbx-'))
+        .map(p => [p, html.style.getPropertyValue(p), html.style.getPropertyPriority(p)]),
     };
   }
   function restoreSnapshot() {
@@ -387,6 +416,7 @@
     }
     const theme = doc.querySelector('meta[name="theme-color"]');
     if (snapshot.theme == null) { if (theme) theme.remove(); } else if (theme) theme.setAttribute('content', snapshot.theme);
+    for (const [p, value, priority] of snapshot.rootStyle) html.style.setProperty(p, value, priority);
     snapshot = null;
   }
   // Título de la pestaña: «Nombre del cliente · título de la página».
@@ -426,21 +456,61 @@
     id = canonica(id);
     if (isOff(id)) return Promise.resolve(Object.assign({ok: true, off: true}, desactivar()));
     if (!ID_RE.test(id)) return Promise.resolve({ok: false, reason: 'invalid', id});
-    const modo = opts.modo || decideMode(location.search, session);
+    const version = ++activationVersion;
+    // La consulta empieza inmediatamente, pero las escrituras se serializan. Un off
+    // invalida también una activación pendiente: ninguna respuesta tardía la repone.
+    const checked = (id === NETFLIX.id ? Promise.resolve(NETFLIX) : comprobar(id))
+      .then(m => ({m}), error => ({error}));
+    const run = () => applyChecked(id, opts, version, checked);
+    const result = activationQueue.then(run, run);
+    activationQueue = result.catch(() => {});
+    return result;
+  }
+
+  function applyNetflix() {
+    clearRoot();
+    for (const [k, v] of Object.entries(NETFLIX.variables)) html.style.setProperty(k, v);
+    html.style.setProperty('color-scheme', 'dark');
+    html.setAttribute('data-mb-marca', NETFLIX.id);
+    html.setAttribute('data-mb-plataforma', PLATAFORMA);
+    html.setAttribute('data-mb-modo', 'oscuro');
+    for (const l of doc.querySelectorAll('link[rel~="icon"]')) l.remove();
+    const icon = doc.createElement('link');
+    icon.rel = 'icon'; icon.href = netflixAsset('brand-assets/netflix.ico'); icon.setAttribute('data-mb-favicon', '');
+    doc.head.append(icon);
+    let theme = doc.querySelector('meta[name="theme-color"]');
+    if (!theme) { theme = doc.createElement('meta'); theme.name = 'theme-color'; doc.head.append(theme); }
+    theme.setAttribute('content', '#141414');
+    return {id: NETFLIX.id, marca: NETFLIX, modo: 'oscuro', variables: NETFLIX.variables};
+  }
+
+  function applyChecked(id, opts, version, checked) {
+    const guard = () => { if (version !== activationVersion) throw Object.assign(new Error('cancelled'), {reason: 'cancelled'}); };
+    const modo = id === NETFLIX.id ? 'oscuro' : opts.modo || decideMode(location.search, session);
     const previous = current;
-    return comprobar(id)
-      // Existe: se recuerda ya en la pestaña (como el cargador común), aunque se navegue antes de pintarla.
-      .then(m => { store.set(SESSION_KEY, id); return m; })
-      .then(m => Promise.all([loadLoader(modo), loadCss()]).then(([MB]) => ({MB, m}),
-        () => { throw Object.assign(new Error('network'), {reason: 'network'}); }))
+    let applying = false, restorePoint = null;
+    return checked
+      .then(({m, error}) => { guard(); if (error) throw error; return m; })
+      .then(m => {
+        guard();
+        if (id === NETFLIX.id) return Promise.all([
+          timeout(addLink(LOCAL_CSS), TIMEOUT, 'yk-marca.css'),
+          timeout(addLink(NETFLIX_CSS), TIMEOUT, 'yk-marca-netflix.css'),
+        ]).then(() => ({MB: null, m}));
+        return Promise.all([loadLoader(modo), loadCss()]).then(([MB]) => ({MB, m}));
+      })
       .then(({MB, m}) => {
+        guard();
         takeSnapshot();
+        restorePoint = snapshot;
+        applying = true;
         const slot = logoSlot(true);
         if (slot && !previous) slot.hidden = true;
         else if (slot) slot.replaceChildren();
-        return MB.aplicar(id, {plataforma: PLATAFORMA, modo}).then(detail => ({detail, m}));
+        return Promise.resolve(MB ? MB.aplicar(id, {plataforma: PLATAFORMA, modo}) : applyNetflix()).then(detail => ({detail, m}));
       })
       .then(({detail, m}) => {
+        guard();
         const marca = detail.marca || m;
         const nombre = String(marca.nombre || id);
         const catalogo = marca.catalogo || m.catalogo || {};
@@ -460,6 +530,10 @@
         return Object.assign({ok: true}, current);
       })
       .catch(error => {
+        if (version !== activationVersion) {
+          if (applying) { if (!snapshot) snapshot = restorePoint; cleanup(); current = null; }
+          return {ok: false, reason: 'cancelled', id};
+        }
         // Nada a medias: sin marca previa se deja Yokup como estaba.
         if (!previous || !current) { cleanup(); current = null; }
         const reason = (error && error.reason) || 'network';
@@ -470,7 +544,8 @@
 
   function cleanup() {
     unwatchChrome();
-    clearRoot();
+    // Un fallo anterior a aplicar la marca no debe borrar estilos nativos.
+    if (snapshot) clearRoot();
     const slot = logoSlot(false); if (slot) slot.remove();
     const b = backButton(false); if (b) b.remove();
     restoreTitle();
@@ -480,6 +555,7 @@
 
   /** Vuelve a Admira (el aspecto propio de Yokup), sin recargar. */
   function desactivar() {
+    activationVersion++;
     const was = current;
     store.del(SESSION_KEY);
     store.del(MODE_KEY);
@@ -523,7 +599,7 @@
         if (root.console) console.warn('marca blanca: no se aplicó «' + decision.id + '» (' + r.reason + ')');
         doc.dispatchEvent(new CustomEvent('admira:marca-error', {detail: r}));
       }
-      if (r.ok) listar().catch(() => {});
+      if (r.ok && decision.id !== NETFLIX.id) listar().catch(() => {});
     });
   }
 })(typeof window === 'undefined' ? globalThis : window);
