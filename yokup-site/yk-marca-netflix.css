@@ -26,7 +26,8 @@ html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.secondary,.g
   background:#303030;border-color:#666;color:#fff;border-radius:4px;
 }
 html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.secondary,.globe-toolbar button,.remove):hover {background:#414141;color:#fff}
-html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.hero-benefits li::before,.offer-icon) {background:#2a1a1b;color:#ff5962;border-radius:4px}
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .hero-benefits li::before,
+html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body .offer-icon {background:#2a1a1b;color:#ff5962;border-radius:4px}
 html[data-mb-marca="netflix"][data-mb-plataforma="yokup"] body :is(.offer-grid article,.access-card,.category,.request-card,.request-row,.connection-card) {
   background:#181818;border-color:#454545;border-radius:6px;box-shadow:0 8px 24px #0003;
 }
