@@ -22,7 +22,7 @@ async function fleetCensus(request, ctx, fetchImpl = fetch, env = {}) {
     if (!response.ok) throw new Error("el Mac Mini respondió " + response.status);
     const data = await response.json();
     if (!data || !Array.isArray(data.machines)) throw new Error("censo con forma inesperada");
-    payload = {...data, machines:data.machines.map(({ip, sshHost, sshUser, probeUser, ...m}) => m), servedAt:Math.floor(Date.now() / 1000), via:"site-gate"};
+    payload = {...data, machines:data.machines.map(({ip, sshHost, sshUser, probeUser, probeVia, ...m}) => m), servedAt:Math.floor(Date.now() / 1000), via:"site-gate"};
   } catch (error) {
     status = 503;
     payload = {ok:false, error:String(error && error.message || error), servedAt:Math.floor(Date.now() / 1000), via:"site-gate"};

@@ -13,7 +13,7 @@
 const ORIGEN = "https://macmini.tail48b61c.ts.net/api/council/fleet-census";
 const TIMEOUT_MS = 6000;
 // Respuesta pública: sin IPs ni usuarios SSH (seguridad máxima, 2026-11-20).
-const sinRed = ({ ip, sshHost, sshUser, probeUser, ...m }) => m;
+const sinRed = ({ ip, sshHost, sshUser, probeUser, probeVia, ...m }) => m;
 const CACHE_SEG = 15;
 
 export async function onRequestGet(context) {
