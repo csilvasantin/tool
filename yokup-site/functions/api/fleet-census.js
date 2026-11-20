@@ -12,6 +12,8 @@
 
 const ORIGEN = "https://macmini.tail48b61c.ts.net/api/council/fleet-census";
 const TIMEOUT_MS = 6000;
+// Respuesta pública: sin IPs ni usuarios SSH (seguridad máxima, 2026-11-20).
+const sinRed = ({ ip, sshHost, sshUser, probeUser, ...m }) => m;
 const CACHE_SEG = 15;
 
 export async function onRequestGet(context) {
@@ -31,7 +33,7 @@ export async function onRequestGet(context) {
     if (!r.ok) throw new Error("el Mac Mini respondió " + r.status);
     const data = await r.json();
     if (!data || !Array.isArray(data.machines)) throw new Error("censo con forma inesperada");
-    payload = { ...data, servedAt: Math.floor(Date.now() / 1000), via: "pages-function" };
+    payload = { ...data, machines: data.machines.map(sinRed), servedAt: Math.floor(Date.now() / 1000), via: "pages-function" };
   } catch (err) {
     status = 503;
     payload = {
