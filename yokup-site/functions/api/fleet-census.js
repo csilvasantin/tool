@@ -25,7 +25,9 @@ export async function onRequestGet(context) {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   let payload, status = 200;
   try {
-    const r = await fetch(ORIGEN, { signal: ctrl.signal, cf: { cacheTtl: 0 } });
+    // Guardia del Mac Mini (2026-11-20): el Funnel exige X-Admira-Hub (secreto HUB_GUARDIA).
+    const headers = context.env && context.env.HUB_GUARDIA ? { "x-admira-hub": context.env.HUB_GUARDIA } : {};
+    const r = await fetch(ORIGEN, { headers, signal: ctrl.signal, cf: { cacheTtl: 0 } });
     if (!r.ok) throw new Error("el Mac Mini respondió " + r.status);
     const data = await r.json();
     if (!data || !Array.isArray(data.machines)) throw new Error("censo con forma inesperada");

@@ -9,14 +9,16 @@ function releaseFromEnv(env) {
   try { return JSON.parse(String(env.RELEASE_JSON || "")); } catch (_) { return null; }
 }
 
-async function fleetCensus(request, ctx, fetchImpl = fetch) {
+async function fleetCensus(request, ctx, fetchImpl = fetch, env = {}) {
   if (request.method !== "GET") return new Response("Method Not Allowed", {status:405, headers:{Allow:"GET"}});
   const cacheKey = new Request(new URL(request.url).origin + "/api/fleet-census", {method:"GET"});
   const hit = await caches.default.match(cacheKey);
   if (hit) return hit;
   let payload, status = 200;
   try {
-    const response = await fetchImpl(CENSUS_ORIGIN, {signal:AbortSignal.timeout(6000), cf:{cacheTtl:0}});
+    // Guardia del Mac Mini: el Funnel exige X-Admira-Hub (secreto HUB_GUARDIA del worker).
+    const headers = env && env.HUB_GUARDIA ? {"x-admira-hub": env.HUB_GUARDIA} : {};
+    const response = await fetchImpl(CENSUS_ORIGIN, {headers, signal:AbortSignal.timeout(6000), cf:{cacheTtl:0}});
     if (!response.ok) throw new Error("el Mac Mini respondió " + response.status);
     const data = await response.json();
     if (!data || !Array.isArray(data.machines)) throw new Error("censo con forma inesperada");
@@ -88,7 +90,7 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   if (incoming.pathname === "/auth/challenge" || incoming.pathname === "/auth/callback") {
     return authProxy(request, fetchImpl);
   }
-  if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
+  if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl, env);
   if (incoming.pathname === "/mcp/galaxia.json") return galaxia(request, ctx, fetchImpl, release.version);
   // www.yokup.com lo sirve este worker, no Pages. Un POST a un asset tira 1101
   // y la pregunta del avatar no llega a la función. La función vive en el mismo
